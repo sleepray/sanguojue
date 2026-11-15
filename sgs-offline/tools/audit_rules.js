@@ -3338,6 +3338,13 @@ const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',')
     t('T213', '张辽突袭触发陆逊连营', ok, '张辽手牌=' + p.hand.length + '，陆逊手牌=' + q.hand.length + '，连营=' + g.logs.some((l) => /连营/.test(l.text)));
   }
 
+  // T214 拼音卡名统一显示中文
+  {
+    const g = game([{ name: '甲', skills: [] }, { name: '乙', skills: [] }]);
+    const txt = g.cardText({ name: 'shandian', suit: 'spade', rank: 2 });
+    t('T214', '拼音卡名归一化', txt.indexOf('闪电') >= 0 && txt.indexOf('shandian') < 0, txt);
+  }
+
   // 汇总
   const pass = results.filter((r) => r.pass).length;
   console.log('\nSUMMARY pass=' + pass + '/' + results.length);

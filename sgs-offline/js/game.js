@@ -981,12 +981,13 @@
       if (!phys) { phys = { id: -1, name: '无', suit: 'spade', rank: 1, color: 'black' }; }
       // 红颜等改花色技能只影响本次判定视图，不改写牌堆里的实体牌
       let card = this.effCard(who, phys);
-      const reasonLabel = (CARDS[reason] && CARDS[reason].name) || reason;
+      const reasonKey = CARDS[reason] ? reason : Object.keys(CARDS).find((k) => CARDS[k].pinyin === reason);
+      const reasonLabel = reasonKey ? CARDS[reasonKey].name : reason;
       this.log(`${this.nameOf(who)} 判定（${reasonLabel}）：${this.cardText(card)}`, 'judge');
       // 结构化判定事件：不依赖日志文本解析，延时锦囊/八卦/铁骑都走同一浮层
       this.recent.push({
         kind: 'judge', seat: who.seat,
-        reason: (CARDS[reason] && CARDS[reason].name) || reason,
+        reason: reasonLabel,
         who: this.nameOf(who),
         card: { name: card.name, suit: card.suit, rank: card.rank, color: card.color },
       });
@@ -1862,7 +1863,8 @@
       if (c.id === -1) return '无';
       const s = SUITS[c.suit] || { cn: '◇', color: 'none' };
       const r = D.RANK_CN[c.rank] || c.rank;
-      return `【${CARDS[c.name] ? CARDS[c.name].name : c.name}】${s.cn}${r}`;
+      const key = CARDS[c.name] ? c.name : Object.keys(CARDS).find((k) => CARDS[k].pinyin === c.name);
+      return `【${key ? CARDS[key].name : c.name}】${s.cn}${r}`;
     }
 
     // ---------------- 获得/失去牌 ----------------

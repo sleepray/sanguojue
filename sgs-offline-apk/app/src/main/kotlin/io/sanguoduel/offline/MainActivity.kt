@@ -143,11 +143,18 @@ class MainActivity : Activity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
+    private var backPending = false
+
     private fun handleBack() {
-        if (::webView.isInitialized && webView.canGoBack()) {
-            webView.goBack()
-        } else {
-            finish()
+        if (!::webView.isInitialized) { finish(); return }
+        if (backPending) return
+        backPending = true
+        webView.evaluateJavascript(
+            "(function(){try{return (window.SGS_BACK && SGS_BACK())===true}catch(e){return false}})()"
+        ) { value ->
+            backPending = false
+            // 只有 H5 明确返回 false（主菜单）才退出 App
+            if (value != "true") finish()
         }
     }
 

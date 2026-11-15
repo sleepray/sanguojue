@@ -937,6 +937,9 @@
         this.emit();
       }
       this.toDiscard(pool);
+      this.recent.push({ kind: 'wuguEnd' });
+      if (this.recent.length > 200) this.recent.shift();
+      this.emit();
     },
 
     async resolveFireAttack(p, vc, target) {

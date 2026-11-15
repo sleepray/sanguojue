@@ -131,7 +131,15 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
-  function cardDef(name) { return CARDS[name] || { name: name || '？', pinyin: 'sha', type: 'basic', desc: '' }; }
+  function cardDef(name) {
+    let def = CARDS[name];
+    if (!def && name != null) {
+      const key = Object.keys(CARDS).find(function (k) { return CARDS[k].pinyin === name || CARDS[k].name === name; });
+      if (key) def = CARDS[key];
+    }
+    return def || { name: name || '？', pinyin: 'sha', type: 'basic', desc: '' };
+  }
+  function cardDisplayName(name) { return cardDef(name).name; }
   function cardImg(name) { const d = cardDef(name); return d && d.noArt ? '' : ('assets/cards/' + d.pinyin + '.png'); }
   function cardImgOf(c) { return cardImg(c && c.name); }
   function cardImgTag(c) { const src = cardImgOf(c); return src ? '<img src="' + src + '" alt="" onerror="this.onerror=null;this.style.display=&quot;none&quot;">' : '<span class="card-noimg"></span>'; }
@@ -1570,7 +1578,7 @@
     const cardText = m[3].trim();
     const cm = /【(.+?)】([♠♥♣♦])(A|10|[2-9]|J|Q|K)/.exec(cardText);
     if (!cm) return null;
-    const name = cm[1];
+    const name = cardDisplayName(cm[1]);
     const suit = cm[2];
     const rank = cm[3];
     const key = Object.keys(CARDS).find(function (k) { return CARDS[k].name === name; });
@@ -3821,6 +3829,7 @@
       if (!ev) continue;
       if (ev.kind === 'pindian') { showPindian(ev); continue; }
       if (ev.kind === 'handReveal') { showHandReveal(ev); continue; }
+      if (ev.kind === 'wuguEnd') { clearWugu(); continue; }
       if (ev.kind === 'rescue') { showRescue(ev); continue; }
       if (ev.kind === 'use') {
         if (ev.card !== 'wuxie') sfx('playCard', ev.card, ev.gender || (g.players[ev.seat] && g.players[ev.seat].gender));

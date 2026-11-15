@@ -3603,3 +3603,10 @@ body > .sgs-tooltip {
   .rescue-banner { font-size: 9px; padding: 3px 8px; top: 35%; }
 }
 .hand-reveal { z-index: 620; }
+/* 平板/桌面 8p：中央出牌/五谷/判定层避开顶排武将 */
+@media (min-width: 1101px) {
+  #screen-game .played-cards { top: 64%; }
+  #screen-game .reveal-box { top: 63%; }
+  #screen-game .wugu-tray { top: 64%; }
+  #screen-game .judge-overlay { top: 64%; }
+}

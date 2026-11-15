@@ -556,6 +556,42 @@
       },
     });
 
+    global.SGS_BACK = function () {
+      try {
+        const st = UI._state();
+        if (!st) return false;
+        const d = global.document;
+        if (!d) return false;
+        // 暂停遮罩、详情、设置、战报优先关闭
+        const resume = d.getElementById('resume-overlay');
+        if (resume && resume.classList.contains('is-on')) return true;
+        const gi = d.querySelector('.general-info-mask [data-gi-close]');
+        if (gi) { gi.click(); return true; }
+        if (d.querySelector('.settings-panel.is-on')) {
+          const sc = d.getElementById('btn-settings-close'); if (sc) sc.click();
+          return true;
+        }
+        if (UI.isLogOpen && UI.isLogOpen()) {
+          const lc = d.getElementById('btn-log-close'); if (lc) lc.click();
+          return true;
+        }
+        if (d.querySelector('.modal-mask')) {
+          // 选择/确认弹窗不能用返回键退出，避免误放弃强制选择
+          return true;
+        }
+        if (st.screen === 'result') { UI.showScreen('menu'); return true; }
+        if (st.screen === 'select') {
+          const sb = d.getElementById('btn-select-back'); if (sb) sb.click();
+          return true;
+        }
+        if (st.screen === 'game') {
+          const bq = d.getElementById('btn-quit'); if (bq) bq.click();
+          return true;
+        }
+        return false;
+      } catch (e) { return false; }
+    };
+
     global.SGS_APP_PAUSE = function (paused, opts) {
       opts = opts || {};
       try {
