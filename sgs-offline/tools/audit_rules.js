@@ -42,6 +42,7 @@ function game(specs, opt = {}) {
     } finally {
       g.pendingRequest = null;
     }
+    if (req.type === 'chooseHiddenCard' && (r == null || r === false)) r = 0;
     if (req.type === 'chooseCards' && Array.isArray(r)) {
       const pool = (req.cards || []).slice();
       r = r.map((x) => (x && typeof x === 'object') ? x : (pool.find((c) => c.id === x) || g.allCardsOf(p).find((c) => c.id === x) || null)).filter(Boolean);
@@ -3262,6 +3263,79 @@ const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',')
     await g.phaseDraw(p);
     t('T208', '慧识观看X张获得一半', p.hand.length === 1 && g.deck.length === 12,
       `手牌=${p.hand.length}（应1），牌堆=${g.deck.length}（13→12）`);
+  }
+
+  // T209 朱雀羽扇/火杀/雷杀统一受出杀次数限制
+  {
+    const g = game([{ name: '甲', skills: [] }, { name: '乙', skills: [] }]);
+    const p = g.players[0];
+    const c = C('sha', 'spade', 7);
+    p.equips.weapon = { id: 1, name: 'zhuque', type: 'equip', subtype: 'weapon', suit: 'spade', rank: 1, color: 'black' };
+    p.hand = [c];
+    p.flags = p.flags || {}; p.flags.tianyiWin = true;
+    p.slashCount = 1;
+    const blocked = g.cardActionFor(p, [c], 'huosha', 'zhuque') === null && g.cardActionFor(p, [c], 'leisha', null) === null;
+    p.slashCount = 0;
+    const allowed = !!g.cardActionFor(p, [c], 'huosha', 'zhuque');
+    t('T209', '朱雀火杀受出杀次数限制', blocked && allowed, 'limit=1时火/雷杀=' + blocked + '，limit=0时火杀=' + allowed);
+  }
+
+  // T210 AI 不透视暗身份
+  {
+    const g = game([{ name: '主公', skills: [] }, { name: '反贼', skills: [] }, { name: '忠臣', skills: [] }, { name: '内奸', skills: [] }]);
+    g.mode = '8p';
+    g.players[0].role = 'lord'; g.players[0].revealed = true;
+    g.players[1].role = 'rebel'; g.players[1].revealed = false;
+    g.players[2].role = 'loyalist'; g.players[2].revealed = false;
+    g.players[3].role = 'renegade'; g.players[3].revealed = false;
+    const lordAI = new SGS.AI(g, 0, {});
+    const rebelAI = new SGS.AI(g, 1, {});
+    const noSnoop = !lordAI.isEnemy(g.players[1]) && !lordAI.isEnemy(g.players[2]) && !rebelAI.isEnemy(g.players[2]);
+    const knownLord = rebelAI.isEnemy(g.players[0]);
+    g.players[1].revealed = true;
+    const revealed = lordAI.isEnemy(g.players[1]);
+    t('T210', 'AI 不透视暗身份', noSnoop && knownLord && revealed, '未揭示不敌对=' + noSnoop + '，反贼识主=' + knownLord + '，揭示后敌对=' + revealed);
+  }
+
+  // T211 陆逊最后一张手牌装备触发连营
+  {
+    const g = game([{ name: '陆逊', skills: ['lianying'] }, { name: '甲', skills: [] }]);
+    const p = g.players[0];
+    const eq = C('qinggang', 'spade', 1);
+    const draw = C('sha', 'club', 2);
+    p.hand = [eq];
+    g.deck = [draw];
+    await g.useVirtualCard(p, [eq], 'qinggang', null, [], {});
+    const ok = p.hand.length === 1 && p.hand[0].id === draw.id && g.logs.some((l) => /发动【连营】摸一张牌/.test(l.text));
+    t('T211', '陆逊最后手牌装备触发连营', ok, '手牌=' + p.hand.length + '，连营日志=' + g.logs.some((l) => /连营/.test(l.text)));
+  }
+
+  // T212 1v1 先手只首回合少摸，不是每回合都少摸
+  {
+    const g = game([{ name: '甲', skills: [] }, { name: '乙', skills: [] }]);
+    g.mode = '1v1';
+    const p = g.players[0];
+    p.seat = 0; p.hand = []; p.skills = [];
+    g.deck = []; for (let i = 0; i < 12; i++) g.deck.push(C('sha', 'spade', (i % 9) + 2, i));
+    p.flags = {};
+    await g.phaseDraw(p);
+    const first = p.hand.length;
+    p.hand = [];
+    await g.phaseDraw(p);
+    const second = p.hand.length;
+    t('T212', '1v1 先手仅首回合少摸', first === 1 && second === 2, '首回合=' + first + '（应1），次回合=' + second + '（应2）');
+  }
+
+  // T213 张辽突袭偷走陆逊最后一张手牌，触发连营
+  {
+    const g = game([{ name: '张辽', skills: ['tuxi'] }, { name: '陆逊', skills: ['lianying'] }]);
+    const p = g.players[0], q = g.players[1];
+    p.hand = []; q.hand = [C('sha', 'club', 5)];
+    g.deck = [C('tao', 'heart', 3)];
+    g.handler = async (who, req) => req.type === 'chooseOption' ? 'yes' : req.type === 'chooseTargets' ? [1] : null;
+    await g.phaseDraw(p);
+    const ok = p.hand.length === 1 && q.hand.length === 1 && q.hand[0].name === 'tao' && g.logs.some((l) => /连营/.test(l.text));
+    t('T213', '张辽突袭触发陆逊连营', ok, '张辽手牌=' + p.hand.length + '，陆逊手牌=' + q.hand.length + '，连营=' + g.logs.some((l) => /连营/.test(l.text)));
   }
 
   // 汇总

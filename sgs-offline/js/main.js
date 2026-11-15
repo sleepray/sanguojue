@@ -556,6 +556,46 @@
       },
     });
 
+    global.SGS_APP_PAUSE = function (paused, opts) {
+      opts = opts || {};
+      try {
+        if (global.console) global.console.log('[SGS_PAUSE]', !!paused, opts);
+        global.__SGS_LAST_PAUSE = !!paused;
+        const st = UI._state();
+        if (st && st.game && st.game.setPaused) st.game.setPaused(!!paused);
+        try { paused ? UI.pauseCountdown() : UI.resumeCountdown(); } catch (e) { /* ignore */ }
+        if (global.SGS_AUDIO && (paused ? !opts.keepAudio : true)) {
+          try { paused ? global.SGS_AUDIO.suspend() : global.SGS_AUDIO.resume(); } catch (e) { /* ignore */ }
+        }
+        const ov = document.getElementById('resume-overlay');
+        if (ov) {
+          const show = !!paused && st && st.screen === 'game' && st.game && st.game.started && !st.game.over;
+          ov.classList.toggle('is-on', show);
+          const ti = document.getElementById('resume-title');
+          const su = document.getElementById('resume-sub');
+          if (ti) ti.textContent = '游戏已暂停';
+          if (su) su.textContent = opts.keepAudio ? '牌局与读秒已暂停，背景音乐继续' : '离开应用期间牌局已冻结';
+        }
+      } catch (e) { /* ignore */ }
+    };
+    if (global.document) {
+      global.document.addEventListener('visibilitychange', function () {
+        // 只暂停；恢复必须由玩家点“继续游戏”，避免恢复瞬间快进
+        if (global.document.hidden && global.SGS_APP_PAUSE) global.SGS_APP_PAUSE(true);
+      });
+    }
+    const btnResume = q('btn-resume');
+    if (btnResume) btnResume.addEventListener('click', function () {
+      if (global.SGS_APP_PAUSE) global.SGS_APP_PAUSE(false);
+    });
+    const btnPauseGame = q('btn-pause-game');
+    if (btnPauseGame) btnPauseGame.addEventListener('click', function () {
+      const st = UI._state();
+      if (!st || !st.game || !st.game.started || st.game.over) return;
+      const sc = q('btn-settings-close');
+      if (sc) sc.click();
+      if (global.SGS_APP_PAUSE) global.SGS_APP_PAUSE(true, { keepAudio: true });
+    });
     bindMenu();
     updateMenuUI();
     updateContinueButton();

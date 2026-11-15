@@ -205,6 +205,7 @@
         <div class="action-bar" id="action-bar"></div>
         <div class="pick-bar" id="pick-bar"></div>
         <div class="hand-wrap">
+          <div class="hand-timer" id="hand-timer" aria-live="polite"></div>
           <div class="hand" id="hand"></div>
           <div class="card-chooser" id="card-chooser"></div>
         </div>
@@ -313,12 +314,68 @@
           </div>
         </div>
       </div>
+      <div class="settings-pause">
+        <button class="btn btn-outline" id="btn-pause-game">暂停游戏</button>
+        <span>暂停牌局与读秒，背景音乐继续</span>
+      </div>
       <div class="settings-foot">设置即时生效</div>
     </aside>
 
     <div class="modal-root" id="modal-root"></div>
     <div class="general-info-root" id="general-info-root"></div>
     <div class="toast-root" id="toast-root"></div>
+    <div class="rescue-banner" id="rescue-banner" aria-live="polite">
+      <b id="rescue-name"></b><span id="rescue-text"></span>
+    </div>
+    <div class="hand-reveal" id="hand-reveal" aria-live="polite">
+      <div class="hr-card">
+        <div class="hr-back"></div>
+        <div class="hr-face">
+          <img id="hr-img" alt="">
+          <span class="hr-suit" id="hr-suit"></span>
+          <span class="hr-rank" id="hr-rank"></span>
+          <span class="hr-name" id="hr-name"></span>
+        </div>
+      </div>
+      <div class="hr-caption" id="hr-caption"></div>
+    </div>
+    <div class="pindian-overlay" id="pindian-overlay" aria-live="polite">
+      <div class="pindian-stage">
+        <div class="pd-player pd-a">
+          <div class="pd-name" id="pd-a-name"></div>
+          <div class="pd-card" id="pd-a-card">
+            <div class="pd-back"></div>
+            <div class="pd-face">
+              <img id="pd-a-img" alt="">
+              <span class="pd-suit" id="pd-a-suit"></span>
+              <span class="pd-rank" id="pd-a-rank"></span>
+              <span class="pd-cardname" id="pd-a-cname"></span>
+            </div>
+          </div>
+        </div>
+        <div class="pd-vs">VS</div>
+        <div class="pd-player pd-b">
+          <div class="pd-name" id="pd-b-name"></div>
+          <div class="pd-card" id="pd-b-card">
+            <div class="pd-back"></div>
+            <div class="pd-face">
+              <img id="pd-b-img" alt="">
+              <span class="pd-suit" id="pd-b-suit"></span>
+              <span class="pd-rank" id="pd-b-rank"></span>
+              <span class="pd-cardname" id="pd-b-cname"></span>
+            </div>
+          </div>
+        </div>
+        <div class="pd-result" id="pd-result"></div>
+      </div>
+    </div>
+    <div class="resume-overlay" id="resume-overlay">
+      <div class="resume-card">
+        <div class="resume-title" id="resume-title">游戏已暂停</div>
+        <div class="resume-sub" id="resume-sub">离开应用期间牌局已冻结</div>
+        <button class="btn btn-primary" id="btn-resume">继续游戏</button>
+      </div>
+    </div>
   </section>
 
   <!-- ================= 结算 ================= -->

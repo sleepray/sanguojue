@@ -17,6 +17,7 @@
     chooseGeneral: '选择武将', play: '出牌阶段', response: '请响应',
     chooseCards: '选择牌', chooseTargets: '选择目标', chooseOption: '请选择',
     chooseCardFrom: '选择一张牌', arrange: '调整牌序', pickFrom: '选择一张牌',
+    chooseHiddenCard: '选择手牌',
     distribute: '分配手牌',
   };
   const SLOTS = ['weapon', 'armor', 'offhorse', 'defhorse'];
@@ -25,21 +26,21 @@
   const JUDGE_SHORT = { lebu: '乐', bingliang: '兵', shandian: '电' };
 
   // 对手座位坐标（百分比，围绕上方与左右两侧）
-  const POS_8 = [[12, 74], [11, 31], [30, 22], [50, 22], [70, 22], [89, 31], [88, 74]];
-  const POS_5 = [[15, 72], [34, 22], [66, 22], [85, 72]];
+  const POS_8 = [[12, 74], [11, 31], [30, 26], [50, 26], [70, 26], [89, 31], [88, 74]];
+  const POS_5 = [[15, 72], [34, 26], [66, 26], [85, 72]];
   const POS_1 = [[50, 25]];
   const POS_2 = [[26, 25], [74, 25]];
-  const POS_4 = [[22, 62], [50, 20], [78, 62]];
-  const POS_6 = [[8, 62], [28, 22], [50, 18], [72, 22], [92, 62]];
-  const POS_8_P = [[9, 80], [9, 45], [24, 22], [50, 22], [76, 22], [91, 45], [91, 80]];
-  const POS_5_P = [[12, 72], [28, 22], [72, 22], [88, 72]];
-  const POS_4_P = [[20, 65], [50, 20], [80, 65]];
-  const POS_6_P = [[8, 70], [26, 22], [50, 18], [74, 22], [92, 70]];
+  const POS_4 = [[22, 62], [50, 26], [78, 62]];
+  const POS_6 = [[8, 62], [28, 26], [50, 25], [72, 26], [92, 62]];
+  const POS_8_P = [[9, 80], [9, 45], [24, 26], [50, 26], [76, 26], [91, 45], [91, 80]];
+  const POS_5_P = [[12, 72], [28, 26], [72, 26], [88, 72]];
+  const POS_4_P = [[20, 65], [50, 26], [80, 65]];
+  const POS_6_P = [[8, 70], [26, 26], [50, 25], [74, 26], [92, 70]];
   const POS_2_P = [[22, 26], [78, 26]];
-  const POS_8_L = [[6, 78], [6, 32], [22, 24], [50, 22], [78, 24], [94, 32], [94, 78]];
+  const POS_8_L = [[6, 78], [6, 32], [22, 26], [50, 26], [78, 26], [94, 32], [94, 78]];
   const POS_5_L = [[6, 76], [24, 28], [76, 28], [94, 76]];
-  const POS_4_L = [[18, 70], [50, 26], [82, 70]];
-  const POS_6_L = [[5, 74], [22, 26], [50, 24], [78, 26], [95, 74]];
+  const POS_4_L = [[18, 70], [50, 28], [82, 70]];
+  const POS_6_L = [[5, 74], [22, 28], [50, 28], [78, 28], [95, 74]];
   const POS_2_L = [[22, 30], [78, 30]];
 
   const els = {};
@@ -79,6 +80,10 @@
   const SETTINGS_KEY = 'sgs.settings.v1';
   let countdownTimer = 0;
   let countdownEnd = 0;
+  let countdownReq = null;
+  let countdownPaused = false;
+  let countdownRemainMs = 0;
+  let pindianTimer = 0;
   let effectsGame = null;
   let tooltipEl = null;
   let generalInfoOpen = false;
@@ -87,6 +92,9 @@
   let suppressSeatClick = { seat: null, until: 0 };
   let selfPress = false;
   let suppressSelfClickUntil = 0;
+  let handPressTimer = 0;
+  let handPressInfo = null;
+  let suppressHandClickUntil = 0;
   let meArtKey = '';
   let handDirty = false;
   let logOpen = false;
@@ -470,6 +478,7 @@
     els.tbPhase = q('tb-phase');
     els.tbPrompt = q('tb-prompt');
     els.tbCount = q('tb-count');
+    els.handTimer = q('hand-timer');
     els.btnLog = q('btn-log');
     els.btnLogClose = q('btn-log-close');
     els.btnSettings = q('btn-settings');
@@ -589,6 +598,12 @@
 
   function bindEvents() {
     els.hand.addEventListener('click', onHandClick);
+    els.hand.addEventListener('pointerdown', onHandPressDown);
+    els.hand.addEventListener('pointermove', onHandPressMove);
+    els.hand.addEventListener('pointerup', onHandPressEnd);
+    els.hand.addEventListener('pointercancel', onHandPressEnd);
+    els.hand.addEventListener('pointerleave', onHandPressEnd);
+    els.hand.addEventListener('contextmenu', onHandContextMenu);
     els.seats.addEventListener('click', onSeatsClick);
     els.seats.addEventListener('click', onSeatClickCapture, true);
     els.seats.addEventListener('pointerdown', onSeatPointerDown);
@@ -691,7 +706,7 @@
       const req = pending && pending.req;
       if (req && req.type === 'play' && sel.action) { cancelPlay(); return; }
       if (req && req.type === 'response') { resolveAnswer(null); return; }
-      if (req && ['chooseCards', 'chooseTargets', 'chooseCardFrom', 'arrange', 'pickFrom', 'distribute'].includes(req.type)) {
+      if (req && ['chooseCards', 'chooseTargets', 'chooseCardFrom', 'chooseHiddenCard', 'arrange', 'pickFrom', 'distribute'].includes(req.type)) {
         const min = req.min || 0;
         if (min === 0) resolveAnswer(defaultEmpty(req));
       }
@@ -706,7 +721,7 @@
       else if (req.type === 'chooseCards' && handPickMode(req)) {
         if (!confirmHandPick()) toast('请按要求选择手牌', true);
       }
-      else if (['chooseCards', 'chooseTargets', 'chooseCardFrom', 'arrange', 'pickFrom', 'distribute'].includes(req.type)) {
+      else if (['chooseCards', 'chooseTargets', 'chooseCardFrom', 'chooseHiddenCard', 'arrange', 'pickFrom', 'distribute'].includes(req.type)) {
         modalConfirm();
       }
     }
@@ -810,12 +825,32 @@
     startCountdown(req);
   }
 
+  function pauseCountdown() {
+    if (!countdownReq || countdownPaused) return;
+    countdownRemainMs = Math.max(0, countdownEnd - Date.now());
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = 0; }
+    countdownPaused = true;
+  }
+  function resumeCountdown() {
+    if (!countdownPaused || !countdownReq) return;
+    countdownPaused = false;
+    countdownEnd = Date.now() + countdownRemainMs;
+    runCountdown(countdownReq);
+  }
+
   function clearCountdown() {
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = 0; }
     countdownEnd = 0;
+    countdownReq = null;
+    countdownPaused = false;
+    countdownRemainMs = 0;
     if (els.tbCount) {
       els.tbCount.textContent = '';
       els.tbCount.classList.remove('is-warn');
+    }
+    if (els.handTimer) {
+      els.handTimer.textContent = '';
+      els.handTimer.classList.remove('is-on', 'is-warn');
     }
     if (els.orbitTimer) {
       els.orbitTimer.textContent = '';
@@ -830,6 +865,11 @@
       els.tbCount.textContent = label;
       els.tbCount.classList.toggle('is-warn', warn);
       els.tbCount.title = warn ? '剩余时间不足 10 秒，超时由 AI 代操作' : '剩余操作时间，超时由 AI 代操作';
+    }
+    if (els.handTimer) {
+      els.handTimer.textContent = '⏱ ' + label;
+      els.handTimer.classList.add('is-on');
+      els.handTimer.classList.toggle('is-warn', warn);
     }
     if (els.orbitTimer) {
       els.orbitTimer.textContent = label;
@@ -880,25 +920,33 @@
     });
   }
 
+  function tickCountdown(req) {
+    if (countdownPaused || !req) return;
+    const left = Math.max(0, Math.ceil((countdownEnd - Date.now()) / 1000));
+    setCountdownDisplay(left);
+    if (left <= 0) {
+      if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = 0; }
+      if (pending && pending.req === req) {
+        toast('操作超时，AI 已代你行动');
+        autoActForHuman(req);
+      }
+    }
+  }
+  function runCountdown(req) {
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = 0; }
+    tickCountdown(req);
+    countdownTimer = setInterval(function () { tickCountdown(req); }, 500);
+  }
   function startCountdown(req) {
     clearCountdown();
     // 选将页不显示读秒；人类出牌/响应是 UI 读秒（引擎没有超时机制，仅展示）
     if (!req || req.type === 'chooseGeneral') return;
     const secs = req.type === 'play' ? 90 : (req.type === 'response' ? 45 : 60);
-    countdownEnd = Date.now() + secs * 1000;
-    const tick = function () {
-      const left = Math.max(0, Math.ceil((countdownEnd - Date.now()) / 1000));
-      setCountdownDisplay(left);
-      if (left <= 0) {
-        if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = 0; }
-        if (pending && pending.req === req) {
-          toast('操作超时，AI 已代你行动');
-          autoActForHuman(req);
-        }
-      }
-    };
-    tick();
-    countdownTimer = setInterval(tick, 500);
+    countdownReq = req;
+    countdownPaused = false;
+    countdownRemainMs = secs * 1000;
+    countdownEnd = Date.now() + countdownRemainMs;
+    runCountdown(req);
   }
 
   function freeze(req) {
@@ -1218,10 +1266,8 @@
     return out;
   }
 
-  function showWuguReveal(text) {
-    const raw = String(text || '').split('：').slice(1).join('：');
-    const list = raw.split('、').map(function (x) { return cardInfoOfText(x); }).filter(Boolean);
-    if (!list.length) return;
+  function renderWuguList(list) {
+    if (!list || !list.length) return;
     wuguState = { cards: list, total: list.length };
     if (els.wuguCards) {
       els.wuguCards.innerHTML = list.map(function (c, i) {
@@ -1236,7 +1282,25 @@
     if (els.wuguLast) els.wuguLast.textContent = '';
     if (els.wuguTray) els.wuguTray.classList.add('is-on');
     if (wuguTimer) clearTimeout(wuguTimer);
-    wuguTimer = setTimeout(function () { wuguTimer = 0; clearWugu(); }, 15000);
+    // 无懈/逐人选牌可能持续超过 15 秒，不能无条件关闭
+    wuguTimer = setTimeout(function () { wuguTimer = 0; clearWugu(); }, 60000);
+  }
+  function showWuguReveal(text) {
+    const raw = String(text || '').split('：').slice(1).join('：');
+    const list = raw.split('、').map(function (x) { return cardInfoOfText(x); }).filter(Boolean);
+    if (list.length) renderWuguList(list);
+  }
+  function showWuguFromCards(cards) {
+    const list = (cards || []).map(function (c) {
+      const def = cardDef(c.name);
+      return {
+        name: c.name, suit: c.suit || '', rank: c.rank == null ? '' : c.rank,
+        color: (c.color === 'red' || c.suit === '♥' || c.suit === '♦') ? 'red' : 'black',
+        label: '【' + c.name + '】' + (c.suit || '') + (c.rank == null ? '' : c.rank),
+        img: def && !def.noArt ? ('assets/cards/' + def.pinyin + '.png') : '',
+      };
+    }).filter(function (c) { return c.name; });
+    if (list.length) renderWuguList(list);
   }
 
   function removeWuguCard(label, toSeat) {
@@ -1390,9 +1454,17 @@
   }
 
   function updateWuguPicker(g) {
-    if (!wuguState || !els.wuguTray) { setWuguPicker(null); if (els.wuguPicker) els.wuguPicker.textContent = ''; return; }
+    if (!els.wuguTray) return;
     const pr = g.pendingRequest;
+    if (!wuguState) {
+      if (pr && pr.type === 'pickFrom' && /五谷/.test(pr.reason || '') && pr.cards && pr.cards.length) {
+        showWuguFromCards(pr.cards);
+      } else {
+        setWuguPicker(null); if (els.wuguPicker) els.wuguPicker.textContent = ''; return;
+      }
+    }
     if (pr && pr.type === 'pickFrom' && /五谷/.test(pr.reason || '') && pr.player) {
+      if (wuguTimer) { clearTimeout(wuguTimer); wuguTimer = 0; }
       els.wuguTray.classList.add('is-picking');
       setWuguPicker(pr.player.seat);
       if (els.wuguPicker) els.wuguPicker.textContent = displayName(pr.player) + ' 选牌中…';
@@ -1401,6 +1473,82 @@
       setWuguPicker(null);
       if (els.wuguPicker) els.wuguPicker.textContent = '';
     }
+  }
+
+  function showRescue(ev) {
+    const ov = q('rescue-banner');
+    if (!ov) return;
+    const p = game && game.players ? game.players[ev.seat] : null;
+    const d = game && game.players ? game.players[ev.dyingSeat] : null;
+    const nm = q('rescue-name'), tx = q('rescue-text');
+    if (nm) nm.textContent = p ? displayName(p) : '角色';
+    if (tx) tx.textContent = ev.phase === 'ask' ? ' 正在决定是否救援 ' + (d ? displayName(d) : '濒死角色')
+      : ev.phase === 'save' ? ' 使用【桃】救援' : ' 没有救援';
+    ov.classList.remove('is-on', 'is-pass', 'is-save');
+    if (ev.phase === 'pass') ov.classList.add('is-pass');
+    if (ev.phase === 'save') ov.classList.add('is-save');
+    ov.classList.add('is-on');
+    if (pindianTimer) { /* 避免与拼点计时器混淆，独立计时 */ }
+    clearTimeout(showRescue._t);
+    showRescue._t = setTimeout(function () { ov.classList.remove('is-on'); }, ev.phase === 'ask' ? 700 : 800);
+  }
+
+  function showHandReveal(ev) {
+    if (!ev || !ev.card) return;
+    const ov = q('hand-reveal');
+    if (!ov) return;
+    const c = ev.card;
+    const def = cardDef(c.name);
+    const img = q('hr-img');
+    if (img) {
+      img.onerror = function () { this.style.visibility = 'hidden'; };
+      img.style.visibility = '';
+      img.src = def && !def.noArt ? ('assets/cards/' + def.pinyin + '.png') : '';
+    }
+    if (q('hr-suit')) q('hr-suit').textContent = c.suit || '';
+    if (q('hr-rank')) q('hr-rank').textContent = c.rank == null ? '' : rankCn(c.rank);
+    if (q('hr-name')) q('hr-name').textContent = def ? def.name : (c.name || '');
+    if (q('hr-caption')) q('hr-caption').textContent = ev.reason || '展示手牌';
+    ov.classList.remove('is-on', 'is-reveal');
+    void ov.offsetWidth;
+    ov.classList.add('is-on');
+    setTimeout(function () { if (ov.classList.contains('is-on')) ov.classList.add('is-reveal'); }, 30);
+    setTimeout(function () { ov.classList.remove('is-on', 'is-reveal'); }, 1100);
+  }
+
+  function showPindian(ev) {
+    if (!ev || !ev.a || !ev.b) return;
+    const ov = q('pindian-overlay');
+    if (!ov) return;
+    const fill = function (side, data) {
+      const c = data.card || {};
+      const def = cardDef(c.name);
+      const nm = q('pd-' + side + '-name'), img = q('pd-' + side + '-img');
+      if (nm) nm.textContent = data.name || '';
+      if (img) {
+        img.onerror = function () { this.style.visibility = 'hidden'; };
+        img.style.visibility = '';
+        img.src = def && !def.noArt ? ('assets/cards/' + def.pinyin + '.png') : '';
+      }
+      if (q('pd-' + side + '-suit')) q('pd-' + side + '-suit').textContent = c.suit || '';
+      if (q('pd-' + side + '-rank')) q('pd-' + side + '-rank').textContent = c.rank == null ? '' : rankCn(c.rank);
+      if (q('pd-' + side + '-cname')) q('pd-' + side + '-cname').textContent = def ? def.name : (c.name || '');
+    };
+    fill('a', ev.a); fill('b', ev.b);
+    const res = q('pd-result');
+    if (res) {
+      const reason = ev.reason || '拼点';
+      res.className = 'pd-result ' + (ev.tie ? 'is-tie' : ev.win ? 'is-win' : 'is-lose');
+      res.textContent = reason + ' · ' + (ev.tie ? '平局' : ev.win ? (ev.a.name + ' 胜利') : (ev.b.name + ' 胜利'));
+    }
+    if (pindianTimer) clearTimeout(pindianTimer);
+    ov.classList.remove('is-reveal', 'is-result');
+    ov.classList.add('is-on');
+    try { sfx('card_flip'); } catch (e) { /* ignore */ }
+    void ov.offsetWidth;
+    ov.classList.add('is-reveal');
+    setTimeout(function () { if (ov.classList.contains('is-on')) ov.classList.add('is-result'); }, 620);
+    pindianTimer = setTimeout(function () { pindianTimer = 0; ov.classList.remove('is-on', 'is-reveal', 'is-result'); }, 1650);
   }
 
   function handleEffectLog(lg) {
@@ -1417,7 +1565,8 @@
     const m = /^(.*?)\s*判定（(.+?)）：(.+)$/.exec(String(text || ''));
     if (!m) return null;
     const who = m[1].trim();
-    const reason = m[2].trim();
+    const reasonRaw = m[2].trim();
+    const reason = (CARDS[reasonRaw] && CARDS[reasonRaw].name) || reasonRaw;
     const cardText = m[3].trim();
     const cm = /【(.+?)】([♠♥♣♦])(A|10|[2-9]|J|Q|K)/.exec(cardText);
     if (!cm) return null;
@@ -1459,6 +1608,9 @@
     const now = Date.now();
     if (sig === last.judgeSig && now - (last.judgeAt || 0) < 1500) return;
     last.judgeSig = sig; last.judgeAt = now;
+    if (/闪电/.test(info.reason || '')) {
+      try { sfx('playCard', 'shandian'); } catch (e) { /* ignore */ }
+    }
     judgeQueue.push(info);
     if (!judgeShowing) showNextJudge();
   }
@@ -1938,6 +2090,10 @@
       root.classList.toggle('seat-dead', !p.alive);
       root.classList.toggle('is-chained', !!p.chained);
       root.classList.toggle('seat-active', !g.over && g.currentSeat === p.seat && p.alive);
+      const groupWaiting = g.groupWaiting || [];
+      const waitReq = pending && pending.req && pending.req.type === 'response' ? pending.req : null;
+      root.classList.toggle('seat-group-wait', groupWaiting.indexOf(p.seat) >= 0);
+      root.classList.toggle('seat-waiting', !!(waitReq && waitReq.player === p));
 
       const roleTxt = roleLabelFor(g, p);
       if (ref.role.textContent !== roleTxt) ref.role.textContent = roleTxt;
@@ -2068,6 +2224,10 @@
     const isCand = cands.indexOf(me.seat) >= 0 && me.alive;
     const isPicked = (ctReqMe && tablePick ? tablePick.selected : sel.targets).indexOf(me.seat) >= 0;
     els.mePortrait.classList.toggle('is-active', !g.over && g.currentSeat === me.seat && me.alive);
+    const groupWaitingMe = g.groupWaiting || [];
+    const waitReqMe = pending && pending.req && pending.req.type === 'response' ? pending.req : null;
+    els.mePortrait.classList.toggle('is-group-wait', groupWaitingMe.indexOf(me.seat) >= 0);
+    els.mePortrait.classList.toggle('is-waiting', !!(waitReqMe && waitReqMe.player === me));
     els.mePortrait.classList.toggle('is-targetable', !!targeting && isCand && !isPicked);
     els.mePortrait.classList.toggle('is-picked', isPicked);
     els.mePortrait.classList.toggle('is-dead', !me.alive);
@@ -2146,7 +2306,7 @@
       els.hand.innerHTML = hand.map(function (c) {
         const def = cardDef(c.name);
         const s = suitOf(c);
-        return '<div class="hand-card" data-cid="' + c.id + '" data-tip="' + esc(cardTip(c)) + '">' +
+        return '<div class="hand-card" data-cid="' + c.id + '">' +
           cardImgTag(c) +
           (s ? '<span class="hc-suit" style="color:' + suitColor(c) + '">' + s.cn + '</span>' : '') +
           '<span class="hc-rank">' + esc(rankCn(c.rank)) + '</span>' +
@@ -2448,12 +2608,64 @@
     }
   }
 
+  function handCardById(cid) {
+    if (!game || !game.players) return null;
+    const me = game.players[humanSeat];
+    return me && me.hand ? me.hand.find(function (c) { return c.id === cid; }) : null;
+  }
+  function onHandPressDown(e) {
+    if (e.button != null && e.button !== 0) return;
+    const el = e.target.closest ? e.target.closest('.hand-card') : null;
+    if (!el) return;
+    cancelHandPress();
+    handPressInfo = { cid: Number(el.dataset.cid), x: e.clientX, y: e.clientY };
+    handPressTimer = setTimeout(function () {
+      handPressTimer = 0;
+      const info = handPressInfo;
+      handPressInfo = null;
+      if (!info) return;
+      const card = handCardById(info.cid);
+      if (!card) return;
+      const target = document.querySelector('.hand-card[data-cid="' + info.cid + '"]') || el;
+      suppressHandClickUntil = Date.now() + 900;
+      showTip(cardTip(card), target);
+    }, 550);
+  }
+  function onHandPressMove(e) {
+    if (!handPressInfo) return;
+    if (Math.abs(e.clientX - handPressInfo.x) > 8 || Math.abs(e.clientY - handPressInfo.y) > 8) cancelHandPress();
+  }
+  function cancelHandPress() {
+    if (handPressTimer) { clearTimeout(handPressTimer); handPressTimer = 0; }
+    handPressInfo = null;
+  }
+  function onHandPressEnd() { cancelHandPress(); }
+  function onHandContextMenu(e) {
+    const el = e.target.closest ? e.target.closest('.hand-card') : null;
+    if (!el) return;
+    e.preventDefault();
+    cancelHandPress();
+    const card = handCardById(Number(el.dataset.cid));
+    if (card) showTip(cardTip(card), el);
+  }
+
   function onHandClick(e) {
+    if (Date.now() < suppressHandClickUntil) { e.preventDefault(); e.stopPropagation(); return; }
     const cardEl = e.target.closest ? e.target.closest('.hand-card') : null;
     if (!cardEl) return;
     const cid = Number(cardEl.dataset.cid);
     const req = pending && pending.req;
     if (!req) return;
+    // 视觉已选中的牌再次点击：无论 action 结构如何都取消
+    if (cardEl.classList.contains('is-selected')) {
+      if (req.type === 'play') { cancelPlay(); return; }
+      if (req.type === 'response') { respSel = null; respCardId = null; render(game); return; }
+      if (req.type === 'chooseCards' && handPickMode(req)) {
+        const st0 = handPickState();
+        if (st0) { const i0 = st0.selected.indexOf(cid); if (i0 >= 0) st0.selected.splice(i0, 1); }
+        render(game); return;
+      }
+    }
 
     if (req.type === 'chooseCards' && handPickMode(req)) {
       const st = handPickState();
@@ -2492,6 +2704,10 @@
       });
       if (!tmpls.length) {
         toast('这张牌现在不能使用');
+        return;
+      }
+      if (sel.action && sel.action.kind === 'card' && (sel.action.subcards || []).indexOf(cid) >= 0) {
+        cancelPlay();
         return;
       }
       if (tmpls.length === 1) {
@@ -2970,7 +3186,7 @@
      ============================================================ */
   function resetModalState(req) {
     m = {
-      cards: [], targets: [], choice: null, pick: null,
+      cards: [], targets: [], choice: null, pick: null, hiddenPick: null,
       top: (req.type === 'arrange' ? (req.cards || []).slice() : []),
       bottom: [],
       assign: {}, activeCard: (req.type === 'distribute' && req.cards && req.cards[0]) ? req.cards[0].id : null,
@@ -3017,6 +3233,7 @@
       case 'chooseCardFrom': return modalChooseCardFrom(req);
       case 'arrange': return modalArrange(req);
       case 'pickFrom': return modalPickFrom(req);
+      case 'chooseHiddenCard': return modalChooseHiddenCard(req);
       case 'distribute': return modalDistribute(req);
       default: return modalFrame(req, TYPE_TITLE[req.type] || '请操作', '<div class="judge-empty">等待处理…</div>', '');
     }
@@ -3152,6 +3369,24 @@
     return modalFrame(req, '调整牌序', body, foot, { wide: true });
   }
 
+  function modalChooseHiddenCard(req) {
+    const hr = q('hand-reveal');
+    if (hr) hr.classList.remove('is-on', 'is-reveal');
+    const n = Math.max(0, req.count || 0);
+    const target = req.target;
+    const body = '<div class="hidden-hand-head">目标 <b>' + esc(target ? displayName(target) : '对手') +
+      '</b> · 手牌 <b>' + n + '</b> 张</div>' +
+      '<div class="hidden-hand-row">' + Array.from({ length: n }, function (_, i) {
+        return '<button class="hidden-card' + (m.hiddenPick === i ? ' is-picked' : '') + '" data-m="hidden" data-idx="' + i + '">' +
+          '<span class="hc-back"><i>手牌</i></span><span class="hc-pos">' + (i + 1) + '</span></button>';
+      }).join('') + '</div>' +
+      '<div class="hidden-hand-hint">牌面不可见，选择后展示该牌</div>';
+    const foot = '<span class="modal-hint">' + (m.hiddenPick == null ? '请选择一张手牌' : '已选择第 ' + (m.hiddenPick + 1) + ' 张') + '</span>' +
+      '<button class="btn btn-ghost" data-m="cancel">取消</button>' +
+      '<button class="btn btn-primary" data-m="confirm"' + (m.hiddenPick == null ? ' disabled' : '') + '>确认选择</button>';
+    return modalFrame(req, '选择手牌', body, foot, { wide: true });
+  }
+
   function modalPickFrom(req) {
     const cards = req.cards || [];
     const body = '<div class="cards-grid">' + cards.map(function (c) { return pickCardHTML(c, m.pick === c.id); }).join('') + '</div>';
@@ -3218,6 +3453,12 @@
         m.pick = Number(btn.dataset.cid);
         render(game);
       }
+      return;
+    }
+    if (act === 'hidden') {
+      if (req.type !== 'chooseHiddenCard') return;
+      m.hiddenPick = Number(btn.dataset.idx);
+      render(game);
       return;
     }
     if (act === 'target') {
@@ -3323,6 +3564,11 @@
       resolveAnswer(m.pick);
       return;
     }
+    if (req.type === 'chooseHiddenCard') {
+      if (m.hiddenPick == null) return;
+      resolveAnswer(m.hiddenPick);
+      return;
+    }
     if (req.type === 'distribute') {
       const cards = req.cards || [];
       if (cards.some(function (c) { return m.assign[c.id] == null; })) return;
@@ -3346,6 +3592,7 @@
     if (req.type === 'chooseCardFrom') { resolveAnswer(null); return; }
     if (req.type === 'arrange') { resolveAnswer({ top: (req.cards || []).slice(), bottom: [] }); return; }
     if (req.type === 'pickFrom') { resolveAnswer(null); return; }
+    if (req.type === 'chooseHiddenCard') { resolveAnswer(null); return; }
     if (req.type === 'distribute') { resolveAnswer([]); return; }
   }
 
@@ -3520,14 +3767,19 @@
       const m = /【(.+?)】/.exec(lg.text || '');
       if (!m) continue;
       const skillName = m[1];
-      const sk = Object.keys(D.SKILLS).find(function (k) { return D.SKILLS[k].name === skillName; });
-      if (!sk) continue;
-      // 优先按战报里的发动者名字找，避免同技能多人时播错武将语音
+      // 同名技能可能有多个 id（如 luoshen / j_luoshen），必须按 owner 实际技能 id 选
       const nm = /^(.+?)\s*发动【/.exec(lg.text || '');
       const ownerName = nm ? nm[1].trim() : '';
       let owner = ownerName ? g.players.find(function (p) { return displayName(p) === ownerName; }) : null;
-      if (!owner) owner = g.players.find(function (p) { return p.alive && p.skills && p.skills.indexOf(sk) >= 0; });
-      if (owner && owner.general) sfx('playGeneral', owner.general.id, 'skill', sk);
+      if (!owner) {
+        owner = g.players.find(function (p) {
+          return p.alive && p.skills && p.skills.some(function (id) { return D.SKILLS[id] && D.SKILLS[id].name === skillName; });
+        });
+      }
+      if (!owner || !owner.general) continue;
+      const ownKey = (owner.skills || []).find(function (id) { return D.SKILLS[id] && D.SKILLS[id].name === skillName; });
+      if (!ownKey) continue;
+      sfx('playGeneral', owner.general.id, 'skill', ownKey);
     }
     last.sfxLogLen = logs.length;
     last.sfxLogTail = logs.length ? logs[logs.length - 1] : null;
@@ -3567,6 +3819,9 @@
     for (let i = last.recentLen; i < recent.length; i++) {
       const ev = recent[i];
       if (!ev) continue;
+      if (ev.kind === 'pindian') { showPindian(ev); continue; }
+      if (ev.kind === 'handReveal') { showHandReveal(ev); continue; }
+      if (ev.kind === 'rescue') { showRescue(ev); continue; }
       if (ev.kind === 'use') {
         if (ev.card !== 'wuxie') sfx('playCard', ev.card, ev.gender || (g.players[ev.seat] && g.players[ev.seat].gender));
         if (ev.card !== 'wuxie') lastTrick = { card: ev.card, seat: ev.seat, targets: (ev.targets || []).slice() };
@@ -3757,6 +4012,8 @@
     preview: preview,
     toast: toast,
     isLogOpen: function () { return logOpen; },
+    pauseCountdown: pauseCountdown,
+    resumeCountdown: resumeCountdown,
     _layoutHand: layoutHand,
     _state: function () {
       return { game: game, pending: pending, sel: sel, screen: screen, lastAnswer: lastAnswer };

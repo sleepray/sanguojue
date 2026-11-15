@@ -111,7 +111,7 @@
       if (asName === 'diqi') return null;   // 地契由地主开局自动置入防具栏
       if (asName === 'tao' && this.ddzFierce) return null; // 鏖战：桃只能当杀/闪
       if (asName === 'shan') return null;
-      if (def.type === 'basic' && asName === 'sha' && !this.canUseSlash(p)) return null;
+      if (def.type === 'basic' && ['sha', 'huosha', 'leisha'].includes(asName) && !this.canUseSlash(p)) return null;
       if (asName === 'jiu' && (p.drank || 0) >= 1) return null;
       if (asName === 'tao' && p.hp >= p.maxHp) return null;
       const targets = this.legalTargetsFor(p, asName, skill, cards);
@@ -285,6 +285,7 @@
         if (this.recent.length > 200) this.recent.shift();
         this.installEquip(p, cards[0]);
         this.toDiscard(cards.slice(1));
+        if (fromHand.length) await this.afterLoseCards(p, fromHand, true);
         this.emit();
         return;
       }
@@ -297,6 +298,7 @@
         // 从手牌移入判定区，不从弃牌堆走
         this.toDiscard(cards.slice(1));
         this.log(`${this.cardText(vc)} 置于 ${this.nameOf(target)} 的判定区`, 'info');
+        if (fromHand.length) await this.afterLoseCards(p, fromHand, true);
         this.emit();
         return;
       }
@@ -305,6 +307,7 @@
         this.toDiscard(cards);
         this.drawCards(p, 1, '铁索重铸');
         this.log(`${this.nameOf(p)} 重铸【铁索连环】摸一张牌`, 'info');
+        if (fromHand.length) await this.afterLoseCards(p, fromHand, true);
         this.emit();
         return;
       }
@@ -346,6 +349,7 @@
         if (this.juxiangGain(p, cards)) vc.keep = true;
       }
       if (!vc.keep) this.toDiscard(cards);
+      if (fromHand.length) await this.afterLoseCards(p, fromHand, true);
       this.emit();
     },
 
@@ -875,21 +879,30 @@
     },
 
     async resolveAOE(p, vc, targets, need, dmg) {
-      for (const q of targets) {
-        if (!q.alive) continue;
-        if (await this.isNullified(vc, q, p)) continue;
-        const armor = q.equips.armor;
-        if (armor && armor.name === 'tengjia') { this.log(`【藤甲】令 ${this.cardText(vc)} 对 ${this.nameOf(q)} 无效`, 'info'); continue; }
-        if (q.skills.includes('weimu') && vc.color === 'black') { this.log(`【帷幕】令 ${this.cardText(vc)} 对 ${this.nameOf(q)} 无效`, 'info'); continue; }
-        if (vc.name === 'nanman' && (q.skills.includes('juxiang') || q.skills.includes('huoshou'))) { this.log(`【${q.skills.includes('juxiang') ? '巨象' : '祸首'}】令【南蛮入侵】对 ${this.nameOf(q)} 无效`, 'info'); continue; }
-        let ok = false;
-        if (need === 'sha') ok = !!(await this.askForSha(q, { reason: `【${CARDS[vc.name].name}】：打出一张【杀】，否则受到 1 点伤害`, opponent: p.seat }));
-        else ok = await this.askForShan(q, { source: p, card: vc, reason: `【${CARDS[vc.name].name}】：使用一张【闪】，否则受到 1 点伤害` });
-        if (!ok) {
-          let src = p;
-          if (vc.name === 'nanman') { const hs = this.alivePlayers.find((x) => x.skills.includes('huoshou')); if (hs && hs.seat !== q.seat) src = hs; }
-          await this.damage({ source: src, target: q, amount: dmg, card: vc });
+      this.groupWaiting = targets.filter((q) => q.alive).map((q) => q.seat);
+      this.emit();
+      try {
+        for (const q of targets) {
+          if (!q.alive) { this.groupWaiting = this.groupWaiting.filter((x) => x !== q.seat); this.emit(); continue; }
+          if (await this.isNullified(vc, q, p)) { this.groupWaiting = this.groupWaiting.filter((x) => x !== q.seat); this.emit(); continue; }
+          const armor = q.equips.armor;
+          if (armor && armor.name === 'tengjia') { this.log(`【藤甲】令 ${this.cardText(vc)} 对 ${this.nameOf(q)} 无效`, 'info'); this.groupWaiting = this.groupWaiting.filter((x) => x !== q.seat); this.emit(); continue; }
+          if (q.skills.includes('weimu') && vc.color === 'black') { this.log(`【帷幕】令 ${this.cardText(vc)} 对 ${this.nameOf(q)} 无效`, 'info'); this.groupWaiting = this.groupWaiting.filter((x) => x !== q.seat); this.emit(); continue; }
+          if (vc.name === 'nanman' && (q.skills.includes('juxiang') || q.skills.includes('huoshou'))) { this.log(`【${q.skills.includes('juxiang') ? '巨象' : '祸首'}】令【南蛮入侵】对 ${this.nameOf(q)} 无效`, 'info'); this.groupWaiting = this.groupWaiting.filter((x) => x !== q.seat); this.emit(); continue; }
+          let ok = false;
+          if (need === 'sha') ok = !!(await this.askForSha(q, { reason: `【${CARDS[vc.name].name}】：打出一张【杀】，否则受到 1 点伤害`, opponent: p.seat }));
+          else ok = await this.askForShan(q, { source: p, card: vc, reason: `【${CARDS[vc.name].name}】：使用一张【闪】，否则受到 1 点伤害` });
+          if (!ok) {
+            let src = p;
+            if (vc.name === 'nanman') { const hs = this.alivePlayers.find((x) => x.skills.includes('huoshou')); if (hs && hs.seat !== q.seat) src = hs; }
+            await this.damage({ source: src, target: q, amount: dmg, card: vc });
+          }
+          this.groupWaiting = this.groupWaiting.filter((x) => x !== q.seat);
+          this.emit();
         }
+      } finally {
+        this.groupWaiting = [];
+        this.emit();
       }
     },
 
@@ -904,15 +917,23 @@
       this.log(`【五谷丰登】亮出：${reveal.map((c) => this.cardText(c)).join('、')}`, 'info');
       this.emit();
       const pool = reveal.slice();
-      for (const q of targets) {
-        if (!q.alive || !pool.length) continue;
-        if (await this.isNullified(vc, q, p)) continue;
-        const pickId = await this.ask(q, { type: 'pickFrom', player: q, cards: pool.slice(), reason: '五谷丰登：选择一张牌获得' });
-        const idx = pool.findIndex((c) => c.id === pickId);
-        const c = idx >= 0 ? pool.splice(idx, 1)[0] : pool.shift();
-        q.hand.push(c);
-        this.afterCardGain(q, [c]);
-        this.log(`${this.nameOf(q)} 获得 ${this.cardText(c)}`, 'info');
+      this.groupWaiting = targets.filter((q) => q.alive).map((q) => q.seat);
+      this.emit();
+      try {
+        for (const q of targets) {
+          if (!q.alive || !pool.length) { this.groupWaiting = this.groupWaiting.filter((x) => x !== q.seat); this.emit(); continue; }
+          if (await this.isNullified(vc, q, p)) { this.groupWaiting = this.groupWaiting.filter((x) => x !== q.seat); this.emit(); continue; }
+          const pickId = await this.ask(q, { type: 'pickFrom', player: q, cards: pool.slice(), reason: '五谷丰登：选择一张牌获得' });
+          const idx = pool.findIndex((c) => c.id === pickId);
+          const c = idx >= 0 ? pool.splice(idx, 1)[0] : pool.shift();
+          q.hand.push(c);
+          this.afterCardGain(q, [c]);
+          this.log(`${this.nameOf(q)} 获得 ${this.cardText(c)}`, 'info');
+          this.groupWaiting = this.groupWaiting.filter((x) => x !== q.seat);
+          this.emit();
+        }
+      } finally {
+        this.groupWaiting = [];
         this.emit();
       }
       this.toDiscard(pool);
@@ -932,6 +953,8 @@
       if (!shown) return;
       const shownSuit = this.suitOf(target, shown);
       this.log(`${this.nameOf(target)} 展示了 ${this.cardText(shown)}${shownSuit !== shown.suit ? '（视为' + SUITS[shownSuit].name + '）' : ''}`, 'info');
+      this.recent.push({ kind: 'handReveal', seat: target.seat, card: { name: shown.name, suit: shown.suit, rank: shown.rank, color: shown.color }, reason: '火攻 · 展示手牌' });
+      if (this.recent.length > 200) this.recent.shift();
       this.emit();
       const pool = p.hand.filter((c) => this.suitOf(p, c) === shownSuit);
       if (!pool.length) { this.log(`${this.nameOf(p)} 没有同花色手牌，火攻未造成伤害`, 'info'); return; }

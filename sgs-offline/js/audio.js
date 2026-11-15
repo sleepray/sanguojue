@@ -71,7 +71,8 @@
     broken: {},         // 已确认播不出来的路径，不再重试
     bgmEl: null,
     bgmKey: null,
-    pendingBgm: null
+    pendingBgm: null,
+    suspended: false
   };
 
   // ---------------------------------------------------------------- 内部工具
@@ -189,7 +190,7 @@
 
   /** 播放一条音效路径；任何异常都被吞掉。 */
   function playPath(path, opts) {
-    if (!state.enabled || !isBrowser()) return;
+    if (!state.enabled || state.suspended || !isBrowser()) return;
     var el = getAudio(path);
     if (!el) return;
     opts = opts || {};
@@ -328,7 +329,7 @@
     /** 播放内置界面音效：click / back / card_play / card_draw / card_flip /
      *  slash / kill / damage / armor / game_start / turn_end / win / lose / draw */
     play: function (key) {
-      if (!state.enabled) return;
+      if (!state.enabled || state.suspended) return;
       withIndex(function () {
         var path = sfxPath(key);
         if (path) playPath(path);
@@ -338,6 +339,7 @@
     playBgm: function (key) {
       if (!state.enabled) return;
       var name = key || 'menu';
+      if (state.suspended) { state.pendingBgm = name; return; }
       if (!state.unlocked) { state.pendingBgm = name; return; }  // 等首次交互
       withIndex(function (idx) {
         var path = idx && idx.bgm && idx.bgm[name] ? idx.bgm[name]
@@ -367,6 +369,29 @@
           }
         } catch (e) { /* 静默 */ }
       });
+    },
+
+    suspend: function () {
+      state.suspended = true;
+      if (state.bgmEl) { try { state.bgmEl.pause(); } catch (e) { /* ignore */ } }
+      Object.keys(state.pool || {}).forEach(function (k) {
+        var el = state.pool[k];
+        if (el) { try { el.pause(); } catch (e) { /* ignore */ } }
+      });
+      if (state.bgmEl) state.pendingBgm = state.bgmKey;
+    },
+    resume: function () {
+      state.suspended = false;
+      if (state.bgmEl) {
+        try {
+          var p = state.bgmEl.play();
+          if (p && typeof p.catch === 'function') p.catch(function () {});
+        } catch (e) { /* ignore */ }
+      } else if (state.pendingBgm) {
+        var k = state.pendingBgm;
+        state.pendingBgm = null;
+        api.playBgm(k);
+      }
     },
 
     stopBgm: function () {

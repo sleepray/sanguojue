@@ -58,6 +58,9 @@
       this.winText = '';
       this.pendingRequest = null;
       this.recent = []; // 最近事件（UI 动画用）
+      this.groupWaiting = [];
+      this.paused = false;
+      this._pauseWaiters = [];
       this.cardSeq = 0;
       this.ddzScene = opts.ddzScene || 'advanced'; // 基础场/高级场/练兵场
       this.ddzMaxMultiple = opts.ddzMaxMultiple || ((D.DDZ_SCENES || {})[this.ddzScene] || {}).maxMultiple || (D.DDZ_MAX_MULTIPLE || 4);
@@ -117,7 +120,23 @@
       return entry;
     }
     emit() { try { this.onUpdate(this); } catch (e) { console.error(e); } }
-    async pause(ms) { const t = Math.round(ms * (this.paceFactor || 0)); if (t > 0) await sleep(t); }
+    setPaused(v) {
+      this.paused = !!v;
+      if (!this.paused && this._pauseWaiters) {
+        const ws = this._pauseWaiters.slice();
+        this._pauseWaiters = [];
+        ws.forEach((r) => { try { r(); } catch (e) { /* ignore */ } });
+      }
+    }
+    async waitIfPaused() {
+      while (this.paused) await new Promise((r) => this._pauseWaiters.push(r));
+    }
+    async pause(ms) {
+      await this.waitIfPaused();
+      const t = Math.round(ms * (this.paceFactor || 0));
+      if (t > 0) await sleep(t);
+      await this.waitIfPaused();
+    }
 
     // ---------------- 设置 ----------------
     setup() {
@@ -356,6 +375,7 @@
     async runLoop() {
       let guard = 0;
       while (!this.over && guard++ < 400) {
+        await this.waitIfPaused();
         if (this.currentSeat === this.humanSeat && typeof this.onSnapshot === 'function') {
           try { this.onSnapshot(this.snapshot()); } catch (e) { /* 存档失败不影响对局 */ }
         }
@@ -519,6 +539,8 @@
     }
 
     async mulliganPhase() {
+      // 手气卡选择暂时关闭
+      return;
       if (!this.mulliganEnabled || this.humanSeat < 0) return;
       const p = this.players[this.humanSeat];
       if (!p) return;
@@ -740,6 +762,8 @@
                 const c = q.hand[this.rand(q.hand.length)];
                 q.hand = q.hand.filter((x) => x.id !== c.id);
                 p.hand.push(c);
+                this.afterCardGain(p, [c]);
+                await this.afterLoseCards(q, [c], true);
                 this.log(`${this.nameOf(p)} 发动【突袭】获得 ${this.nameOf(q)} 一张手牌`, 'skill');
               }
             }
@@ -757,7 +781,7 @@
       if (this.ddzMode && p.role === 'landlord') n += 1;
       // 原版欢乐33：首轮一号位摸牌 1 张，其他位置摸牌 2 张
       if (this.mode === '3v3' && p.seat === 0 && this.turnCount <= this.players.length) n = 1;
-      if (this.mode === '1v1' && p.seat === 0 && !p.flags.duelFirstDraw) { n = Math.max(0, n - 1); p.flags.duelFirstDraw = true; this.log('1 号位首轮摸牌 -1', 'info'); }
+      if (this.mode === '1v1' && p.seat === 0 && !p.duelFirstDraw) { n = Math.max(0, n - 1); p.duelFirstDraw = true; this.log('1 号位首轮摸牌 -1', 'info'); }
       if (p.skills.includes('yingzi') || p.skills.includes('j_yingzi')) n += 1;
       if (p.skills.includes('luoyi')) {
         const res = await this.ask(p, {
@@ -789,6 +813,8 @@
           const c = q.hand[this.rand(q.hand.length)];
           q.hand = q.hand.filter((x) => x.id !== c.id);
           p.hand.push(c);
+          this.afterCardGain(p, [c]);
+          await this.afterLoseCards(q, [c], true);
           got++;
           this.log(`${this.nameOf(p)} 发动【突袭】获得 ${this.nameOf(q)} 一张手牌`, 'skill');
         }
@@ -955,7 +981,8 @@
       if (!phys) { phys = { id: -1, name: '无', suit: 'spade', rank: 1, color: 'black' }; }
       // 红颜等改花色技能只影响本次判定视图，不改写牌堆里的实体牌
       let card = this.effCard(who, phys);
-      this.log(`${this.nameOf(who)} 判定（${reason}）：${this.cardText(card)}`, 'judge');
+      const reasonLabel = (CARDS[reason] && CARDS[reason].name) || reason;
+      this.log(`${this.nameOf(who)} 判定（${reasonLabel}）：${this.cardText(card)}`, 'judge');
       // 结构化判定事件：不依赖日志文本解析，延时锦囊/八卦/铁骑都走同一浮层
       this.recent.push({
         kind: 'judge', seat: who.seat,
@@ -1575,7 +1602,14 @@
         for (const q of this.aliveOrder(this.currentSeat, true)) {
           if (p.hp > 0) break;
           const need = 1 - p.hp;
+          this.recent.push({ kind: 'rescue', seat: q.seat, dyingSeat: p.seat, phase: 'ask' });
+          if (this.recent.length > 200) this.recent.shift();
+          this.emit();
           const peach = await this.askForPeach(q, p);
+          this.recent.push({ kind: 'rescue', seat: q.seat, dyingSeat: p.seat, phase: peach ? 'save' : 'pass' });
+          if (this.recent.length > 200) this.recent.shift();
+          this.emit();
+          if (!peach) await this.pause(220);
           if (peach) {
             let heal = 1;
             // 聚众：酒当桃时，弃同名【酒】令回复量 +1
@@ -1847,19 +1881,19 @@
       this.afterCardGainHook(p, cards).catch((e) => console.error(e));
     }
 
-    afterLoseCards(p, cards) {
+    afterLoseCards(p, cards, fromHand) {
       if (!p.alive) return;
       cards = (cards || []).filter(Boolean);
       if (!cards.length) return;
       // 连营：失去最后一张手牌
-      if (!p.flags.noSkills && p.skills.includes('lianying') && p.hand.length === 0 && cards.some((c) => c.type !== 'equip')) {
+      if (!p.flags.noSkills && p.skills.includes('lianying') && p.hand.length === 0 && (fromHand || cards.some((c) => c.type !== 'equip'))) {
         this.drawCards(p, 1, '连营');
         this.log(`${this.nameOf(p)} 发动【连营】摸一张牌`, 'skill');
       }
       if (cards.some((c) => c.name === 'baiyinshizi') && p.alive && p.hp < p.maxHp) {
         this.recover(p, 1, null, '白银狮子');
       }
-      this.afterLoseCardsHook(p, cards).catch((e) => console.error(e));
+      this.afterLoseCardsHook(p, cards, fromHand).catch((e) => console.error(e));
       // 枭姬：失去装备
       const lostEquip = cards.filter((c) => c && (c.type === 'equip'));
       if (!p.flags.noSkills && p.skills.includes('xiaoji') && lostEquip.length > 0 && !this._xiaojiBusy) {
@@ -1884,6 +1918,20 @@
         for (const c of target.judges) choices.push({ zone: 'judge', card: c });
       }
       if (!choices.length) return null;
+      if (!choices.length) return null;
+      // 手牌区必须显示牌背，由玩家选择具体位置；其他区域仍走 chooseCardFrom
+      if (choices.length === 1 && choices[0].zone === 'hand') {
+        const idx = await this.ask(chooser, {
+          type: 'chooseHiddenCard', player: chooser, target,
+          count: target.hand.length, reason: opts.reason || '选择一张手牌',
+        });
+        if (idx == null || idx < 0 || idx >= target.hand.length) return null;
+        const c = target.hand.splice(idx, 1)[0];
+        this.recent.push({ kind: 'handReveal', seat: target.seat, card: { name: c.name, suit: c.suit, rank: c.rank, color: c.color }, reason: opts.reason || '选择手牌' });
+        if (this.recent.length > 200) this.recent.shift();
+        this.emit();
+        return c;
+      }
       const res = await this.ask(chooser, {
         type: 'chooseCardFrom', player: chooser, target, choices,
         reason: opts.reason || '选择一张牌',
@@ -1891,8 +1939,15 @@
       if (!res) return null;
       if (res.zone === 'hand') {
         if (!target.hand.length) return null;
-        const idx = this.rand(target.hand.length);
+        const idx = await this.ask(chooser, {
+          type: 'chooseHiddenCard', player: chooser, target,
+          count: target.hand.length, reason: opts.reason || '选择一张手牌',
+        });
+        if (idx == null || idx < 0 || idx >= target.hand.length) return null;
         const c = target.hand.splice(idx, 1)[0];
+        this.recent.push({ kind: 'handReveal', seat: target.seat, card: { name: c.name, suit: c.suit, rank: c.rank, color: c.color }, reason: opts.reason || '选择手牌' });
+        if (this.recent.length > 200) this.recent.shift();
+        this.emit();
         return c;
       }
       if (res.zone === 'equip') {

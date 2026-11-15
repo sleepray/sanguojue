@@ -68,6 +68,7 @@
         case 'chooseCardFrom': return this.chooseCardFrom(req);
         case 'arrange': return this.arrange(req);
         case 'pickFrom': return this.pickFrom(req);
+        case 'chooseHiddenCard': return this.game.rand(Math.max(1, req.count || 1));
         case 'distribute': return this.distribute(req);
         default: return null;
       }
@@ -79,32 +80,37 @@
       if (!other) return 'neutral';
       const me = this.p;
       if (other.seat === me.seat) return 'self';
+      // 团队/斗地主身份公开；身份局只认公开身份（主公/已揭示）
       if (this.game.teamMode || this.game.ddzMode) return me.role === other.role ? 'friend' : 'enemy';
-      const aliveRebels = this.alive.filter((q) => q.role === 'rebel').length;
-      const aliveLoyal = this.alive.filter((q) => q.role === 'loyalist').length;
+      // 身份局只认公开身份：主公、已揭示；反贼也不互认
+      let known = other.role === 'lord' || !!other.revealed;
+      if (!known) return 'neutral';
+      const aliveRebels = this.alive.filter((q) => q.role === 'rebel' && (q.revealed || q === me)).length;
+      const aliveLoyal = this.alive.filter((q) => q.role === 'loyalist' && q.revealed).length;
       if (me.role === 'lord' || me.role === 'loyalist') {
-        if (other.role === 'lord' || other.role === 'loyalist') return 'friend';
-        if (other.role === 'rebel') return 'enemy';
-        return aliveRebels === 0 ? 'enemy' : 'neutral';
-      }
-      if (me.role === 'rebel') {
-        if (other.role === 'lord' || other.role === 'loyalist') return 'enemy';
-        if (other.role === 'rebel') return 'friend';
+        if (other.role === 'lord' || (other.revealed && other.role === 'loyalist')) return 'friend';
+        if (other.revealed && other.role === 'rebel') return 'enemy';
         return 'neutral';
       }
-      // 内奸：动态平衡。哪边人多就压哪边，反贼清完后清主忠，最后单挑主公。
+      if (me.role === 'rebel') {
+        if (other.role === 'lord' || (other.revealed && other.role === 'loyalist')) return 'enemy';
+        if (other.revealed && other.role === 'rebel') return 'friend';
+        return 'neutral';
+      }
+      // 内奸：只知道主公与已揭示角色；不按真实人数透视
       const lordCamp = aliveLoyal + (this.game.lord && this.game.lord.alive ? 1 : 0);
-      if (other.role === 'lord') return aliveRebels > 0 ? 'friend' : 'enemy'; // 反贼没清空前保主公
-      if (other.role === 'loyalist') {
+      if (other.role === 'lord') return aliveRebels > 0 ? 'friend' : 'enemy';
+      if (other.revealed && other.role === 'loyalist') {
         if (aliveRebels === 0) return 'enemy';
         return lordCamp > aliveRebels ? 'enemy' : 'neutral';
       }
-      if (other.role === 'rebel') {
-        if (aliveRebels >= lordCamp) return 'enemy'; // 反贼占优时帮主公压反贼
+      if (other.revealed && other.role === 'rebel') {
+        if (aliveRebels >= lordCamp) return 'enemy';
         return 'neutral';
       }
       return 'neutral';
     }
+
     isFriend(q) { const r = this.relation(q); return r === 'friend' || r === 'self'; }
     isEnemy(q) { return this.relation(q) === 'enemy'; }
 
@@ -995,7 +1001,7 @@
       }).length;
       // 内奸：反贼还在时保主公
       if (p.role === 'renegade') {
-        const rebels = g.alivePlayers.filter((q) => q.role === 'rebel').length;
+        const rebels = g.alivePlayers.filter((q) => q.role === 'rebel' && q.revealed).length;
         if (dying.role === 'lord' && rebels > 0) return this.pickResponseCard(opts);
         return null;
       }

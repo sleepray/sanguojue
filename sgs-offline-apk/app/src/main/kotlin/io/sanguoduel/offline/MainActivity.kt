@@ -156,15 +156,47 @@ class MainActivity : Activity() {
         handleBack()
     }
 
+    private var backgroundPaused = false
+
     override fun onResume() {
         super.onResume()
+        backgroundPaused = false
+        webView.resumeTimers()
         webView.onResume()
+        // 不在这里恢复引擎：等玩家点“继续游戏”，避免恢复瞬间快进
         goFullscreen()
     }
 
     override fun onPause() {
-        webView.onPause()
+        pauseForBackground()
         super.onPause()
+    }
+
+    override fun onStop() {
+        pauseForBackground()
+        super.onStop()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (!hasFocus) pauseForBackground()
+    }
+
+    private fun pauseForBackground() {
+        if (!::webView.isInitialized || backgroundPaused) return
+        backgroundPaused = true
+        android.util.Log.i("SGS_LIFE", "pauseForBackground")
+        // 必须在暂停计时器之前把暂停状态送进 JS；回调确认后再冻结 WebView
+        webView.evaluateJavascript("window.SGS_APP_PAUSE && SGS_APP_PAUSE(true); window.__SGS_LAST_PAUSE = true;", android.webkit.ValueCallback { value ->
+            android.util.Log.i("SGS_LIFE", "pause JS callback=$value")
+            webView.postDelayed({
+                if (backgroundPaused) {
+                    webView.pauseTimers()
+                    webView.onPause()
+                    android.util.Log.i("SGS_LIFE", "pauseTimers applied")
+                }
+            }, 80)
+        })
     }
 
     override fun onDestroy() {

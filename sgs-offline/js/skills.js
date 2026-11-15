@@ -69,6 +69,8 @@
     },
 
     async skillLuoshen(p, variant) {
+      this.log(`${this.nameOf(p)} 发动【洛神】`, 'skill');
+      this.emit();
       let guard = 0;
       while (guard++ < 8) {
         const res = await this.judge(p, '洛神');
@@ -811,6 +813,8 @@
           p.used.tianyi = true;
           const t = targets[0];
           if (!t) return;
+          this.log(`${this.nameOf(p)} 发动【天义】`, 'skill');
+          this.emit();
           const win = await this.pindian(p, t, '天义');
           if (win) { p.flags.tianyiWin = true; p.flags.extraSlash = (p.flags.extraSlash || 0) + 1; this.log(`${this.nameOf(p)} 赢下【天义】，本回合可额外使用一张【杀】且无距离限制`, 'skill'); }
           else { p.flags.tianyiLose = true; this.log(`${this.nameOf(p)} 未赢下【天义】，本回合不能使用【杀】`, 'skill'); }
@@ -1115,7 +1119,16 @@
       const win = ca.rank > cb.rank;
       const tie = ca.rank === cb.rank;
       this.log(`【${reason}】拼点：${this.nameOf(p)} ${this.cardText(ca)} vs ${this.nameOf(t)} ${this.cardText(cb)} → ${tie ? '平局' : win ? this.nameOf(p) + ' 赢' : this.nameOf(t) + ' 赢'}`, 'pindian');
+      const cardInfo = (c) => ({ name: c.name, suit: c.suit, rank: c.rank, color: c.color });
+      this.recent.push({
+        kind: 'pindian', reason: reason,
+        a: { seat: p.seat, name: this.nameOf(p), card: cardInfo(ca) },
+        b: { seat: t.seat, name: this.nameOf(t), card: cardInfo(cb) },
+        win: win, tie: tie,
+      });
+      if (this.recent.length > 200) this.recent.shift();
       this.emit();
+      await this.pause(1700);
       return win;
     },
 
@@ -1553,7 +1566,7 @@
       this.emit();
     },
 
-    async afterLoseCardsHook(p, cards) {
+    async afterLoseCardsHook(p, cards, fromHand) {
       if (!p.alive || !cards.length) return;
       if (has(p, 'tuntian') && !this._inTuntian && this.currentSeat !== p.seat) {
         const lost = cards.filter((c) => c && c.type !== 'delay');
@@ -1565,7 +1578,7 @@
         }
       }
       // 连营（陆逊 Po）：失去所有手牌后，令至多 X 名角色各摸一张（X=失去的手牌数）
-      if (has(p, 'j_lianying') && p.hand.length === 0 && cards.some((c) => c.type !== 'equip') && !this._inLianying) {
+      if (has(p, 'j_lianying') && p.hand.length === 0 && (fromHand || cards.some((c) => c.type !== 'equip')) && !this._inLianying) {
         const x = Math.max(1, cards.filter((c) => c && c.type !== 'equip').length);
         this._inLianying = true;
         try {
