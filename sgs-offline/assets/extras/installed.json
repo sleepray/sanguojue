@@ -1,0 +1,610 @@
+{
+ "generated": "2026-11-14T17:14:02+0800",
+ "count": 30,
+ "naming": "%03d.png（与 js/ui.js 的 padStart(3,'0') 及既有 001..057 一致）",
+ "note": "可选扩展包，默认关闭；未覆盖 001..057",
+ "items": [
+  {
+   "gid": 61,
+   "name": "黄忠",
+   "big": "assets/big/061.png",
+   "seat": "assets/seat/061.png",
+   "sha1": {
+    "big": "0aa01ba5326209cc098e1367208e4d608edb7152",
+    "seat": "1f458e5866be5bd7fea5d43c8320148d7e801287"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 108,
+   "name": "赵云",
+   "big": "assets/big/108.png",
+   "seat": "assets/seat/108.png",
+   "sha1": {
+    "big": "59b1171d2842d754e4e4699f3b16d183a3d25a79",
+    "seat": "a2ba3d3803a9852d6fe99535b38bb0d2c77c17c8"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 299,
+   "name": "刘备",
+   "big": "assets/big/299.png",
+   "seat": "assets/seat/299.png",
+   "sha1": {
+    "big": "79bc1f1152b8a5c949a9847e6fd43d920ab43654",
+    "seat": "a393e82c9a552c0f0f33db472b015f63456814b5"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 300,
+   "name": "关羽",
+   "big": "assets/big/300.png",
+   "seat": "assets/seat/300.png",
+   "sha1": {
+    "big": "9f426f7520cde30286c4c1513645e41adc22cae6",
+    "seat": "9fd0f61d14c9d5b41a491c2c80ea20f9d8a5f98d"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 301,
+   "name": "张飞",
+   "big": "assets/big/301.png",
+   "seat": "assets/seat/301.png",
+   "sha1": {
+    "big": "51f56acc850f2f1b80fb83a1ed68dedb8344321c",
+    "seat": "b8e739a44fa57f3785549c318889f1b11d55935f"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 302,
+   "name": "赵云",
+   "big": "assets/big/302.png",
+   "seat": "assets/seat/302.png",
+   "sha1": {
+    "big": "35ef5322824344b200342331fc09b2a6e6921279",
+    "seat": "f3bd2c0fc41f968c02b8a8b69101e9c3ac97d312"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 303,
+   "name": "马超",
+   "big": "assets/big/303.png",
+   "seat": "assets/seat/303.png",
+   "sha1": {
+    "big": "a52893e43d783d0cec470171a57f7347cf2e688a",
+    "seat": "30c8d017bfd24feab13fe929bfb89267a59dafe4"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 304,
+   "name": "徐庶",
+   "big": "assets/big/304.png",
+   "seat": "assets/seat/304.png",
+   "sha1": {
+    "big": "6f3d41b4661c4b6f1b6938ab4a6c99c3507d99de",
+    "seat": "d9bf76cde57777087393af96eeaa8ef545ee2252"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 305,
+   "name": "甘宁",
+   "big": "assets/big/305.png",
+   "seat": "assets/seat/305.png",
+   "sha1": {
+    "big": "49a7138c499eb1d6c53f0d7bf51f1270abe6c5b2",
+    "seat": "767e6a6553fd01f632998c9e750a7f0918a15d46"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 306,
+   "name": "吕蒙",
+   "big": "assets/big/306.png",
+   "seat": "assets/seat/306.png",
+   "sha1": {
+    "big": "aefead11551842f59539ef820b214cf56f9b3990",
+    "seat": "d003549274bbf2554adee64dcfab29d705d1fc3e"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 307,
+   "name": "黄盖",
+   "big": "assets/big/307.png",
+   "seat": "assets/seat/307.png",
+   "sha1": {
+    "big": "fa894ee7297a16cc12948a0531d1d7ae66c3b54d",
+    "seat": "b93c403c3836df9c4e47a87ff3112c2d04bbaa92"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 308,
+   "name": "周瑜",
+   "big": "assets/big/308.png",
+   "seat": "assets/seat/308.png",
+   "sha1": {
+    "big": "35436627627c28575d8fd35aa324cd697d06c31f",
+    "seat": "b4504ff7316c410ddf58745c5dd1dbb86b296df2"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 309,
+   "name": "大乔",
+   "big": "assets/big/309.png",
+   "seat": "assets/seat/309.png",
+   "sha1": {
+    "big": "5077de4182bd1490e38d3a82fd25527c841dae75",
+    "seat": "304dc3da01e3bad970ea3910e4bf51ff14c44ae1"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 310,
+   "name": "陆逊",
+   "big": "assets/big/310.png",
+   "seat": "assets/seat/310.png",
+   "sha1": {
+    "big": "8b712fe95f38e23608224e5aae9b34fb6934f71e",
+    "seat": "f7c77acd4957f766197c14171094b9c7e2273471"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 311,
+   "name": "曹操",
+   "big": "assets/big/311.png",
+   "seat": "assets/seat/311.png",
+   "sha1": {
+    "big": "e182ec1bf87459c5e941d301e02e6c243e43aa4a",
+    "seat": "d1b80ede638baa38dc6c63c146d04a94c0f80580"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 312,
+   "name": "司马懿",
+   "big": "assets/big/312.png",
+   "seat": "assets/seat/312.png",
+   "sha1": {
+    "big": "746b08eeb5a56a46c5fdca9953f8cf149ffa4e17",
+    "seat": "e045b7ab7a018711fa73c694c87696ba8ba4a9b2"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 313,
+   "name": "夏侯惇",
+   "big": "assets/big/313.png",
+   "seat": "assets/seat/313.png",
+   "sha1": {
+    "big": "cc345440ab025d31ba9b60fe7c444480ff706d60",
+    "seat": "e654d4abba9293ddc7d12cb28f7700d1dad8d2ae"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 314,
+   "name": "张辽",
+   "big": "assets/big/314.png",
+   "seat": "assets/seat/314.png",
+   "sha1": {
+    "big": "93999450e9aed276bb639686f14862f5dde5cd59",
+    "seat": "8da820f6e49ce15e8edba9659a706eac357d45c1"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 315,
+   "name": "许褚",
+   "big": "assets/big/315.png",
+   "seat": "assets/seat/315.png",
+   "sha1": {
+    "big": "d96eef66e34292376daecbf8bfcc7c005d2c5ac0",
+    "seat": "e90c5e47d448b3fd27b6614b23f090b729a672c6"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 316,
+   "name": "郭嘉",
+   "big": "assets/big/316.png",
+   "seat": "assets/seat/316.png",
+   "sha1": {
+    "big": "a779103c5e139e92901dbd0fd99f8424647b3b04",
+    "seat": "cba90c280ef0089cd3b5c4de4ad102bbd0967586"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 318,
+   "name": "华佗",
+   "big": "assets/big/318.png",
+   "seat": "assets/seat/318.png",
+   "sha1": {
+    "big": "50eaa1f67e12dc70b3fcd530cccf1e4789ca692b",
+    "seat": "1e40b74e5c1e64382db85f2c92742f772070ed0e"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 319,
+   "name": "吕布",
+   "big": "assets/big/319.png",
+   "seat": "assets/seat/319.png",
+   "sha1": {
+    "big": "970eb5ee18e895cae8fc360a0d878b62e26059c0",
+    "seat": "a466f0dad652ff17b34a89b304f9127aac03bbcd"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 320,
+   "name": "公孙瓒",
+   "big": "assets/big/320.png",
+   "seat": "assets/seat/320.png",
+   "sha1": {
+    "big": "c242b1d363356301621ae7b163d645dc79732eca",
+    "seat": "6471257faa83c14fcb6ee7cbbe4f79b40561888b"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 440,
+   "name": "诸葛亮",
+   "big": "assets/big/440.png",
+   "seat": "assets/seat/440.png",
+   "sha1": {
+    "big": "20c80d1e0eff35daf9beda70cea30c7ea9892495",
+    "seat": "9c9209b1b8ee1977b2732cc774005cca09a51e40"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 441,
+   "name": "黄月英",
+   "big": "assets/big/441.png",
+   "seat": "assets/seat/441.png",
+   "sha1": {
+    "big": "06dd695e453b806b7ef5abc87bb98a9166bea1da",
+    "seat": "6a13d49357781fcdf8267df2c08afb6891958f9f"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 442,
+   "name": "孙权",
+   "big": "assets/big/442.png",
+   "seat": "assets/seat/442.png",
+   "sha1": {
+    "big": "607ad4fde8bae7278dc9a92daa86d46eaf84da40",
+    "seat": "3c1fef90a1492c567a91a044a91e6d474b86441c"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 443,
+   "name": "孙尚香",
+   "big": "assets/big/443.png",
+   "seat": "assets/seat/443.png",
+   "sha1": {
+    "big": "a834bafe8518cb41f39cfe8a7ea2c24bd9da3884",
+    "seat": "a2aad4c110576a846db83cc4a504f619a49e53d4"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 444,
+   "name": "甄姬",
+   "big": "assets/big/444.png",
+   "seat": "assets/seat/444.png",
+   "sha1": {
+    "big": "fbea197eb0ae2cdae3f32e16e26645724649e822",
+    "seat": "11aa33499b12367f20913ee051061553f6946c5f"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 445,
+   "name": "貂蝉",
+   "big": "assets/big/445.png",
+   "seat": "assets/seat/445.png",
+   "sha1": {
+    "big": "0386101a4812fe9e84ab9025195469ba2f198bee",
+    "seat": "452bb185f2e8089a675cfaa3498a71b6064d7760"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  },
+  {
+   "gid": 446,
+   "name": "华雄",
+   "big": "assets/big/446.png",
+   "seat": "assets/seat/446.png",
+   "sha1": {
+    "big": "f88500b934f78260e9349a06c7534f705b1fb0c7",
+    "seat": "fb206a58d8764628e26d3f5a6c0f8d7beceaa0bf"
+   },
+   "size": {
+    "big": [
+     535,
+     678
+    ],
+    "seat": [
+     139,
+     214
+    ]
+   }
+  }
+ ],
+ "defaultEnabled": false,
+ "enableHint": "需在 data.js 的 GENERALS / 选将池中显式加入这些 gid 才会出现；当前仅落盘素材"
+}

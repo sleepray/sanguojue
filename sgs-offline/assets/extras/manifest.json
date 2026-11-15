@@ -1,0 +1,861 @@
+{
+ "generated": "2026-11-14T16:43:10+0800",
+ "source": "assets/Bundles/*general_{big,seat}_static_*（原尺寸，未缩放）",
+ "count": 30,
+ "dimensions": {
+  "big": "535x678（与 assets/big 一致）",
+  "seat": "139x214（与 assets/seat 中 54 张一致；并非 175x246）"
+ },
+ "note": "seat 原版静态图就是 139x214；assets/seat 里 31/32/33 三张 175x246 来自其它包。本目录不做放大。",
+ "items": [
+  {
+   "gid": 61,
+   "name": "黄忠",
+   "pinyin": "HuangZhong",
+   "kingdom": "蜀",
+   "version": "其它",
+   "baseGeneral": 26,
+   "baseSkills": [
+    "liegong"
+   ],
+   "skillSuggestion": "复用 #26 黄忠 的技能实现（烈弓）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/61.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 629843,
+    "sha1": "0aa01ba5326209cc",
+    "bundle": "assets_res_localh5picture_general_big_static_2719_97c2add1c054f052511c25e9f190fd0e.ab"
+   },
+   "seat": {
+    "path": "seat/61.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 75607,
+    "sha1": "1f458e5866be5bd7",
+    "bundle": "assets_res_localh5picture_general_seat_static_143_2f9c593b7447dddc128f081ccbf88c8d.ab"
+   }
+  },
+  {
+   "gid": 108,
+   "name": "赵云",
+   "pinyin": "ZhaoYunOnline",
+   "kingdom": "群",
+   "version": "OL/线上版",
+   "baseGeneral": 5,
+   "baseSkills": [
+    "longdan"
+   ],
+   "skillSuggestion": "复用 #5 赵云 的技能实现（龙胆）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/108.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 626336,
+    "sha1": "59b1171d2842d754",
+    "bundle": "assets_res_localh5picture_general_big_static_2643_103040ac70cf0b495093d6b91e8ee95c.ab"
+   },
+   "seat": {
+    "path": "seat/108.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 72347,
+    "sha1": "a2ba3d3803a9852d",
+    "bundle": "assets_res_localh5picture_general_seat_static_124_3cdb03a56f7ff58b8239173b250cd9cb.ab"
+   }
+  },
+  {
+   "gid": 299,
+   "name": "刘备",
+   "pinyin": "JieLiuBei",
+   "kingdom": "蜀",
+   "version": "界",
+   "baseGeneral": 1,
+   "baseSkills": [
+    "rende",
+    "jijiang"
+   ],
+   "skillSuggestion": "复用 #1 刘备 的技能实现（仁德/激将）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/299.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 472724,
+    "sha1": "79bc1f1152b8a5c9",
+    "bundle": "assets_res_localh5picture_general_big_static_2644_7432657a1465e0cee79ce5fe342581b4.ab"
+   },
+   "seat": {
+    "path": "seat/299.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 63116,
+    "sha1": "a393e82c9a552c0f",
+    "bundle": "assets_res_localh5picture_general_seat_static_124_3cdb03a56f7ff58b8239173b250cd9cb.ab"
+   }
+  },
+  {
+   "gid": 300,
+   "name": "关羽",
+   "pinyin": "GuanYuPo",
+   "kingdom": "蜀",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 2,
+   "baseSkills": [
+    "wusheng"
+   ],
+   "skillSuggestion": "复用 #2 关羽 的技能实现（武圣）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/300.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 504625,
+    "sha1": "9f426f7520cde302",
+    "bundle": "assets_res_localh5picture_general_big_static_2645_20f6b6d6687fe93b01b5de84ba39f16c.ab"
+   },
+   "seat": {
+    "path": "seat/300.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 65077,
+    "sha1": "9fd0f61d14c9d5b4",
+    "bundle": "assets_res_localh5picture_general_seat_static_124_3cdb03a56f7ff58b8239173b250cd9cb.ab"
+   }
+  },
+  {
+   "gid": 301,
+   "name": "张飞",
+   "pinyin": "ZhangFeiPo",
+   "kingdom": "蜀",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 3,
+   "baseSkills": [
+    "paoxiao"
+   ],
+   "skillSuggestion": "复用 #3 张飞 的技能实现（咆哮）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/301.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 662019,
+    "sha1": "51f56acc850f2f1b",
+    "bundle": "assets_res_localh5picture_general_big_static_2646_5ccc6a129857577f03fb81593036e202.ab"
+   },
+   "seat": {
+    "path": "seat/301.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 70986,
+    "sha1": "b8e739a44fa57f37",
+    "bundle": "assets_res_localh5picture_general_seat_static_124_3cdb03a56f7ff58b8239173b250cd9cb.ab"
+   }
+  },
+  {
+   "gid": 302,
+   "name": "赵云",
+   "pinyin": "ZhaoYunPo",
+   "kingdom": "蜀",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 5,
+   "baseSkills": [
+    "longdan"
+   ],
+   "skillSuggestion": "复用 #5 赵云 的技能实现（龙胆）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/302.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 576696,
+    "sha1": "35ef5322824344b2",
+    "bundle": "assets_res_localh5picture_general_big_static_2647_09f8b6219beaeb87844a1e7ac8e18bfc.ab"
+   },
+   "seat": {
+    "path": "seat/302.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 66995,
+    "sha1": "f3bd2c0fc41f968c",
+    "bundle": "assets_res_localh5picture_general_seat_static_124_3cdb03a56f7ff58b8239173b250cd9cb.ab"
+   }
+  },
+  {
+   "gid": 303,
+   "name": "马超",
+   "pinyin": "MaChaoPo",
+   "kingdom": "蜀",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 6,
+   "baseSkills": [
+    "mashu",
+    "tieji"
+   ],
+   "skillSuggestion": "复用 #6 马超 的技能实现（马术/铁骑）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/303.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 583422,
+    "sha1": "a52893e43d783d0c",
+    "bundle": "assets_res_localh5picture_general_big_static_2648_bc6daf00369538d502f8b6cfd13c8be4.ab"
+   },
+   "seat": {
+    "path": "seat/303.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 75164,
+    "sha1": "30c8d017bfd24fea",
+    "bundle": "assets_res_localh5picture_general_seat_static_124_3cdb03a56f7ff58b8239173b250cd9cb.ab"
+   }
+  },
+  {
+   "gid": 304,
+   "name": "徐庶",
+   "pinyin": "XuShuPo",
+   "kingdom": "蜀",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": null,
+   "baseSkills": [],
+   "skillSuggestion": "项目中无同名基础武将，需新写技能（仅素材可用）",
+   "big": {
+    "path": "big/304.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 675632,
+    "sha1": "6f3d41b4661c4b6f",
+    "bundle": "assets_res_localh5picture_general_big_static_2649_3867d49b12b8617c124d40afd1797687.ab"
+   },
+   "seat": {
+    "path": "seat/304.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 75930,
+    "sha1": "d9bf76cde5777708",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 305,
+   "name": "甘宁",
+   "pinyin": "GanNingPo",
+   "kingdom": "吴",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 9,
+   "baseSkills": [
+    "qixi"
+   ],
+   "skillSuggestion": "复用 #9 甘宁 的技能实现（奇袭）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/305.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 595277,
+    "sha1": "49a7138c499eb1d6",
+    "bundle": "assets_res_localh5picture_general_big_static_2650_6a3f04eb10a2a48a68c2ac4a90e89d64.ab"
+   },
+   "seat": {
+    "path": "seat/305.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 68783,
+    "sha1": "767e6a6553fd01f6",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 306,
+   "name": "吕蒙",
+   "pinyin": "LvMengPo",
+   "kingdom": "吴",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 10,
+   "baseSkills": [
+    "keji"
+   ],
+   "skillSuggestion": "复用 #10 吕蒙 的技能实现（克己）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/306.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 517178,
+    "sha1": "aefead11551842f5",
+    "bundle": "assets_res_localh5picture_general_big_static_2651_e7550f97045140353012b48c632537ec.ab"
+   },
+   "seat": {
+    "path": "seat/306.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 61306,
+    "sha1": "d003549274bbf255",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 307,
+   "name": "黄盖",
+   "pinyin": "HuangGaiPo",
+   "kingdom": "吴",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 11,
+   "baseSkills": [
+    "kurou"
+   ],
+   "skillSuggestion": "复用 #11 黄盖 的技能实现（苦肉）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/307.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 629044,
+    "sha1": "fa894ee7297a16cc",
+    "bundle": "assets_res_localh5picture_general_big_static_2652_50bee6985a7ed5379b326708b645dce6.ab"
+   },
+   "seat": {
+    "path": "seat/307.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 72619,
+    "sha1": "b93c403c3836df9c",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 308,
+   "name": "周瑜",
+   "pinyin": "ZhouYuPo",
+   "kingdom": "吴",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 12,
+   "baseSkills": [
+    "yingzi",
+    "fanjian"
+   ],
+   "skillSuggestion": "复用 #12 周瑜 的技能实现（英姿/反间）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/308.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 614648,
+    "sha1": "35436627627c2857",
+    "bundle": "assets_res_localh5picture_general_big_static_2653_78bee33bfc56ed4ddf7803aa7cdd0a6b.ab"
+   },
+   "seat": {
+    "path": "seat/308.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 79313,
+    "sha1": "b4504ff7316c410d",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 309,
+   "name": "大乔",
+   "pinyin": "DaQiaoPo",
+   "kingdom": "吴",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 13,
+   "baseSkills": [
+    "guose",
+    "liuli"
+   ],
+   "skillSuggestion": "复用 #13 大乔 的技能实现（国色/流离）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/309.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 608792,
+    "sha1": "5077de4182bd1490",
+    "bundle": "assets_res_localh5picture_general_big_static_2654_82e850c9b5f2b16db26861abb52e97f8.ab"
+   },
+   "seat": {
+    "path": "seat/309.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 70384,
+    "sha1": "304dc3da01e3bad9",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 310,
+   "name": "陆逊",
+   "pinyin": "LuXunPo",
+   "kingdom": "吴",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 14,
+   "baseSkills": [
+    "qianxun",
+    "lianying"
+   ],
+   "skillSuggestion": "复用 #14 陆逊 的技能实现（谦逊/连营）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/310.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 681642,
+    "sha1": "8b712fe95f38e236",
+    "bundle": "assets_res_localh5picture_general_big_static_2655_3056889c9d2d1e03dd2c5e622f44c100.ab"
+   },
+   "seat": {
+    "path": "seat/310.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 75901,
+    "sha1": "f7c77acd4957f766",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 311,
+   "name": "曹操",
+   "pinyin": "CaoCaoPo",
+   "kingdom": "魏",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 15,
+   "baseSkills": [
+    "jianxiong",
+    "hujia"
+   ],
+   "skillSuggestion": "复用 #15 曹操 的技能实现（奸雄/护驾）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/311.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 507374,
+    "sha1": "e182ec1bf87459c5",
+    "bundle": "assets_res_localh5picture_general_big_static_2656_8101a959f5598189a8707d00b97e2f94.ab"
+   },
+   "seat": {
+    "path": "seat/311.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 66070,
+    "sha1": "d1b80ede638baa38",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 312,
+   "name": "司马懿",
+   "pinyin": "SiMaYiPo",
+   "kingdom": "魏",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 16,
+   "baseSkills": [
+    "fankui",
+    "guicai"
+   ],
+   "skillSuggestion": "复用 #16 司马懿 的技能实现（反馈/鬼才）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/312.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 573423,
+    "sha1": "746b08eeb5a56a46",
+    "bundle": "assets_res_localh5picture_general_big_static_2657_b4e0884c6653995ff808a52edd3aa017.ab"
+   },
+   "seat": {
+    "path": "seat/312.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 73780,
+    "sha1": "e045b7ab7a018711",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 313,
+   "name": "夏侯惇",
+   "pinyin": "XiaHouDunPo",
+   "kingdom": "魏",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 17,
+   "baseSkills": [
+    "ganglie"
+   ],
+   "skillSuggestion": "复用 #17 夏侯惇 的技能实现（刚烈）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/313.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 544183,
+    "sha1": "cc345440ab025d31",
+    "bundle": "assets_res_localh5picture_general_big_static_2658_d377fedb50540f8cef6dcbbae66e34ed.ab"
+   },
+   "seat": {
+    "path": "seat/313.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 70671,
+    "sha1": "e654d4abba9293dd",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 314,
+   "name": "张辽",
+   "pinyin": "ZhangLiaoPo",
+   "kingdom": "魏",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 18,
+   "baseSkills": [
+    "tuxi"
+   ],
+   "skillSuggestion": "复用 #18 张辽 的技能实现（突袭）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/314.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 764746,
+    "sha1": "93999450e9aed276",
+    "bundle": "assets_res_localh5picture_general_big_static_2659_c43a6ced624bea19de1434305f1d5c40.ab"
+   },
+   "seat": {
+    "path": "seat/314.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 77192,
+    "sha1": "8da820f6e49ce15e",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 315,
+   "name": "许褚",
+   "pinyin": "XuChuPo",
+   "kingdom": "魏",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 19,
+   "baseSkills": [
+    "luoyi"
+   ],
+   "skillSuggestion": "复用 #19 许褚 的技能实现（裸衣）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/315.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 621502,
+    "sha1": "d96eef66e3429237",
+    "bundle": "assets_res_localh5picture_general_big_static_2660_2f3f947d8d038118b9f29feaa97a1506.ab"
+   },
+   "seat": {
+    "path": "seat/315.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 68739,
+    "sha1": "e90c5e47d448b3fd",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 316,
+   "name": "郭嘉",
+   "pinyin": "GuoJiaPo",
+   "kingdom": "魏",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 20,
+   "baseSkills": [
+    "tiandu",
+    "yiji"
+   ],
+   "skillSuggestion": "复用 #20 郭嘉 的技能实现（天妒/遗计）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/316.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 511009,
+    "sha1": "a779103c5e139e92",
+    "bundle": "assets_res_localh5picture_general_big_static_2661_4a9244ba4d4c992a34772453665ad95f.ab"
+   },
+   "seat": {
+    "path": "seat/316.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 64691,
+    "sha1": "cba90c280ef0089c",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 318,
+   "name": "华佗",
+   "pinyin": "HuaTuoPo",
+   "kingdom": "群",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 22,
+   "baseSkills": [
+    "jijiu",
+    "qingnang"
+   ],
+   "skillSuggestion": "复用 #22 华佗 的技能实现（急救/青囊）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/318.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 651294,
+    "sha1": "50eaa1f67e12dc70",
+    "bundle": "assets_res_localh5picture_general_big_static_2662_77ceff70e324c78451c6ddbe7a44287f.ab"
+   },
+   "seat": {
+    "path": "seat/318.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 67905,
+    "sha1": "1e40b74e5c1e6438",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 319,
+   "name": "吕布",
+   "pinyin": "LvBuPo",
+   "kingdom": "群",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 23,
+   "baseSkills": [
+    "wushuang"
+   ],
+   "skillSuggestion": "复用 #23 吕布 的技能实现（无双）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/319.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 578402,
+    "sha1": "970eb5ee18e895ca",
+    "bundle": "assets_res_localh5picture_general_big_static_2663_f94f8dfd3f18600de4503823c0cb7809.ab"
+   },
+   "seat": {
+    "path": "seat/319.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 71796,
+    "sha1": "a466f0dad652ff17",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 320,
+   "name": "公孙瓒",
+   "pinyin": "GongSunZanPo",
+   "kingdom": "群",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": null,
+   "baseSkills": [],
+   "skillSuggestion": "项目中无同名基础武将，需新写技能（仅素材可用）",
+   "big": {
+    "path": "big/320.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 544330,
+    "sha1": "c242b1d363356301",
+    "bundle": "assets_res_localh5picture_general_big_static_2664_fd06ee14ef9e94e256fb046562866cc4.ab"
+   },
+   "seat": {
+    "path": "seat/320.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 71536,
+    "sha1": "6471257faa83c14f",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 440,
+   "name": "诸葛亮",
+   "pinyin": "ZhuGeLiangPo",
+   "kingdom": "蜀",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 4,
+   "baseSkills": [
+    "guanxing",
+    "kongcheng"
+   ],
+   "skillSuggestion": "复用 #4 诸葛亮 的技能实现（观星/空城）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/440.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 476474,
+    "sha1": "20c80d1e0eff35da",
+    "bundle": "assets_res_localh5picture_general_big_static_2665_cd69c6eb2e565179b83a86ac615f27eb.ab"
+   },
+   "seat": {
+    "path": "seat/440.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 61459,
+    "sha1": "9c9209b1b8ee1977",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 441,
+   "name": "黄月英",
+   "pinyin": "HuangYueYingPo",
+   "kingdom": "蜀",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 7,
+   "baseSkills": [
+    "jizhi",
+    "qicai"
+   ],
+   "skillSuggestion": "复用 #7 黄月英 的技能实现（集智/奇才）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/441.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 497701,
+    "sha1": "06dd695e453b806b",
+    "bundle": "assets_res_localh5picture_general_big_static_2666_cc47e0aad529a040732c7eec589bbf98.ab"
+   },
+   "seat": {
+    "path": "seat/441.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 62542,
+    "sha1": "6a13d49357781fcd",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 442,
+   "name": "孙权",
+   "pinyin": "JieSunQuan",
+   "kingdom": "吴",
+   "version": "界",
+   "baseGeneral": 8,
+   "baseSkills": [
+    "zhiheng",
+    "jiuyuan"
+   ],
+   "skillSuggestion": "复用 #8 孙权 的技能实现（制衡/救援）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/442.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 576372,
+    "sha1": "607ad4fde8bae727",
+    "bundle": "assets_res_localh5picture_general_big_static_2667_789645861e877754f12d8abcdf20a91a.ab"
+   },
+   "seat": {
+    "path": "seat/442.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 67042,
+    "sha1": "3c1fef90a1492c56",
+    "bundle": "assets_res_localh5picture_general_seat_static_125_333c761dd386b4566fdaaee179d50683.ab"
+   }
+  },
+  {
+   "gid": 443,
+   "name": "孙尚香",
+   "pinyin": "SunShangXiangPo",
+   "kingdom": "吴",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 25,
+   "baseSkills": [
+    "jieyin",
+    "xiaoji"
+   ],
+   "skillSuggestion": "复用 #25 孙尚香 的技能实现（结姻/枭姬）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/443.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 596994,
+    "sha1": "a834bafe8518cb41",
+    "bundle": "assets_res_localh5picture_general_big_static_2668_f78a8803ad3af12b5bf6b98204e36554.ab"
+   },
+   "seat": {
+    "path": "seat/443.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 66432,
+    "sha1": "a2aad4c110576a84",
+    "bundle": "assets_res_localh5picture_general_seat_static_126_542cdfadc3c1763b1ba3b5b2eb47231f.ab"
+   }
+  },
+  {
+   "gid": 444,
+   "name": "甄姬",
+   "pinyin": "ZhenJiPo",
+   "kingdom": "魏",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 21,
+   "baseSkills": [
+    "qingguo",
+    "luoshen"
+   ],
+   "skillSuggestion": "复用 #21 甄姬 的技能实现（倾国/洛神）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/444.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 576507,
+    "sha1": "fbea197eb0ae2cda",
+    "bundle": "assets_res_localh5picture_general_big_static_2669_8b672210e36e31980e2fde9d9c1dacab.ab"
+   },
+   "seat": {
+    "path": "seat/444.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 68113,
+    "sha1": "11aa33499b12367f",
+    "bundle": "assets_res_localh5picture_general_seat_static_126_542cdfadc3c1763b1ba3b5b2eb47231f.ab"
+   }
+  },
+  {
+   "gid": 445,
+   "name": "貂蝉",
+   "pinyin": "DiaoChanPo",
+   "kingdom": "群",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": 24,
+   "baseSkills": [
+    "lijian",
+    "biyue"
+   ],
+   "skillSuggestion": "复用 #24 貂蝉 的技能实现（离间/闭月）作为 MVP；界/变体技能差异需单独补",
+   "big": {
+    "path": "big/445.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 520917,
+    "sha1": "0386101a4812fe9e",
+    "bundle": "assets_res_localh5picture_general_big_static_2670_8d74361f702da90ca95df70a9670bbce.ab"
+   },
+   "seat": {
+    "path": "seat/445.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 63157,
+    "sha1": "452bb185f2e8089a",
+    "bundle": "assets_res_localh5picture_general_seat_static_126_542cdfadc3c1763b1ba3b5b2eb47231f.ab"
+   }
+  },
+  {
+   "gid": 446,
+   "name": "华雄",
+   "pinyin": "HuaXiongPo",
+   "kingdom": "群",
+   "version": "Po（原版变体，未确认中文名）",
+   "baseGeneral": null,
+   "baseSkills": [],
+   "skillSuggestion": "项目中无同名基础武将，需新写技能（仅素材可用）",
+   "big": {
+    "path": "big/446.png",
+    "w": 535,
+    "h": 678,
+    "bytes": 666175,
+    "sha1": "f88500b934f78260",
+    "bundle": "assets_res_localh5picture_general_big_static_2671_c31c810a41ac370f4d60a61a86168193.ab"
+   },
+   "seat": {
+    "path": "seat/446.png",
+    "w": 139,
+    "h": 214,
+    "bytes": 72219,
+    "sha1": "fb206a58d8764628",
+    "bundle": "assets_res_localh5picture_general_seat_static_126_542cdfadc3c1763b1ba3b5b2eb47231f.ab"
+   }
+  }
+ ]
+}

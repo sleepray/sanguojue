@@ -1,0 +1,286 @@
+{
+ "generated": "2026-11-14T21:43:28+0800",
+ "set": "New1V1",
+ "count_seat": 8,
+ "count_big": 0,
+ "note": "seat 已安装（139×214 原尺寸）；big 在本地 bundle 中不存在，未安装。不覆盖既有 001–057 / 299+。",
+ "missingBig": [
+  {
+   "gid": 7000,
+   "name": "张虎乐綝",
+   "reason": "本地 85 个 general_big_static 包覆盖 id 100–44600，不含 700000 段"
+  },
+  {
+   "gid": 7001,
+   "name": "夏侯徽",
+   "reason": "本地 85 个 general_big_static 包覆盖 id 100–44600，不含 700000 段"
+  },
+  {
+   "gid": 7002,
+   "name": "司马师",
+   "reason": "本地 85 个 general_big_static 包覆盖 id 100–44600，不含 700000 段"
+  },
+  {
+   "gid": 7003,
+   "name": "司马懿",
+   "reason": "本地 85 个 general_big_static 包覆盖 id 100–44600，不含 700000 段"
+  },
+  {
+   "gid": 7004,
+   "name": "司马昭",
+   "reason": "本地 85 个 general_big_static 包覆盖 id 100–44600，不含 700000 段"
+  },
+  {
+   "gid": 7005,
+   "name": "王元姬",
+   "reason": "本地 85 个 general_big_static 包覆盖 id 100–44600，不含 700000 段"
+  },
+  {
+   "gid": 7006,
+   "name": "杜预",
+   "reason": "本地 85 个 general_big_static 包覆盖 id 100–44600，不含 700000 段"
+  },
+  {
+   "gid": 7007,
+   "name": "张春华",
+   "reason": "本地 85 个 general_big_static 包覆盖 id 100–44600，不含 700000 段"
+  }
+ ],
+ "missingTotally": [
+  {
+   "name": "何进",
+   "gids": [
+    583,
+    3041
+   ],
+   "reason": "static 包中无 seat/big"
+  },
+  {
+   "name": "牛金",
+   "gids": [
+    584,
+    3042
+   ],
+   "reason": "static 包中无 seat/big"
+  },
+  {
+   "name": "韩遂",
+   "gids": [
+    585,
+    3043
+   ],
+   "reason": "static 包中无 seat/big"
+  },
+  {
+   "name": "颜良文丑",
+   "gids": [
+    550,
+    2049,
+    3038
+   ],
+   "reason": "static 包中无；本项目现有 40 号颜良文丑已有素材"
+  }
+ ],
+ "items": [
+  {
+   "gid": 7000,
+   "name": "张虎乐綝",
+   "seat": "assets/seat/7000.png",
+   "big": null,
+   "sha1": {
+    "seat": "977d7080d44983699c5baac09950df987ae179ec",
+    "big": null
+   },
+   "size": {
+    "seat": [
+     139,
+     214
+    ],
+    "big": null
+   },
+   "status": {
+    "seat": "installed",
+    "big": "missing-local"
+   },
+   "source": {
+    "seat": "assets_res_localh5picture_general_seat_static_141_6ea67391f4a4ecfdaa32e8e02aa05f70.ab",
+    "big": null
+   }
+  },
+  {
+   "gid": 7001,
+   "name": "夏侯徽",
+   "seat": "assets/seat/7001.png",
+   "big": null,
+   "sha1": {
+    "seat": "e2f35f359503e257f8524380a5a64234a0f28e0d",
+    "big": null
+   },
+   "size": {
+    "seat": [
+     139,
+     214
+    ],
+    "big": null
+   },
+   "status": {
+    "seat": "installed",
+    "big": "missing-local"
+   },
+   "source": {
+    "seat": "assets_res_localh5picture_general_seat_static_141_6ea67391f4a4ecfdaa32e8e02aa05f70.ab",
+    "big": null
+   }
+  },
+  {
+   "gid": 7002,
+   "name": "司马师",
+   "seat": "assets/seat/7002.png",
+   "big": null,
+   "sha1": {
+    "seat": "1a93a215804e5a86437d22384de81e05cdc97f4c",
+    "big": null
+   },
+   "size": {
+    "seat": [
+     139,
+     214
+    ],
+    "big": null
+   },
+   "status": {
+    "seat": "installed",
+    "big": "missing-local"
+   },
+   "source": {
+    "seat": "assets_res_localh5picture_general_seat_static_141_6ea67391f4a4ecfdaa32e8e02aa05f70.ab",
+    "big": null
+   }
+  },
+  {
+   "gid": 7003,
+   "name": "司马懿",
+   "seat": "assets/seat/7003.png",
+   "big": null,
+   "sha1": {
+    "seat": "5d79673c16ad90b470e5b84712ec8daf967acb41",
+    "big": null
+   },
+   "size": {
+    "seat": [
+     139,
+     214
+    ],
+    "big": null
+   },
+   "status": {
+    "seat": "installed",
+    "big": "missing-local"
+   },
+   "source": {
+    "seat": "assets_res_localh5picture_general_seat_static_141_6ea67391f4a4ecfdaa32e8e02aa05f70.ab",
+    "big": null
+   }
+  },
+  {
+   "gid": 7004,
+   "name": "司马昭",
+   "seat": "assets/seat/7004.png",
+   "big": null,
+   "sha1": {
+    "seat": "2d25002edcec789aa6db0516b68bee2c8be0ad76",
+    "big": null
+   },
+   "size": {
+    "seat": [
+     139,
+     214
+    ],
+    "big": null
+   },
+   "status": {
+    "seat": "installed",
+    "big": "missing-local"
+   },
+   "source": {
+    "seat": "assets_res_localh5picture_general_seat_static_141_6ea67391f4a4ecfdaa32e8e02aa05f70.ab",
+    "big": null
+   }
+  },
+  {
+   "gid": 7005,
+   "name": "王元姬",
+   "seat": "assets/seat/7005.png",
+   "big": null,
+   "sha1": {
+    "seat": "9c84b13fd92dc57f6b8af77e3fbc23376d015e7f",
+    "big": null
+   },
+   "size": {
+    "seat": [
+     139,
+     214
+    ],
+    "big": null
+   },
+   "status": {
+    "seat": "installed",
+    "big": "missing-local"
+   },
+   "source": {
+    "seat": "assets_res_localh5picture_general_seat_static_141_6ea67391f4a4ecfdaa32e8e02aa05f70.ab",
+    "big": null
+   }
+  },
+  {
+   "gid": 7006,
+   "name": "杜预",
+   "seat": "assets/seat/7006.png",
+   "big": null,
+   "sha1": {
+    "seat": "fba8a724c99635c976ae6e84f295b276f32ce3fa",
+    "big": null
+   },
+   "size": {
+    "seat": [
+     139,
+     214
+    ],
+    "big": null
+   },
+   "status": {
+    "seat": "installed",
+    "big": "missing-local"
+   },
+   "source": {
+    "seat": "assets_res_localh5picture_general_seat_static_141_6ea67391f4a4ecfdaa32e8e02aa05f70.ab",
+    "big": null
+   }
+  },
+  {
+   "gid": 7007,
+   "name": "张春华",
+   "seat": "assets/seat/7007.png",
+   "big": null,
+   "sha1": {
+    "seat": "576cfc9b2a87c722d2019d058f8b6c92083768cb",
+    "big": null
+   },
+   "size": {
+    "seat": [
+     139,
+     214
+    ],
+    "big": null
+   },
+   "status": {
+    "seat": "installed",
+    "big": "missing-local"
+   },
+   "source": {
+    "seat": "assets_res_localh5picture_general_seat_static_142_548e715675986906fd9a40a0af1007de.ab",
+    "big": null
+   }
+  }
+ ]
+}

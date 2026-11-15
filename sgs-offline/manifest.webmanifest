@@ -1,0 +1,15 @@
+{
+  "name": "三国杀 · 单机版",
+  "short_name": "三国杀",
+  "description": "离线单机三国杀：标准+军争、57 武将、八人/五人/单挑",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0a0d10",
+  "theme_color": "#0a0d10",
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

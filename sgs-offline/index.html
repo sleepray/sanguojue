@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>三国杀 · 单机版</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23111'/%3E%3Ctext x='32' y='45' font-size='40' text-anchor='middle' fill='%23e9c26a' font-family='serif'%3E%E6%AE%BA%3C/text%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0a0d10">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= 主菜单 ================= -->
+  <section id="screen-menu" class="screen">
+    <div class="menu-bg" aria-hidden="true">
+      <i class="ink ink-a"></i><i class="ink ink-b"></i><i class="ink ink-c"></i>
+      <i class="mountain"></i><i class="moon"></i>
+    </div>
+
+    <div class="menu-frame">
+      <header class="menu-head">
+        <div class="logo-mark">殺</div>
+        <h1 class="logo">三国杀<span class="logo-sub">单机版</span></h1>
+        <p class="logo-desc" id="logo-sub">身份局 · 标准与军争牌堆 · 57 名武将</p>
+      </header>
+
+      <div class="menu-panel">
+        <div class="menu-row" data-row="mode">
+          <div class="menu-label">模式<span>MODE</span></div>
+          <div class="seg" id="seg-mode" role="group" aria-label="模式">
+            <button class="seg-btn is-on" data-mode="8p">八人身份局<em>8 人</em></button>
+            <button class="seg-btn" data-mode="5p">五人身份局<em>5 人</em></button>
+            <button class="seg-btn" data-mode="1v1">单挑<em>1 v 1</em></button>
+            <button class="seg-btn" data-mode="2v2">2v2<em>4 人</em></button>
+            <button class="seg-btn" data-mode="3v3">3v3<em>6 人</em></button>
+            <button class="seg-btn" data-mode="ddz">斗地主 3 人<em>地主 1v2</em></button>
+          </div>
+        </div>
+
+        <div class="menu-row" data-row="packs">
+          <div class="menu-label">武将包<span>GENERALS</span></div>
+          <div class="chips" id="seg-packs" role="group" aria-label="武将包">
+            <button class="chip is-on" data-pack="标准">标准</button>
+            <button class="chip is-on" data-pack="风">风</button>
+            <button class="chip is-on" data-pack="火">火</button>
+            <button class="chip is-on" data-pack="林">林</button>
+            <button class="chip is-on" data-pack="山">山</button>
+          </div>
+        </div>
+
+        <div class="menu-row" data-row="extras">
+          <div class="menu-label">扩展包<span>EXTRAS</span></div>
+          <label class="switch extras-switch" for="toggle-extras">
+            <input type="checkbox" id="toggle-extras">
+            <span class="switch-track" aria-hidden="true"></span>
+            <span class="extras-copy">
+              <b id="extras-title">变体扩展（默认关闭）</b>
+              <em id="extras-status">开启后加入 30 名变体武将</em>
+            </span>
+          </label>
+        </div>
+
+        <div class="menu-row is-hidden" data-row="duel-pool" id="row-duel-pool">
+          <div class="menu-label">单挑将池<span>1V1 POOL</span></div>
+          <div class="seg seg-sm" id="seg-duel-pool" role="group" aria-label="单挑将池">
+            <button class="seg-btn is-on" data-duel="classic">经典<em>原版交集 19 将</em></button>
+            <button class="seg-btn" data-duel="all">全武将<em>当前 57 将</em></button>
+            <button class="seg-btn" data-duel="new1v1">新1V1<em>46/50 将（近似）</em></button>
+          </div>
+        </div>
+
+        <div class="menu-row" data-row="deck" id="row-deck">
+          <div class="menu-label">牌堆<span>DECK</span></div>
+          <div class="seg seg-sm" id="seg-deck" role="group" aria-label="牌堆">
+            <button class="seg-btn is-on" data-deck="full">标准 + 军争<em>160 张</em></button>
+            <button class="seg-btn" data-deck="standard">标准<em>108 张</em></button>
+          </div>
+        </div>
+
+        <div class="menu-row" data-row="pace">
+          <div class="menu-label">节奏<span>PACE</span></div>
+          <div class="seg seg-sm" id="seg-pace" role="group" aria-label="节奏">
+            <button class="seg-btn" data-pace="slow">慢<em>2200ms</em></button>
+            <button class="seg-btn is-on" data-pace="normal">标准<em>1500ms</em></button>
+            <button class="seg-btn" data-pace="fast">快<em>850ms</em></button>
+          </div>
+        </div>
+
+        <div class="menu-row" data-row="ai">
+          <div class="menu-label">AI 难度<span>DIFFICULTY</span></div>
+          <div class="seg seg-sm" id="seg-ai" role="group" aria-label="AI 难度">
+            <button class="seg-btn" data-ai="easy">简单<em>保留实力</em></button>
+            <button class="seg-btn is-on" data-ai="normal">普通<em>标准</em></button>
+            <button class="seg-btn" data-ai="hard">困难<em>更激进</em></button>
+          </div>
+        </div>
+
+        <div class="menu-actions">
+          <button id="btn-start" class="btn btn-primary btn-lg">开始游戏</button>
+          <button id="btn-demo" class="btn btn-outline btn-lg">自动演示</button>
+          <button id="btn-continue" class="btn btn-outline btn-lg is-hidden">继续游戏</button>
+        </div>
+        <p class="menu-note" id="menu-note">已选 5 个武将包 · 57 名武将 · 8 人局每人 5 张候选</p>
+      </div>
+
+      <ul class="menu-tips">
+        <li>人类玩家固定为 1 号位（下方），其余座位由 AI 托管。</li>
+        <li>单挑为 1v1 练习场：无身份，军争牌堆减 52 张（108 张），1 号位首轮少摸一张。</li>
+        <li>斗地主为地主 1v2：地主阵亡则农民胜，两个农民阵亡则地主胜。</li>
+        <li>仅供个人离线游玩，素材来自自备安装包。</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= 选将 ================= -->
+  <section id="screen-select" class="screen">
+    <div class="select-head">
+      <button id="btn-select-back" class="btn btn-ghost select-back" aria-label="返回主菜单">← 返回</button>
+      <div class="select-kicker">CHOOSE YOUR GENERAL</div>
+      <h2 class="select-title">选择武将</h2>
+      <div class="select-meta">
+        <span class="select-role" id="select-role">身份：—</span>
+        <span class="select-reason" id="select-reason">请选择武将</span>
+      </div>
+    </div>
+    <div class="general-row" id="general-row"></div>
+    <div class="select-foot">
+      <div class="select-hint" id="select-hint">点击卡片选择武将</div>
+      <button id="btn-general-confirm" class="btn btn-primary" disabled>确定出战</button>
+    </div>
+  </section>
+
+  <!-- ================= 对局 ================= -->
+  <section id="screen-game" class="screen">
+    <header class="topbar">
+      <div class="tb-left">
+        <div class="tb-item" title="牌堆剩余">
+          <span class="tb-icon tb-deck-icon" aria-hidden="true"></span>
+          <span class="tb-label">牌堆</span><b id="tb-deck">0</b>
+        </div>
+        <div class="tb-item" title="弃牌堆">
+          <span class="tb-icon tb-discard-icon" aria-hidden="true"></span>
+          <span class="tb-label">弃牌</span><b id="tb-discard">0</b>
+        </div>
+        <div class="tb-item tb-turn" title="当前回合数">
+          <span class="tb-label">回合</span><b id="tb-turn">0</b>
+        </div>
+      </div>
+
+      <div class="tb-center">
+        <div class="tb-phase" id="tb-phase">准备</div>
+        <div class="tb-prompt" id="tb-prompt">等待开始…</div>
+        <span class="tb-count" id="tb-count" title="剩余操作时间，超时由 AI 代操作"></span>
+      </div>
+
+      <div class="tb-right">
+        <button class="tb-btn" id="btn-settings" title="设置">设置</button>
+        <button class="tb-btn" id="btn-log" title="展开战报">战报</button>
+        <button class="tb-btn" id="btn-save" title="保存本回合存档">保存</button>
+        <button class="tb-btn" id="btn-trust" title="交由 AI 代打">托管</button>
+        <button class="tb-btn tb-danger" id="btn-surrender" title="认输">投降</button>
+        <button class="tb-btn" id="btn-quit" title="返回主菜单">返回</button>
+      </div>
+    </header>
+
+    <div class="table" id="table">
+      <div class="table-felt" aria-hidden="true">
+        <div class="felt-ring"></div>
+        <div class="felt-seal">殺</div>
+      </div>
+
+      <div class="seats" id="seats"></div>
+
+      <div class="table-center" id="table-center">
+        <div class="deck-stack" id="deck-stack" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="phase-orbit" id="phase-orbit">
+          <span class="orbit-phase" id="orbit-phase">准备</span>
+          <span class="orbit-sub" id="orbit-sub"></span>
+          <span class="orbit-timer" id="orbit-timer"></span>
+        </div>
+        <div class="played-cards" id="played-cards"></div>
+      </div>
+
+      <div class="fx-layer" id="fx-layer" aria-hidden="true"></div>
+    </div>
+
+    <div class="human" id="human-panel">
+      <div class="human-left">
+        <div class="portrait-frame" id="me-portrait">
+          <div class="pf-art" id="me-art"></div>
+          <div class="pf-shade"></div>
+          <div class="pf-role" id="me-role">？</div>
+          <div class="pf-kingdom" id="me-kingdom"></div>
+          <div class="pf-name" id="me-name">—</div>
+          <div class="pf-title" id="me-title"></div>
+          <div class="pf-status" id="me-status"></div>
+        </div>
+        <div class="me-hp" id="me-hp"></div>
+      </div>
+
+      <div class="human-mid">
+        <div class="action-bar" id="action-bar"></div>
+        <div class="pick-bar" id="pick-bar"></div>
+        <div class="hand-wrap">
+          <div class="hand" id="hand"></div>
+          <div class="card-chooser" id="card-chooser"></div>
+        </div>
+      </div>
+
+      <div class="human-right">
+        <div class="me-block me-skills-block">
+          <div class="mini-title">技能</div>
+          <div class="skill-list" id="me-skills"></div>
+        </div>
+        <div class="me-block">
+          <div class="mini-title">装备区</div>
+          <div class="equip-grid" id="me-equips"></div>
+        </div>
+        <div class="me-block">
+          <div class="mini-title">判定区</div>
+          <div class="judge-list" id="me-judges"></div>
+        </div>
+        <div class="me-marks" id="me-marks"></div>
+      </div>
+    </div>
+
+    <svg class="aim-layer" id="aim-layer" aria-hidden="true"></svg>
+      <div class="dragon-layer" id="dragon-layer" aria-hidden="true"></div>
+    <div class="chain-layer" id="chain-layer" aria-hidden="true"></div>
+    <div class="flow-layer" id="flow-layer" aria-hidden="true"></div>
+
+    <div class="wugu-tray" id="wugu-tray" aria-live="polite">
+      <div class="wugu-head"><b>五谷丰登 · 亮出</b><span class="wugu-picker" id="wugu-picker"></span><em id="wugu-count"></em></div>
+      <div class="wugu-cards" id="wugu-cards"></div>
+      <div class="wugu-last" id="wugu-last"></div>
+    </div>
+
+    <div class="reveal-box" id="reveal-box" aria-live="polite">
+      <div class="reveal-card" id="reveal-card">
+        <img id="reveal-img" alt="">
+        <span class="reveal-suit" id="reveal-suit"></span>
+        <span class="reveal-rank" id="reveal-rank"></span>
+        <span class="reveal-name" id="reveal-name"></span>
+      </div>
+      <div class="reveal-meta"><b id="reveal-title"></b><span id="reveal-sub"></span></div>
+    </div>
+
+    <div class="judge-overlay" id="judge-overlay" aria-live="polite">
+      <div class="judge-box">
+        <div class="judge-card" id="judge-card">
+          <div class="judge-face" id="judge-face">
+            <img id="judge-img" alt="">
+            <span class="judge-suit" id="judge-suit"></span>
+            <span class="judge-rank" id="judge-rank"></span>
+            <span class="judge-name" id="judge-name"></span>
+            <span class="judge-stamp">判定</span>
+          </div>
+        </div>
+        <div class="judge-meta">
+          <b class="judge-reason" id="judge-reason">判定</b>
+          <span class="judge-who" id="judge-who"></span>
+          <em class="judge-result" id="judge-result"></em>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase-banner" id="phase-banner">
+      <b class="pb-title" id="phase-banner-title"></b>
+      <span class="pb-sub" id="phase-banner-sub"></span>
+    </div>
+
+    <div class="skill-banner" id="skill-banner" aria-live="polite"></div>
+
+    <aside class="log-panel" id="log-panel">
+      <div class="log-head">
+        <span>战报</span>
+        <button class="log-close" id="btn-log-close" title="收起">×</button>
+      </div>
+      <div class="log-body" id="log-body"></div>
+      <button class="log-new" id="log-new" hidden>↓ 新消息 <b>0</b></button>
+    </aside>
+
+    <aside class="settings-panel" id="settings-panel">
+      <div class="settings-head">
+        <span>设置</span>
+        <button class="log-close" id="btn-settings-close" title="收起">×</button>
+      </div>
+      <div class="settings-body">
+        <div class="setting-group">
+          <div class="setting-title">背景音乐 <b id="set-bgm-val">35%</b></div>
+          <input class="setting-range" id="set-bgm" type="range" min="0" max="100" step="1" value="35" aria-label="背景音乐音量">
+        </div>
+        <div class="setting-group">
+          <div class="setting-title">音效 <b id="set-sfx-val">100%</b></div>
+          <input class="setting-range" id="set-sfx" type="range" min="0" max="100" step="1" value="100" aria-label="音效音量">
+        </div>
+        <div class="setting-group setting-row">
+          <div class="setting-title">动画效果 <span class="setting-note">关闭后减少动效</span></div>
+          <label class="switch">
+            <input id="set-anim" type="checkbox" checked aria-label="动画效果">
+            <span class="switch-track"></span>
+          </label>
+        </div>
+        <div class="setting-group">
+          <div class="setting-title">节奏 <span class="setting-note">AI 行动间隔</span></div>
+          <div class="setting-pace" id="set-pace">
+            <button data-pace="slow">慢<em>1800</em></button>
+            <button data-pace="normal" class="is-on">标准<em>1000</em></button>
+            <button data-pace="fast">快<em>550</em></button>
+          </div>
+        </div>
+      </div>
+      <div class="settings-foot">设置即时生效</div>
+    </aside>
+
+    <div class="modal-root" id="modal-root"></div>
+    <div class="general-info-root" id="general-info-root"></div>
+    <div class="toast-root" id="toast-root"></div>
+  </section>
+
+  <!-- ================= 结算 ================= -->
+  <section id="screen-result" class="screen">
+    <div class="result-wrap">
+      <div class="result-kicker">BATTLE RESULT</div>
+      <h2 class="result-title" id="result-title">对局结束</h2>
+      <div class="result-sub" id="result-sub"></div>
+      <div class="result-players" id="result-players"></div>
+      <div class="result-actions">
+        <button class="btn btn-primary" id="btn-again">再来一局</button>
+        <button class="btn btn-outline" id="btn-home">返回主菜单</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script src="js/skilldesc.js"></script>
+<script src="js/data.js"></script>
+<script src="js/game.js"></script>
+<script src="js/cards.js"></script>
+<script src="js/skills.js"></script>
+<script src="js/ai.js"></script>
+<script src="assets/audio_index.js?v=4" onerror="void 0"></script>
+<script src="js/audio.js" onerror="void 0"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

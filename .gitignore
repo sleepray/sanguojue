@@ -1,0 +1,13 @@
+# generated / dev-only
+sgs-offline/out/
+sgs-offline/artifacts/
+sgs-offline-apk/build/
+sgs-offline-apk/.gradle/
+sgs-offline-apk/.kotlin/
+sgs-offline-apk/app/build/
+sgs-offline-apk/app/src/main/assets/
+sgs-offline-apk/artifacts/
+sanguo-duel/
+.tools/
+**/.DS_Store
+**/*.log
