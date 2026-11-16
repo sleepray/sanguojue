@@ -3737,3 +3737,8 @@ body.is-table-pick #screen-game .pick-bar { z-index: 130; }
   min-height: 44px; min-width: 44px; padding: 8px 12px !important;
   font-size: 12px !important; display: inline-flex; align-items: center; justify-content: center;
 }
+
+/* A2b：323/412 武将详情长名不拆行，保持全文 */
+@media (max-width: 480px) {
+  .general-info-modal .gi-name { font-size: 17px; letter-spacing: .02em; white-space: nowrap; }
+}

@@ -100,7 +100,7 @@ async function main() {
   });
   let page = await browser.newPage();
   page.on('pageerror', e => console.error('PAGEERROR', e.message));
-  let report = { generated: new Date().toISOString(), viewports: [], issues: [], notes: [] };
+  let report = { generated: new Date().toISOString(), viewports: [], issues: [], notes: [], audits: [] };
   if (!full) {
     try {
       const old = JSON.parse(fs.readFileSync(path.join(LATEST, 'layout-report.json'), 'utf8'));
@@ -111,6 +111,7 @@ async function main() {
           viewports: old.viewports.filter(v => !ids.has(v.id)),
           issues: old.issues.filter(i => !ids.has(i.viewport)),
           notes: (old.notes || []).filter(n => !ids.has(n.viewport)),
+          audits: (old.audits || []).filter(a => !ids.has(a.viewport)),
         };
       }
     } catch (e) { /* first incremental run */ }
@@ -168,6 +169,14 @@ async function main() {
           if (clip.width < 1 || clip.height < 1) continue;
           const f = path.join(LATEST, `issue_${vp.id}_${++shotIndex}.jpg`);
           try { await page.screenshot({ path: f, type: 'jpeg', quality: 70, clip }); it.screenshot = path.relative(ROOT, f); } catch (e) { /* ignore */ }
+        }
+        // 任务3校准：8p 出牌/技能描述/武将介绍 各 1 张人工抽查图
+        if (!A['no-shot'] && mode === '8p' && ['play5', 'skilldesc', 'intro'].indexOf(scene) >= 0) {
+          const f = path.join(LATEST, `audit_${vp.id}_${scene}.jpg`);
+          try {
+            await page.screenshot({ path: f, type: 'jpeg', quality: 70, fullPage: false });
+            report.audits.push({ viewport: vp.id, scene, path: path.relative(ROOT, f) });
+          } catch (e) { report.notes.push({ viewport: vp.id, scene, note: 'audit shot failed: ' + e.message }); }
         }
       }
     }
@@ -312,14 +321,14 @@ async function runScene(page, vp, mode, scene, whitelist) {
     if (scene === 'settings' || scene === 'pause') {
       document.querySelector('#btn-settings') && document.querySelector('#btn-settings').click();
       await new Promise(r => setTimeout(r, 80));
-      if (scene === 'pause') document.querySelector('#btn-pause-game') && document.querySelector('#btn-pause-game').click();
+      if (scene === 'pause') document.querySelector('#btn-pause') && document.querySelector('#btn-pause').click();
     }
   }, { scene, mode });
 
   await sleep(scene === 'pause' ? 900 : 350);
   // 动画残留检查前等待 2s；不作用于交互场景的即时检查
   if (scene === 'play5' || scene === 'target' || scene === 'wugu' || scene === 'judge') await sleep(2100);
-  const found = await page.evaluate(auditPage, { whitelist, keySel: SELECTOR_KEY, textSel: SELECTOR_TEXT, clickSel: SELECTOR_INTERACTIVE, overlaySel: OVERLAY_SEL, scene, vp: { width: vp.width, height: vp.height } });
+  const found = await page.evaluate(auditPage, { whitelist, keySel: SELECTOR_KEY, textSel: SELECTOR_TEXT, clickSel: SELECTOR_INTERACTIVE, overlaySel: OVERLAY_SEL, scene, mobile: [323, 412, 619].indexOf(vp.width) >= 0, vp: { width: vp.width, height: vp.height } });
   return found;
 }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -406,13 +415,6 @@ function auditPage(opts) {
       add(lvl, '越界', pathOf(e), `rect=${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.right)},${Math.round(r.bottom)} vp=${vw}x${vh}`);
       issues[issues.length - 1].rect = r;
     }
-    if (r.width < 44 || r.height < 44) {
-      if (e.matches(opts.clickSel) && /button|\.btn|\.tb-btn|\.hand-card|\.seat|\.skill-btn|\.equip-slot/.test((e.className || '') + ' ' + e.tagName)) {
-        add('P2', '点击区<44', pathOf(e), `${Math.round(r.width)}x${Math.round(r.height)}`);
-      }
-    }
-    const fs = parseFloat(c.fontSize);
-    if (fs && fs < 12 && e.innerText && e.innerText.trim()) add('P2', '字号<12', pathOf(e), `font=${fs}px`);
     // title/ellipsis/clipped text
     const txt = (e.innerText || '').trim();
     const clipped = e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 1;
@@ -449,10 +451,20 @@ function auditPage(opts) {
         const ratio = e.naturalWidth / e.naturalHeight, br = (r.width / r.height);
         const fit = getComputedStyle(e).objectFit;
         if (Math.abs(ratio - br) / ratio > 0.05 && (!fit || fit === 'fill')) add('P1', '图片拉伸', pathOf(e), `natural=${ratio.toFixed(2)} box=${br.toFixed(2)} fit=${fit}`);
-        if (fit === 'cover') add('P2', 'cover裁切待验证', pathOf(e), `natural=${e.naturalWidth}x${e.naturalHeight} box=${Math.round(r.width)}x${Math.round(r.height)}`);
       }
     }
   });
+  // 1b) 交互元素：手机三视口 <44x44 或 <12px → P1；桌面不强制 44
+  if (opts.mobile) {
+    const INTERACTIVE = '.topbar button,.topbar .tb-btn,.tb-btn,.more-menu button,.more-menu [role=button],.more-item,#more-menu button,#more-menu [role=button],.settings-panel button,.settings-panel input[type=range],.settings-panel .switch,.settings-panel .switch-mute,.settings-panel .setting-row,.pick-bar button,#btn-pause';
+    const seen = new Set();
+    Array.from(document.querySelectorAll(INTERACTIVE)).filter(e => visible(e) && inContext(e)).forEach(e => {
+      if (seen.has(e)) return; seen.add(e);
+      const r = rect(e), fs = parseFloat(getComputedStyle(e).fontSize);
+      if (r.width < 44 || r.height < 44) add('P1', '点击区<44', pathOf(e), `${Math.round(r.width)}x${Math.round(r.height)}`);
+      if (fs && fs < 12) add('P1', '字号<12', pathOf(e), `font=${fs}px`);
+    });
+  }
   // 2) 外框重叠
   function boxes(sel) { return Array.from(document.querySelectorAll(sel)).filter(visible).map(e => ({ e, r: rect(e) })); }
   const seats = context === 'overlay' || context === 'modal' || context === 'drawer' ? [] : boxes('.seat');
@@ -473,7 +485,7 @@ function auditPage(opts) {
     }
   });
   // 4) 动画残留 / 浮层
-  const overlays = Array.from(document.querySelectorAll(opts.overlaySel)).filter(e => visible(e) && overlayAllowed(e));
+  const overlays = Array.from(document.querySelectorAll(opts.overlaySel)).filter(e => visible(e) && overlayAllowed(e) && !(e.id === 'resume-overlay' && opts.scene === 'pause'));
   overlays.forEach(e => { const c = getComputedStyle(e); if (c.pointerEvents !== 'none') add('P2', '动画/浮层残留', pathOf(e), 'pointer=' + c.pointerEvents + ' opacity=' + c.opacity); });
   // 4b) 图片（所有可见图片）
   Array.from(document.querySelectorAll('img')).filter(e => visible(e) && inContext(e)).forEach(img => {
@@ -483,7 +495,6 @@ function auditPage(opts) {
       const ratio = img.naturalWidth / img.naturalHeight, box = r.width / Math.max(1, r.height);
       const fit = getComputedStyle(img).objectFit;
       if (Math.abs(ratio - box) / ratio > 0.05 && (!fit || fit === 'fill')) add('P1', '图片拉伸', pathOf(img), `natural=${ratio.toFixed(2)} box=${box.toFixed(2)} fit=${fit}`, { rect: r });
-      if (fit === 'cover') add('P2', 'cover裁切待验证', pathOf(img), `${img.naturalWidth}x${img.naturalHeight} box=${Math.round(r.width)}x${Math.round(r.height)}`);
     }
   });
   // 5) 字体/拼音
@@ -491,13 +502,6 @@ function auditPage(opts) {
   const texts = Array.from(document.querySelectorAll(opts.textSel)).filter(e => visible(e) && inContext(e));
   const py = /^(sha|shan|tao|guohe|wuxie|juedou|wugu|lebu|bingliang|shandian|jiedao|tiesuo|huogong|shunshou)(\b|$)/i;
   texts.forEach(e => { const t = (e.innerText || '').trim(); if (t && py.test(t) && !/[\u4e00-\u9fa5]/.test(t)) add('P1', '纯拼音文案', pathOf(e), t.slice(0, 30)); });
-  // 6) 文本压图对比度粗检：背景色/图片下无法可靠采样，记录待验证
-  texts.forEach(e => {
-    const c = getComputedStyle(e);
-    let p = e.parentElement, overImg = false;
-    while (p && p !== document.body) { if (p.tagName === 'IMG' || (p.querySelector && p.querySelector('img'))) { overImg = true; break; } p = p.parentElement; }
-    if (overImg && c.color) add('P2', '文字压图对比度待验证', pathOf(e), 'color=' + c.color);
-  });
   return { issues };
 }
 

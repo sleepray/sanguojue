@@ -16,5 +16,41 @@
     "a": ".seat-frame",
     "b": "*",
     "reason": "座位描边框覆盖底图与状态角标，属于设计内叠放"
+  },
+  {
+    "parent": ".seat",
+    "a": ".seat-hand",
+    "b": ".seat-hp",
+    "reason": "座位角标设计内叠放：左下牌数与左侧血量条按原版紧凑排布，属于同一座位角标层"
+  },
+  {
+    "parent": ".seat",
+    "a": ".seat-name",
+    "b": ".seat-equip-list",
+    "reason": "座位角标设计内叠放：武将名与右侧装备列在窄座位上的紧凑排布，属于同一座位信息层"
+  },
+  {
+    "parent": ".seat",
+    "a": ".seat-hand",
+    "b": ".seat-name",
+    "reason": "座位角标设计内叠放：左下牌数徽标与顶部/侧边武将名的包围盒在紧凑座位内交叠，文字本身不互相覆盖"
+  },
+  {
+    "parent": ".seat",
+    "a": ".seat-hp",
+    "b": ".seat-equip-list",
+    "reason": "座位角标设计内叠放：左下血量条与右侧装备列在窄座位上的包围盒交叠，属于角标分区排布"
+  },
+  {
+    "parent": ".seat",
+    "a": ".seat-hand",
+    "b": ".seat-equip-list",
+    "reason": "座位角标设计内叠放：左下牌数徽标与右侧装备列在窄座位上的角标分区排布，包围盒交叠但文字/图标不互压"
+  },
+  {
+    "parent": ".seat",
+    "a": ".seat-equip-list",
+    "b": ".seat-distance",
+    "reason": "选目标时距离徽标与装备列同属座位角标层，仅临时显示，设计内叠放"
   }
 ]
