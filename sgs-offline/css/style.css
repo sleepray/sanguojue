@@ -3610,3 +3610,55 @@ body > .sgs-tooltip {
   #screen-game .wugu-tray { top: 64%; }
   #screen-game .judge-overlay { top: 64%; }
 }
+
+/* ===== 1.0.7 A: 短方屏手牌裁切 / 顶栏换行 / 选目标条遮挡 ===== */
+.tb-btn { flex: 0 0 auto; white-space: nowrap; }
+
+/* 619×720 等“短方屏”：底栏高度不足会把手牌顶出 human 裁切 */
+@media (orientation: portrait) and (min-width: 481px) and (max-width: 760px) and (max-height: 820px) {
+  #screen-game { grid-template-rows: 42px minmax(0, 1fr) 300px; }
+  :root { --hand-w: 76px; --hand-h: 100px; }
+  #screen-game .human { grid-template-rows: minmax(0, 1fr) 96px; }
+  #screen-game .human-mid { min-height: 0; }
+  #screen-game .hand-card { --hand-w: 76px; --hand-h: 100px; }
+}
+
+/* 窄屏选目标条：放在顶栏下方，避免压住座位角点 */
+@media (max-width: 480px) {
+  .pick-bar { top: 78px; left: 50%; width: calc(100vw - 12px); }
+  .pick-bar-inner { justify-content: center; gap: 4px; padding: 5px 6px; }
+  .pick-bar-text { max-width: 132px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pick-bar-count { min-width: 28px; font-size: 10px; }
+  .pick-bar .btn { padding: 3px 6px; font-size: 10px; }
+}
+@media (orientation: portrait) and (min-width: 481px) and (max-width: 760px) {
+  .pick-bar { top: 44px; left: 50%; width: min(94vw, 420px); }
+  .pick-bar-inner { justify-content: center; gap: 6px; padding: 5px 8px; }
+  .pick-bar-text { max-width: 190px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pick-bar-count { min-width: 30px; font-size: 10px; }
+  .pick-bar .btn { padding: 3px 7px; font-size: 10px; }
+}
+
+/* ===== 1.0.7 A: 选目标条压缩为顶栏下单行，避免覆盖座位 ===== */
+.pick-bar { top: 43px; }
+.pick-bar-inner {
+  flex-wrap: nowrap !important; height: 30px; box-sizing: border-box;
+  padding: 3px 8px !important; gap: 6px !important;
+}
+.pick-bar-text {
+  max-width: min(42vw, 360px) !important; font-size: 11px !important;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pick-bar-count { min-width: 30px !important; font-size: 11px !important; }
+.pick-bar .btn { padding: 3px 8px !important; font-size: 10px !important; }
+
+/* 宽屏短横屏：底栏 264 不够，补 26px 消除 human 内容纵向裁切 */
+@media (min-width: 761px) and (max-height: 820px) {
+  #screen-game { grid-template-rows: 42px minmax(0, 1fr) 290px; }
+}
+
+/* 选目标：pickbar 临时替换顶栏，避免覆盖顶排座位 */
+.pick-bar { top: 4px !important; }
+.pick-bar-inner { height: 34px !important; }
+body.is-table-pick #screen-game .topbar { visibility: hidden; }
+body.is-table-pick #screen-game .pick-bar { z-index: 130; }

@@ -32,10 +32,10 @@
   const POS_2 = [[26, 25], [74, 25]];
   const POS_4 = [[22, 62], [50, 26], [78, 62]];
   const POS_6 = [[8, 62], [28, 26], [50, 25], [72, 26], [92, 62]];
-  const POS_8_P = [[9, 80], [9, 45], [24, 26], [50, 26], [76, 26], [91, 45], [91, 80]];
+  const POS_8_P = [[9, 80], [9, 52], [24, 26], [50, 26], [76, 26], [91, 52], [91, 80]];
   const POS_5_P = [[12, 72], [28, 26], [72, 26], [88, 72]];
   const POS_4_P = [[20, 65], [50, 26], [80, 65]];
-  const POS_6_P = [[8, 70], [26, 26], [50, 25], [74, 26], [92, 70]];
+  const POS_6_P = [[8, 70], [25, 26], [50, 25], [75, 26], [92, 70]];
   const POS_2_P = [[22, 26], [78, 26]];
   const POS_8_L = [[6, 78], [6, 32], [22, 26], [50, 26], [78, 26], [94, 32], [94, 78]];
   const POS_5_L = [[6, 76], [24, 28], [76, 28], [94, 76]];
@@ -2945,7 +2945,12 @@
 
   function renderPickBar() {
     if (!els.pickBar) return;
-    if (!tablePick) { if (els.pickBar.innerHTML) els.pickBar.innerHTML = ''; return; }
+    if (!tablePick) {
+      if (els.pickBar.innerHTML) els.pickBar.innerHTML = '';
+      document.body.classList.remove('is-table-pick');
+      return;
+    }
+    document.body.classList.add('is-table-pick');
     const req = tablePick.req;
     const min = req.min || 0;
     const max = req.max == null ? (req.candidates || []).length : req.max;
