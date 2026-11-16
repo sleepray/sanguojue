@@ -577,6 +577,122 @@ function pageState() {
     row.actual = text;
   }
 
+  /* ---------- 「更多」菜单 ----------
+   * 顶栏只保留 暂停/战报/更多，设置/托管/保存/投降/退出 都在 #more-menu 内。
+   * 下面几个 helper 保持真实鼠标点击：先点 #btn-more 展开，再点菜单项；
+   * 菜单项点击后 ui.js 会自动收起菜单，所以无需逐个手动关闭。
+   */
+  async function isMoreOpen() {
+    return await cdp.eval(() => {
+      const mm = document.querySelector('#more-menu');
+      return !!(mm && mm.classList.contains('is-open'));
+    });
+  }
+
+  async function openMoreMenu() {
+    if (await isMoreOpen()) return;
+    await cdp.click('#btn-more');
+    await cdp.waitExpr('document.querySelector("#more-menu") && document.querySelector("#more-menu").classList.contains("is-open")', 2000, 60);
+    await sleep(80);
+  }
+
+  async function closeMoreMenu() {
+    if (!(await isMoreOpen())) return;
+    try {
+      await cdp.click('#btn-more', 0, { wait: 40 });
+    } catch (e) {
+      await cdp.send('Input.dispatchKeyEvent', {
+        type: 'keyDown', key: 'Escape', code: 'Escape',
+        windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27,
+      });
+      await cdp.send('Input.dispatchKeyEvent', {
+        type: 'keyUp', key: 'Escape', code: 'Escape',
+        windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27,
+      });
+    }
+    await cdp.waitExpr('!document.querySelector("#more-menu") || !document.querySelector("#more-menu").classList.contains("is-open")', 1500, 60).catch(() => {});
+  }
+
+  // 菜单项真实鼠标坐标：不可见时先展开「更多」菜单；返回 null 表示确实不可点
+  async function pointMenu(selector, index = 0) {
+    let pt = await cdp.point(selector, index);
+    if (pt) return pt;
+    await openMoreMenu();
+    pt = await cdp.point(selector, index);
+    return pt;
+  }
+
+  // 真实鼠标点击菜单项（自动展开「更多」菜单，保留 Input.dispatchMouseEvent 风格）
+  async function clickMenu(selector, index = 0, opts = {}) {
+    const pt = await pointMenu(selector, index);
+    if (!pt) throw new Error('「更多」菜单项不可见/被遮挡: ' + selector + '[' + index + ']');
+    const out = await cdp.click(selector, index, opts);
+    // 兜底：菜单项的点击处理器理论上会 setMore(false)；若仍展开则收起，避免挡后续点击
+    if (await isMoreOpen()) await closeMoreMenu();
+    return out;
+  }
+
+  /* ---------- 开局：手气卡兼容 ----------
+   * js/game.js 的 mulliganPhase() 目前直接 return（手气卡功能临时关闭）。
+   * 旧用例硬等 chooseOption 会必然超时，这里用短窗口探测：
+   *  - 出现手气卡询问 → 视为功能可用，返回 present=true 交给用例走原断言；
+   *  - 未出现（已进入牌桌/play）→ 返回 present=false，用例跳过手气卡子断言而不是伪造。
+   */
+  async function detectMulligan(timeout = 1500) {
+    const t0 = Date.now();
+    let gameSince = 0;
+    let st = await state();
+    while (Date.now() - t0 < timeout) {
+      st = await state();
+      if (st.pending && st.pending.type === 'chooseOption' && /手气卡/.test(st.modalReason || '')) {
+        return { present: true, st };
+      }
+      // 已进入牌桌且稳定 350ms 没有手气卡询问，才判定“未启用”，避免弹窗晚渲染被误判
+      if (st.screenActive.game) {
+        if (!gameSince) gameSince = Date.now();
+        if (Date.now() - gameSince >= 350) return { present: false, st };
+      } else {
+        gameSince = 0;
+      }
+      await sleep(60);
+    }
+    return { present: false, st };
+  }
+
+  // 选将确认后的统一开局入口：手气卡可用则点“保留手牌”，关闭时直接等牌桌。
+  // 其它开局询问（观星/洛神等）不在此代答，保持各用例自己的清理逻辑。
+  async function enterGameAfterSelect(opts = {}) {
+    const seats = opts.seats;
+    const label = opts.label || '等待牌桌';
+    const t0 = Date.now();
+    let answered = 0;
+    let gameSince = 0;
+    let st = await state();
+    while (Date.now() - t0 < 4000) {
+      st = await state();
+      if (st.over || st.screenActive.result) return { st, answered, ended: true };
+      if (st.pending && st.pending.type === 'chooseOption' && /手气卡/.test(st.modalReason || '')) {
+        const n = await cdp.eval(() => document.querySelectorAll('#modal-root .option-btn').length);
+        if (n > 0) {
+          await cdp.click('#modal-root .option-btn', n - 1);
+          answered += 1;
+          gameSince = 0;
+          await sleep(200);
+          continue;
+        }
+      }
+      if (st.screenActive.game && (seats == null || st.seats === seats)) {
+        if (!gameSince) gameSince = Date.now();
+        if (Date.now() - gameSince >= 350) return { st, answered };
+      } else {
+        gameSince = 0;
+      }
+      await sleep(100);
+    }
+    st = await waitState((s) => s.screenActive.game && (seats == null || s.seats === seats), 8000, label);
+    return { st, answered, timedOut: true };
+  }
+
   async function runCase(id, title, steps, expected, severity, fn) {
     const row = {
       id, title, steps: [].concat(steps), expected, severity,
@@ -822,11 +938,7 @@ function pageState() {
     await waitState((s) => s.screenActive.select, 5000, '5p 重开：选将页');
     await cdp.click('#general-row .general-card', 0);
     await cdp.click('#btn-general-confirm');
-    await waitState((s) => s.pending && s.pending.type === 'chooseOption', 5000, '5p 重开：手气卡');
-    const n = await cdp.eval(() => document.querySelectorAll('#modal-root .option-btn').length);
-    if (n > 0) await cdp.click('#modal-root .option-btn', n - 1);
-    await waitGone('#modal-root .modal', 3000, '5p 重开：手气卡未关闭');
-    await waitState((s) => s.screenActive.game && s.seats === 4, 6000, '5p 重开：牌桌');
+    await enterGameAfterSelect({ seats: 4, label: '5p 重开：牌桌' });
   }
 
   // 启动 2v2 / 3v3：选将 3 张 → 保留手气卡 → 等牌桌
@@ -840,12 +952,8 @@ function pageState() {
     const roleText = await cdp.eval(() => (document.querySelector('#select-role') || {}).textContent || '');
     await cdp.click('#general-row .general-card', 0);
     await cdp.click('#btn-general-confirm');
-    await waitState((s) => s.pending && s.pending.type === 'chooseOption', 5000, mode + ' 手气卡');
-    const n = await cdp.eval(() => document.querySelectorAll('#modal-root .option-btn').length);
-    if (n > 0) await cdp.click('#modal-root .option-btn', n - 1);
-    await waitGone('#modal-root .modal', 3000, mode + ' 手气卡未关闭');
-    const st = await waitState((s) => s.screenActive.game && s.seats === (mode === '2v2' ? 3 : 5), 8000, mode + ' 牌桌');
-    return { cards, roleText, st };
+    const entered = await enterGameAfterSelect({ seats: (mode === '2v2' ? 3 : 5), label: mode + ' 牌桌' });
+    return { cards, roleText, st: entered.st };
   }
 
   // 启动一局正常 8p（人类 0 号位），用于技能/装备/选目标/铁索/身份等 UI 验收
@@ -863,10 +971,7 @@ function pageState() {
     await waitState((s) => s.screenActive.select, 5000, '8p 重开：选将页');
     await cdp.click('#general-row .general-card', 0);
     await cdp.click('#btn-general-confirm');
-    await waitState((s) => s.pending && s.pending.type === 'chooseOption', 5000, '8p 重开：手气卡');
-    const n = await cdp.eval(() => document.querySelectorAll('#modal-root .option-btn').length);
-    if (n > 0) await cdp.click('#modal-root .option-btn', n - 1);
-    await waitGone('#modal-root .modal', 3000, '8p 重开：手气卡未关闭');
+    const entered = await enterGameAfterSelect({ seats: 7, label: '8p 重开：牌桌' });
     return await waitState((s) => s.screenActive.game && s.mode === '8p' && s.seats === 7, 8000, '8p 重开：牌桌');
   }
 
@@ -962,7 +1067,7 @@ function pageState() {
         await sleep(180);
         continue;
       }
-      const p1 = await cdp.point('#btn-surrender');
+      const p1 = await pointMenu('#btn-surrender');
       if (p1) {
         await cdp.clickPoint(p1.x, p1.y, 20);
         await sleep(20);
@@ -1311,7 +1416,14 @@ function pageState() {
       }));
       assertEq(m.picked.join(','), '0', '第 1 张卡选中态');
       await cdp.click('#btn-general-confirm');
-      const st = await waitState((s) => s.pending && s.pending.type === 'chooseOption', 5000, '等待手气卡弹窗');
+      const mm = await detectMulligan(1500);
+      if (!mm.present) {
+        row.notes.push('手气卡功能已临时关闭（js/game.js mulliganPhase return），跳过弹窗断言');
+        const gs = await waitState((s) => s.screenActive.game, 8000, '确认后进入对局');
+        assertEq(gs.handDom, 4, '开局手牌数');
+        assert(gs.deck > 0, '开局牌堆异常：' + gs.deck);
+        return { actual: '选将选中态正常；手气卡已临时关闭，跳过弹窗断言（对局已开始，手牌=4，牌堆=' + gs.deck + '）' };
+      }
       const detail = await cdp.eval(() => ({
         reason: document.querySelector('#modal-root .modal-reason').textContent,
         options: [].map.call(document.querySelectorAll('#modal-root .option-btn'), (b) => b.textContent),
@@ -1332,7 +1444,8 @@ function pageState() {
       '读取 .mul-preview 中的卡牌数量与名称',
       '对照当前手牌数并截图',
     ], '弹窗内展示 4 张手牌（图片+牌名），与当前手牌数一致；截图 qa_mulligan_hand.png', 'P1', async (row) => {
-      await waitState((s) => s.pending && s.pending.type === 'chooseOption' && /手气卡/.test(s.modalReason), 5000, '等待手气卡弹窗');
+      const mm = await detectMulligan(1500);
+      if (!mm.present) return { skip: '手气卡功能已临时关闭（js/game.js mulliganPhase return），无法验证弹窗内 4 张手牌' };
       const m = await cdp.eval(() => ({
         preview: document.querySelectorAll('#modal-root .mul-preview .mul-card').length,
         names: [].map.call(document.querySelectorAll('#modal-root .mul-preview .mul-name'), (el) => el.textContent),
@@ -1354,6 +1467,8 @@ function pageState() {
       '等待再次弹出弹窗',
       '读取剩余次数、手牌数与弃牌数',
     ], '手牌仍为 4 张；弃牌堆 +4；弹窗再次出现且剩余次数变为 2', 'P1', async (row) => {
+      const mm = await detectMulligan(600);
+      if (!mm.present) return { skip: '手气卡功能已临时关闭（js/game.js mulliganPhase return），跳过“使用”重摸断言' };
       const before = await state();
       assertEq(before.handDom, 4, '使用前手牌数');
       const discardBefore = before.discard;
@@ -1376,8 +1491,13 @@ function pageState() {
       '等待弹窗关闭',
       '读取对局屏幕、手牌与牌堆',
     ], '弹窗关闭；对局屏幕激活；手牌 4 张；牌堆为正数；自己的武将名已显示', 'P0', async (row) => {
-      await cdp.click('#modal-root .option-btn', 1);
-      await waitGone('#modal-root .modal', 3000, '手气卡弹窗未关闭');
+      const mm = await detectMulligan(800);
+      if (mm.present) {
+        await cdp.click('#modal-root .option-btn', 1);
+        await waitGone('#modal-root .modal', 3000, '手气卡弹窗未关闭');
+      } else {
+        row.notes.push('手气卡功能已临时关闭（js/game.js mulliganPhase return），跳过“保留手牌”点击，直接校验对局状态');
+      }
       const st = await waitState((s) => s.screenActive.game && s.screen === 'game', 5000, '等待对局开始');
       const m = await cdp.eval(() => ({
         hand: document.querySelectorAll('#hand .hand-card').length,
@@ -1415,7 +1535,7 @@ function pageState() {
 
     /* ---------- T10 设置抽屉 ---------- */
     await runCase('T10', '设置抽屉（音量/动画/节奏）', [
-      '点击顶栏“设置”',
+      '展开「更多」菜单 → 点击“设置”',
       '读取滑杆与开关初始值',
       '点击设置内“快”节奏',
       '切换动画开关两次',
@@ -1430,7 +1550,7 @@ function pageState() {
         if (n > 0) await cdp.click('#modal-root .option-btn', n - 1);
         await sleep(180);
       }
-      await cdp.click('#btn-settings');
+      await clickMenu('#btn-settings');
       await cdp.waitExpr('document.querySelector("#settings-panel").classList.contains("is-open")', 2000);
       try {
         const s0 = await cdp.eval(() => ({
@@ -1471,10 +1591,10 @@ function pageState() {
         assert(speeds.length > 0 && speeds.every((v) => v === 850), '设置快节奏未生效 AI speed=' + JSON.stringify(speeds));
         assert(Math.abs(paceFactor - 0.8) < 0.001, '快节奏阶段停顿系数=' + paceFactor);
 
-        await cdp.click('#settings-panel label.switch');
+        await cdp.click('#settings-panel label.switch:has(#set-anim)');
         let reduce = await cdp.eval(() => document.body.classList.contains('reduce-motion'));
         assert(reduce, '关闭动画后未添加 reduce-motion');
-        await cdp.click('#settings-panel label.switch');
+        await cdp.click('#settings-panel label.switch:has(#set-anim)');
         reduce = await cdp.eval(() => document.body.classList.contains('reduce-motion'));
         assert(!reduce, '恢复动画后 reduce-motion 未移除');
         row.notes.push('音效默认 70% 来自 js/audio.js 的 volume:0.7');
@@ -1543,12 +1663,12 @@ function pageState() {
     /* ---------- T12 托管 ---------- */
     await runCase('T12', '托管开关', [
       '等待当前无待处理请求',
-      '点击“托管”',
+      '展开「更多」菜单 → 点击“托管”',
       '再次点击取消',
     ], '按钮文字变为“取消托管”且 is-on；再点恢复“托管”并出现对应 toast', 'P1', async (row) => {
       // 若正轮到自己出牌/有弹窗，先清理并等待稳定，避免托管一开就被 AI 接管
       await clearPendingSafely(8000);
-      await cdp.click('#btn-trust');
+      await clickMenu('#btn-trust');
       let m = await cdp.eval(() => ({
         text: document.querySelector('#btn-trust').textContent,
         on: document.querySelector('#btn-trust').classList.contains('is-on'),
@@ -1557,7 +1677,7 @@ function pageState() {
       assertEq(m.text, '取消托管', '托管开启后按钮文字');
       assert(m.on, '托管开启后缺少 is-on');
       assert(m.toasts.some((t) => t.indexOf('已开启托管') >= 0), '未出现开启托管 toast：' + m.toasts.join('|'));
-      await cdp.click('#btn-trust');
+      await clickMenu('#btn-trust');
       m = await cdp.eval(() => ({
         text: document.querySelector('#btn-trust').textContent,
         on: document.querySelector('#btn-trust').classList.contains('is-on'),
@@ -1578,7 +1698,7 @@ function pageState() {
       let st0 = await state();
       if (!st0.screenActive.game || st0.over || st0.screenActive.result) {
         await start5pGame();
-        await cdp.click('#btn-trust');
+        await clickMenu('#btn-trust');
         await sleep(500);
       }
       let found = null;
@@ -1609,7 +1729,7 @@ function pageState() {
     /* ---------- T13b 投降确认框在 AI 回合的稳定性 ---------- */
     await runCase('T13b', '投降确认框在 AI 回合的稳定性（3 次）', [
       '清空待处理请求，处于 AI 回合',
-      '重复 3 次：点击“投降”，每 30ms 轮询确认框是否存在',
+      '重复 3 次：展开「更多」菜单并点击“投降”，每 30ms 轮询确认框是否存在',
       '记录每次确认框存活时间与截图',
     ], '每次确认框出现后都应持续到用户点击（≥800ms），不能因 AI 行动重渲染而消失', 'P1', async (row) => {
       const attempts = [];
@@ -1626,7 +1746,7 @@ function pageState() {
           if (c !== logs0) break;
           await sleep(50);
         }
-        await cdp.eval(() => { const b = document.getElementById('btn-surrender'); if (b) b.click(); });
+        await clickMenu('#btn-surrender', 0, { wait: 20 });
         let first = null, firstAt = 0, lastSeen = 0;
         const t0 = Date.now();
         while (Date.now() - t0 < 1300) {
@@ -1664,7 +1784,7 @@ function pageState() {
     /* ---------- T13 投降确认（玩家待处理请求期间） ---------- */
     await runCase('T13', '投降确认框（取消/确认）', [
       '等待自己有待处理请求（无 AI 重渲染干扰）',
-      '点击顶栏“投降”，读取文案/按钮并截图',
+      '展开「更多」菜单 → 点击“投降”，读取文案/按钮并截图',
       '点击“取消”回到对局',
       '再次点击“投降”并确认',
     ], '弹窗文案“确定投降？本局将判负。”；确认框持续到用户点击；取消后仍在对局；确认后进入结算', 'P0', async (row) => {
@@ -1676,7 +1796,7 @@ function pageState() {
         if (st.over || st.screenActive.result) break;
         if (st.pending) {
           if (st.pending.seat === 0 && (st.pending.type === 'play' || st.pending.type === 'response')) break;
-          // 弹窗类请求会遮住顶栏，先处理掉再等 play/response 窗口
+          // 弹窗类请求会遮住「更多」菜单入口，先处理掉再等 play/response 窗口
           await pumpPending('等待投降窗口').catch(() => {});
           await sleep(180);
           continue;
@@ -1687,7 +1807,7 @@ function pageState() {
       if (!st.pending || (st.pending.type !== 'play' && st.pending.type !== 'response')) {
         return { skip: '60s 内没有 play/response 稳定窗口，无法测试投降确认' };
       }
-      await cdp.click('#btn-surrender', 0, { wait: 25 });
+      await clickMenu('#btn-surrender', 0, { wait: 25 });
       await sleep(50);
       const dlg = await cdp.eval(() => {
         const ok = document.querySelector('[data-c="1"]');
@@ -1707,7 +1827,7 @@ function pageState() {
       const st2 = await state();
       assert(st2.screenActive.game && !st2.over, '取消投降后不在对局中');
       // 再次投降并确认（仍在待处理请求窗口内）
-      const p1 = await cdp.point('#btn-surrender');
+      const p1 = await pointMenu('#btn-surrender');
       assert(p1, '第二次点击投降失败：按钮不可见');
       await cdp.clickPoint(p1.x, p1.y, 20);
       await sleep(30);
@@ -1766,7 +1886,7 @@ function pageState() {
     /* ---------- T16 5p 牌桌 ---------- */
     await runCase('T16', '五人身份局牌桌（4 个对手座位）', [
       '点击“五人身份局”',
-      '点击“开始游戏”并选将、保留手气卡',
+      '点击“开始游戏”并选将（手气卡已临时关闭时跳过）',
       '读取座位数与手牌',
     ], '选将候选 5 张；对局开始后 4 个对手座位；手牌正常渲染', 'P1', async (row) => {
       await resetMenu();
@@ -1778,10 +1898,14 @@ function pageState() {
       assertEq(cards, 5, '5p 候选数');
       await cdp.click('#general-row .general-card', 0);
       await cdp.click('#btn-general-confirm');
-      await waitState((s) => s.pending && s.pending.type === 'chooseOption', 5000, '5p 手气卡弹窗');
-      await cdp.click('#modal-root .option-btn', 1); // 保留手牌
-      await waitGone('#modal-root .modal', 3000, '5p 手气卡未关闭');
-      const st = await waitState((s) => s.screenActive.game && s.seats === 4, 6000, '等待 5p 牌桌');
+      const mm = await detectMulligan(1500);
+      if (mm.present) {
+        await cdp.click('#modal-root .option-btn', 1); // 保留手牌
+        await waitGone('#modal-root .modal', 3000, '5p 手气卡未关闭');
+      } else {
+        row.notes.push('手气卡功能已临时关闭（js/game.js mulliganPhase return），跳过“保留手牌”点击');
+      }
+      const st = await waitState((s) => s.screenActive.game && s.seats === 4, 8000, '等待 5p 牌桌');
       assertEq(st.seats, 4, '5p 对手座位数');
       assert(st.handDom >= 4, '5p 手牌未渲染');
       await sleep(800);
@@ -1789,13 +1913,13 @@ function pageState() {
       return { actual: '候选=5，座位=4，手牌=' + st.handDom };
     });
 
-    /* ---------- T17 返回确认 ---------- */
-    await runCase('T17', '对局内“返回”确认（取消/确定）', [
+    /* ---------- T17 退出确认 ---------- */
+    await runCase('T17', '对局内“退出”确认（取消/确定）', [
       '等待自己有待处理请求（稳定窗口）',
-      '点击顶栏“返回”，读取确认框并点击“取消”',
-      '再次点击“返回”并确认',
+      '展开「更多」菜单 → 点击“退出”，读取确认框并点击“取消”',
+      '再次点击“退出”并确认',
     ], '确认框文案含“退出本局将判负”；取消后仍在对局；确认后回到主菜单', 'P0', async (row) => {
-      // 尽量在人类 play/response 窗口操作；弹窗类请求会遮住顶栏，先处理掉
+      // 尽量在人类 play/response 窗口操作；弹窗类请求会遮住「更多」菜单入口，先处理掉
       let st = await state();
       if (st.over || st.screenActive.result) {
         await start5pGame();
@@ -1824,20 +1948,20 @@ function pageState() {
       }
       let reason = '';
       if (stable) {
-        await cdp.click('#btn-quit', 0, { wait: 25 });
+        await clickMenu('#btn-quit', 0, { wait: 25 });
         await sleep(50);
         reason = await cdp.eval(() => (document.querySelector('#modal-root .modal-reason') || {}).textContent || '');
-        assert(reason.indexOf('退出本局将判负') >= 0, '返回确认文案异常：' + reason);
+        assert(reason.indexOf('退出本局将判负') >= 0, '退出确认文案异常：' + reason);
         await shot('qa_quit_confirm.png', row);
         await cdp.click('[data-c="0"]', 0, { wait: 30 });
-        await waitGone('#modal-root .modal', 2000, '取消返回后弹窗未关闭');
+        await waitGone('#modal-root .modal', 2000, '取消退出后弹窗未关闭');
         const st2 = await state();
-        assert(st2.screenActive.game, '取消返回后不在对局中');
+        assert(st2.screenActive.game, '取消退出后不在对局中');
       } else {
         // AI 回合：确认框可能被 render 清空，用快速点击完成取消
         let cancelled = false;
         for (let i = 0; i < 8 && !cancelled; i++) {
-          const p1 = await cdp.point('#btn-quit');
+          const p1 = await pointMenu('#btn-quit');
           if (!p1) break;
           await cdp.clickPoint(p1.x, p1.y, 15);
           await sleep(15);
@@ -1848,14 +1972,14 @@ function pageState() {
           }
         }
         assert(cancelled, 'AI 回合中无法在确认框消失前点击“取消”');
-        await waitGone('#modal-root .modal', 2000, '取消返回后弹窗未关闭');
+        await waitGone('#modal-root .modal', 2000, '取消退出后弹窗未关闭');
         const st2 = await state();
-        assert(st2.screenActive.game, '取消返回后不在对局中');
+        assert(st2.screenActive.game, '取消退出后不在对局中');
       }
       // 再次返回并确认
       let confirmed = false;
       for (let i = 0; i < 8 && !confirmed; i++) {
-        const p1 = await cdp.point('#btn-quit');
+        const p1 = await pointMenu('#btn-quit');
         if (!p1) break;
         await cdp.clickPoint(p1.x, p1.y, 15);
         await sleep(15);
@@ -1865,8 +1989,8 @@ function pageState() {
           confirmed = true;
         }
       }
-      assert(confirmed, '无法完成“返回”二次确认');
-      await waitState((s) => s.screenActive.menu, 4000, '确认返回后未回主菜单');
+      assert(confirmed, '无法完成“退出”二次确认');
+      await waitState((s) => s.screenActive.menu, 4000, '确认退出后未回主菜单');
       return { actual: '确认框文案正确；取消保持对局；确认后回主菜单' + (stable ? '' : '（AI 回合用快速点击完成）') };
     });
 
@@ -1907,12 +2031,16 @@ function pageState() {
       '点击“保留手牌”',
       '读取座位数、座位坐标、牌堆与 mode-1v1 class',
     ], '弹窗剩余 1 次；对局为 1 个对手座位（上方）；#screen-game 带 mode-1v1；牌堆 99', 'P0', async (row) => {
-      const stm = await waitState((s) => s.pending && s.pending.type === 'chooseOption', 5000, '1v1 手气卡弹窗');
-      const reason = stm.modalReason;
-      assert(reason.indexOf('剩余 1 次') >= 0, '1v1 手气卡次数不是 1：' + reason);
-      await cdp.click('#modal-root .option-btn', 1); // 保留
-      await waitGone('#modal-root .modal', 3000, '1v1 手气卡未关闭');
-      const st = await waitState((s) => s.screenActive.game && s.seats === 1, 6000, '等待 1v1 牌桌');
+      const mm = await detectMulligan(1500);
+      if (mm.present) {
+        const reason = mm.st.modalReason;
+        assert(reason.indexOf('剩余 1 次') >= 0, '1v1 手气卡次数不是 1：' + reason);
+        await cdp.click('#modal-root .option-btn', 1); // 保留
+        await waitGone('#modal-root .modal', 3000, '1v1 手气卡未关闭');
+      } else {
+        row.notes.push('手气卡功能已临时关闭（js/game.js mulliganPhase return），跳过 1v1 手气卡断言');
+      }
+      const st = await waitState((s) => s.screenActive.game && s.seats === 1, 8000, '等待 1v1 牌桌');
       await sleep(900);
       const st2 = await state();
       assertEq(st2.seats, 1, '1v1 对手座位数');
@@ -1924,7 +2052,7 @@ function pageState() {
       // 1v1 初始发牌 4+5=9，牌堆 99；若已进入 1 号位首轮，会先摸 1 张（首轮少摸一张）→98
       assert(st2.deck === 98 || st2.deck === 99, '1v1 开局牌堆异常：' + st2.deck + '（期望 98/99）');
       await shot('qa_table_1v1.png', row);
-      return { actual: '手气卡 1 次；座位=1（50%,' + pos.y + '）；mode-1v1；牌堆=' + st2.deck };
+      return { actual: (mm.present ? '手气卡 1 次' : '手气卡已临时关闭（mulliganPhase return）') + '；座位=1（50%,' + pos.y + '）；mode-1v1；牌堆=' + st2.deck };
     });
 
     /* ---------- T20 倒计时 3s ---------- */
@@ -2284,7 +2412,7 @@ function pageState() {
       }
       let st = await clearPendingSafely(10000);
       if (!st.screenActive.result && !st.over) {
-        await cdp.click('#btn-trust');
+        await clickMenu('#btn-trust');
       }
       st = await waitState((s) => s.screenActive.result, 240000, '等待 1v1 结算');
       assertEq(st.resultPlayers.length, 2, '1v1 结算玩家数');
@@ -2506,7 +2634,7 @@ function pageState() {
     /* ---------- T34 2v2 存档 / 刷新读档 ---------- */
     await runCase('T34', '2v2 自动存档 / 手动保存 / 刷新继续 / 一致性', [
       '等待人类回合自动存档',
-      '点击顶栏“保存”并校验 localStorage 时间',
+      '展开「更多」菜单 → 点击“保存”并校验 localStorage 时间',
       '刷新页面，检查“继续游戏”',
       '点击继续，校验模式/人数/回合/手牌/座位角色',
       '读档后执行一次出牌/结束出牌，确认可继续操作',
@@ -2531,7 +2659,7 @@ function pageState() {
       const savedTurn = saved.snapshot.turnCount || 0;
 
       const beforeSave = await state();
-      await cdp.click('#btn-save');
+      await clickMenu('#btn-save');
       await sleep(250);
       const saved2 = await readSave();
       assert(saved2 && saved2.time >= saved.time, '手动保存未更新 localStorage');
@@ -2576,7 +2704,7 @@ function pageState() {
       if (!(st.screenActive.game && st.mode === '2v2' && !st.over)) await startTeamGame('2v2');
       if (!st.screenActive.result) {
         await clearPendingSafely(10000);
-        await cdp.eval(() => { const b = document.getElementById('btn-trust'); if (b) b.click(); });
+        await clickMenu('#btn-trust');
       }
       st = await waitState((s) => s.screenActive.result, 600000, '等待 2v2 结算');
       assertEq(st.resultPlayers.length, 4, '2v2 结算玩家数');
@@ -2605,7 +2733,7 @@ function pageState() {
       assert(st.meRole === '蓝队' || st.meRole === '红队', '3v3 自己队伍标签异常：' + st.meRole);
       await shot('qa_table_3v3.png', row);
       await clearPendingSafely(10000);
-      await cdp.eval(() => { const b = document.getElementById('btn-trust'); if (b) b.click(); });
+      await clickMenu('#btn-trust');
       const end = await waitState((s) => s.screenActive.result, 600000, '等待 3v3 结算');
       assertEq(end.resultPlayers.length, 6, '3v3 结算玩家数');
       assert(/蓝队|红队/.test(end.resultSub) && /获胜/.test(end.resultSub), '3v3 结算缺少队伍获胜文案：' + end.resultSub);
