@@ -363,7 +363,23 @@ async function runScene(page, vp, mode, scene, whitelist) {
     }
     SGS_UI.render(g);
     if (scene === 'target') {
-      SGS_UI.request({ type: 'chooseTargets', player: p, candidates: g.players.map(x => x.seat), min: 1, max: 2, reason: '请选择至多两名角色（布局检查）' }, () => {});
+      // 真实出牌选目标：优先用当前 play 请求里的目标动作；没有则补一张【顺手牵羊】动作，仍走真实 action-bar/手牌/座位点击。
+      let acts = (SGS_UI._state().pending && SGS_UI._state().pending.req.actions) || [];
+      let a = acts.find(function (x) { return x.kind === 'card' && x.subcards && x.subcards.length === 1 && x.targetCandidates && x.targetCandidates.length && (p.hand || []).some(function (c) { return c.id === x.subcards[0]; }) && document.querySelector('.hand-card[data-cid="' + x.subcards[0] + '"]'); });
+      if (!a) {
+        const c = C('shunshou', 'spade', 3);
+        p.hand = [c].concat(p.hand || []);
+        a = { kind: 'card', subcards: [c.id], as: 'shunshou', skill: null, label: '顺手牵羊', needsTargets: true, minTargets: 1, maxTargets: 1,
+          targetCandidates: g.players.filter(function (x) { return x.seat !== p.seat && x.alive; }).map(function (x) { return x.seat; }) };
+        SGS_UI.request({ type: 'play', player: p, actions: [a], reason: '布局检查：真实选目标' }, function () {});
+      }
+      SGS_UI.render(g);
+      const cardEl = document.querySelector('.hand-card[data-cid="' + a.subcards[0] + '"]');
+      if (cardEl) cardEl.click();
+      await new Promise(r2 => setTimeout(r2, 80));
+      const cand = (a.targetCandidates || [])[0];
+      const seatEl = cand != null ? document.querySelector('.seat[data-seat="' + cand + '"]') : null;
+      if (seatEl) seatEl.click();
     } else if (scene === 'wugu') {
       g.log('【五谷丰登】亮出：【桃】♥3、【杀】♠7、【闪】♦9、【无懈可击】♣4、【决斗】♥K', 'info'); g.emit();
     } else if (scene === 'rescue') {
@@ -611,6 +627,30 @@ function auditPage(opts) {
       const r = rect(e), fs = parseFloat(getComputedStyle(e).fontSize);
       if (r.width < 44 || r.height < 44) add('P1', '点击区<44', pathOf(e), `${Math.round(r.width)}x${Math.round(r.height)}`);
       if (fs && fs < 12) add('P1', '字号<12', pathOf(e), `font=${fs}px`);
+    });
+  }
+  // 1d) 真实选目标 action-bar：确认/取消中心+四角命中、右边界、与技能列不重叠
+  if (opts.scene === 'target') {
+    const ab = document.querySelector('.action-bar');
+    const buttons = ab ? Array.from(ab.querySelectorAll('[data-act="play-confirm"],[data-act="play-cancel"]')).filter(visible) : [];
+    if (!buttons.length) add('P1', 'target action-bar缺失', '.action-bar [data-act]', '未找到 play-confirm/play-cancel');
+    buttons.forEach(btn => {
+      const r = rect(btn), name = btn.dataset.act;
+      if (r.left < 0 || r.right > vw) add('P1', 'confirm/cancel越界', pathOf(btn), `left=${Math.round(r.left)} right=${Math.round(r.right)} vw=${vw}`);
+      const pts = [[r.left + r.width / 2, r.top + r.height / 2], [r.left + 2, r.top + 2], [r.right - 2, r.top + 2], [r.left + 2, r.bottom - 2], [r.right - 2, r.bottom - 2]];
+      pts.forEach((pt, i) => {
+        const top = document.elementFromPoint(Math.max(0, Math.min(vw - 1, pt[0])), Math.max(0, Math.min(vh - 1, pt[1])));
+        if (!top) return;
+        const pass = top === btn || btn.contains(top);
+        if (!pass) add('P1', 'confirm/cancel被遮挡', pathOf(btn), `${name} pt${i} top=${pathOf(top)} z=${getComputedStyle(top).zIndex}`);
+      });
+      const skills = Array.from(document.querySelectorAll('.me-skills-block,.skill-list,.human-right')).filter(visible);
+      skills.forEach(sk => {
+        const sr = rect(sk);
+        if (r.left < sr.right - 1 && r.right > sr.left + 1 && r.top < sr.bottom - 1 && r.bottom > sr.top + 1) {
+          add('P1', 'confirm与技能列重叠', pathOf(btn), pathOf(sk) + ` overlapX=${Math.round(Math.min(r.right, sr.right) - Math.max(r.left, sr.left))}`);
+        }
+      });
     });
   }
   // 2) 外框重叠
