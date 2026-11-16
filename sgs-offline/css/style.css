@@ -4040,3 +4040,22 @@ body.is-table-pick #screen-game .pick-bar { z-index: 130; }
 #screen-game .human-right .equip-slot .eq-label { display: none !important; }
 #screen-game .human-right .equip-grid { gap: 1px !important; }
 #screen-game .human-right .judge-list { gap: 1px !important; min-height: 0 !important; }
+
+/* 真实选目标：技能列临时收起，action-bar 让出按钮宽度，取消/确认完整可点 */
+@media (orientation: landscape) and (max-height: 640px) and (max-width: 1100px) {
+  #screen-game .human:has(#action-bar [data-act="play-cancel"]) {
+    grid-template-columns: 76px 34px minmax(0, 1fr) 0;
+  }
+  #screen-game .human:has(#action-bar [data-act="play-cancel"]) .me-skills-block {
+    display: none !important;
+  }
+  #screen-game .human:has(#action-bar [data-act="play-cancel"]) .human-mid {
+    grid-template-columns: minmax(0, 1fr) 118px;
+  }
+  #screen-game .human:has(#action-bar [data-act="play-cancel"]) .bar-btns {
+    flex-wrap: nowrap;
+  }
+  #screen-game .human:has(#action-bar [data-act="play-cancel"]) .bar-btn {
+    min-width: 56px;
+  }
+}

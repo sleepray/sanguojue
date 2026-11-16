@@ -336,6 +336,24 @@ async function probeRealTarget(page) {
     fail('真实选目标/进入选目标', JSON.stringify(selected));
     return;
   }
+  const targetGuard = await page.evaluate(() => {
+    const btn = [...document.querySelectorAll('#action-bar .bar-btn')].find((b) => /确认/.test(b.textContent));
+    if (!btn) return { ok: false, reason: 'no-confirm' };
+    const r = btn.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    const skill = document.querySelector('.me-skills-block');
+    const sr = skill ? skill.getBoundingClientRect() : { width: 0, left: 0 };
+    return {
+      ok: !!(hit && hit.closest('#action-bar')) && r.right <= innerWidth - 2 && (sr.width < 1 || r.right <= sr.left + 0.5),
+      hit: hit ? hit.tagName + '.' + hit.className : null,
+      rect: [Math.round(r.x), Math.round(r.right), Math.round(r.width), Math.round(r.height)],
+      vw: innerWidth,
+      skill: [Math.round(sr.left), Math.round(sr.width)],
+    };
+  });
+  if (targetGuard.ok) pass('真实选目标/确认按钮完整可点且不被技能列遮挡', JSON.stringify(targetGuard.rect));
+  else fail('真实选目标/确认按钮被遮挡', JSON.stringify(targetGuard));
+
   await page.evaluate(() => document.querySelector('#btn-pause').click());
   await sleep(700);
   const paused = await page.evaluate(() => ({
