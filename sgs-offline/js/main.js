@@ -517,6 +517,13 @@
     return false;
   }
 
+  // 手动暂停统一入口：冻结引擎/读秒，保留 BGM（不变量 4）
+  function pauseGame() {
+    const st = UI._state && UI._state();
+    if (!st || !st.game || !st.game.started || st.game.over) return;
+    if (global.SGS_APP_PAUSE) global.SGS_APP_PAUSE(true, { keepAudio: true });
+  }
+
   /* ============================================================
      入口
      ============================================================ */
@@ -524,6 +531,7 @@
     const bootParams = new URLSearchParams(global.location.search);
     if (bootParams.has('nofx')) document.body.classList.add('no-anim');
     UI.init({
+      onPause: pauseGame,
       onQuit: function () {
         if (UI._state && UI._state().game && !UI._state().game.over) {
           UI.confirmDialog('退出本局将判负，确定返回主菜单？', function () {
@@ -601,6 +609,13 @@
         if (!st) return false;
         const d = global.document;
         if (!d) return false;
+        // 「更多」菜单最上层，先关闭
+        const mm = d.getElementById('more-menu');
+        if (mm && mm.classList.contains('is-open')) {
+          const mb = d.getElementById('btn-more');
+          if (mb) mb.click();
+          return true;
+        }
         // 暂停遮罩、详情、设置、战报优先关闭
         const resume = d.getElementById('resume-overlay');
         if (resume && resume.classList.contains('is-on')) return true;
@@ -662,14 +677,6 @@
     const btnResume = q('btn-resume');
     if (btnResume) btnResume.addEventListener('click', function () {
       if (global.SGS_APP_PAUSE) global.SGS_APP_PAUSE(false);
-    });
-    const btnPauseGame = q('btn-pause-game');
-    if (btnPauseGame) btnPauseGame.addEventListener('click', function () {
-      const st = UI._state();
-      if (!st || !st.game || !st.game.started || st.game.over) return;
-      const sc = q('btn-settings-close');
-      if (sc) sc.click();
-      if (global.SGS_APP_PAUSE) global.SGS_APP_PAUSE(true, { keepAudio: true });
     });
     const muteCb = q('set-mute');
     if (muteCb) {

@@ -158,12 +158,19 @@
       </div>
 
       <div class="tb-right">
-        <button class="tb-btn" id="btn-settings" title="设置">设置</button>
+        <button class="tb-btn" id="btn-pause" title="暂停" aria-label="暂停">暂停</button>
         <button class="tb-btn" id="btn-log" title="展开战报">战报</button>
-        <button class="tb-btn" id="btn-save" title="保存本回合存档">保存</button>
-        <button class="tb-btn" id="btn-trust" title="交由 AI 代打">托管</button>
-        <button class="tb-btn tb-danger" id="btn-surrender" title="认输">投降</button>
-        <button class="tb-btn" id="btn-quit" title="返回主菜单">返回</button>
+        <div class="more-wrap" id="more-wrap">
+          <button class="tb-btn" id="btn-more" title="更多" aria-haspopup="menu" aria-expanded="false" aria-controls="more-menu">更多</button>
+          <div class="more-menu" id="more-menu" role="menu" aria-label="更多操作">
+            <button class="more-item" id="btn-settings" role="menuitem">设置</button>
+            <button class="more-item" id="btn-trust" role="menuitem">托管</button>
+            <button class="more-item" id="btn-save" role="menuitem">保存</button>
+            <div class="more-sep" role="separator"></div>
+            <button class="more-item more-danger" id="btn-surrender" role="menuitem">投降</button>
+            <button class="more-item more-danger" id="btn-quit" role="menuitem">退出</button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -322,10 +329,6 @@
           </div>
         </div>
       </div>
-      <div class="settings-pause">
-        <button class="btn btn-outline" id="btn-pause-game">暂停游戏</button>
-        <span>暂停牌局与读秒，背景音乐继续</span>
-      </div>
       <div class="settings-foot">设置即时生效</div>
     </aside>
 
@@ -394,8 +397,8 @@
       <div class="result-sub" id="result-sub"></div>
       <div class="result-players" id="result-players"></div>
       <div class="result-actions">
-        <button class="btn btn-primary" id="btn-again">再来一局</button>
         <button class="btn btn-outline" id="btn-home">返回主菜单</button>
+        <button class="btn btn-primary" id="btn-again">再来一局</button>
       </div>
     </div>
   </section>

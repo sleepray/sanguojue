@@ -99,6 +99,7 @@
   let handDirty = false;
   let logOpen = false;
   let settingsOpen = false;
+  let moreOpen = false;
   let toastSeq = 0;
   let lastAnswer = null;
   let lastPhaseShown = null;
@@ -487,8 +488,12 @@
     els.tbPrompt = q('tb-prompt');
     els.tbCount = q('tb-count');
     els.handTimer = q('hand-timer');
+    els.btnPause = q('btn-pause');
     els.btnLog = q('btn-log');
     els.btnLogClose = q('btn-log-close');
+    els.btnMore = q('btn-more');
+    els.moreWrap = q('more-wrap');
+    els.moreMenu = q('more-menu');
     els.btnSettings = q('btn-settings');
     els.settingsPanel = q('settings-panel');
     els.btnSettingsClose = q('btn-settings-close');
@@ -647,6 +652,15 @@
     els.modalRoot.addEventListener('click', onModalClick);
     els.chooser.addEventListener('click', onChooserClick);
     els.btnLog.addEventListener('click', function () { setLog(!logOpen); });
+    if (els.btnPause) els.btnPause.addEventListener('click', triggerPause);
+    if (els.btnMore) els.btnMore.addEventListener('click', function (e) {
+      e.stopPropagation();
+      setMore(!moreOpen);
+    });
+    if (els.moreMenu) els.moreMenu.addEventListener('click', function (e) {
+      const item = e.target.closest ? e.target.closest('button') : null;
+      if (item) setMore(false);
+    });
     if (els.btnSettings) els.btnSettings.addEventListener('click', function () { setSettings(!settingsOpen); });
     if (els.btnSettingsClose) els.btnSettingsClose.addEventListener('click', function () { setSettings(false); });
     if (els.setBgm) els.setBgm.addEventListener('input', onBgmVolume);
@@ -675,8 +689,14 @@
       if (e.target.closest && e.target.closest('[data-tip]')) return;
       hideTip();
     }, true);
+    // 「更多」菜单：点外部关闭（顶栏按钮/菜单内部不触发）
+    document.addEventListener('pointerdown', function (e) {
+      if (!moreOpen) return;
+      if (els.moreWrap && e.target && els.moreWrap.contains(e.target)) return;
+      setMore(false);
+    }, true);
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') hideTip();
+      if (e.key === 'Escape') { hideTip(); if (moreOpen) setMore(false); }
     });
     document.addEventListener('mouseout', function (e) {
       const t = e.target.closest ? e.target.closest('[data-tip]') : null;
@@ -752,7 +772,7 @@
       if (el) el.classList.toggle('is-active', k === name);
     });
     if (name !== 'game') {
-      closeChooser(); setLog(false); setSettings(false);
+      closeChooser(); setLog(false); setSettings(false); setMore(false);
       if (els.aim) els.aim.innerHTML = '';
       if (els.skillBanner) els.skillBanner.classList.remove('is-on');
       clearJudgeOverlay();
@@ -2958,6 +2978,7 @@
     els.pickBar.innerHTML = '<div class="pick-bar-inner">' +
       '<span class="pick-bar-text">' + esc(req.reason || '选择目标') + '</span>' +
       '<b class="pick-bar-count">' + n + ' / ' + max + '</b>' +
+      '<button class="btn btn-ghost pick-pause" data-pick="pause">暂停</button>' +
       '<button class="btn btn-ghost" data-pick="cancel">取消</button>' +
       '<button class="btn btn-primary" data-pick="ok"' + (n < min ? ' disabled' : '') + '>确认</button>' +
       '</div>';
@@ -2967,6 +2988,7 @@
     if (!tablePick) return;
     const btn = e.target.closest ? e.target.closest('[data-pick]') : null;
     if (!btn) return;
+    if (btn.dataset.pick === 'pause') { triggerPause(); return; }
     if (btn.dataset.pick === 'cancel') resolveAnswer(null);
     else if (btn.dataset.pick === 'ok') resolveAnswer(tablePick.selected.slice());
   }
@@ -2976,12 +2998,38 @@
     try { return global.SGS_AUDIO || null; } catch (e) { return null; }
   }
 
+  function setMore(open) {
+    moreOpen = !!open;
+    if (els.moreMenu) els.moreMenu.classList.toggle('is-open', moreOpen);
+    if (els.btnMore) {
+      els.btnMore.classList.toggle('is-on', moreOpen);
+      els.btnMore.setAttribute('aria-expanded', moreOpen ? 'true' : 'false');
+    }
+    if (moreOpen) {
+      if (settingsOpen) setSettings(false);
+      if (logOpen) setLog(false);
+    }
+  }
+
+  function closePanels() {
+    setSettings(false);
+    setLog(false);
+    setMore(false);
+  }
+
+  // 暂停入口统一走这里：先收起所有浮层，再交给 main.js 的 onPause
+  function triggerPause() {
+    closePanels();
+    if (hooks.onPause) { try { hooks.onPause(); } catch (e) { console.error(e); } }
+  }
+
   function setSettings(open) {
     if (!els.settingsPanel) return;
     settingsOpen = !!open;
     els.settingsPanel.classList.toggle('is-open', settingsOpen);
     if (els.btnSettings) els.btnSettings.classList.toggle('is-on', settingsOpen);
     if (settingsOpen) {
+      setMore(false);
       if (logOpen) {
         logOpen = false;
         if (els.logPanel) els.logPanel.classList.remove('is-open');
@@ -3047,6 +3095,7 @@
   function setLog(open) {
     logOpen = !!open;
     if (logOpen) {
+      setMore(false);
       settingsOpen = false;
       if (els.settingsPanel) els.settingsPanel.classList.remove('is-open');
       if (els.btnSettings) els.btnSettings.classList.remove('is-on');

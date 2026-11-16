@@ -8,3 +8,25 @@
   min-height: 44px;
   justify-content: flex-end;
 }
+
+/* ===== 1.0.7 B2: 设置面板触控补齐（≥44×44，不改变视觉轨道） ===== */
+#settings-panel .log-close {
+  min-width: 44px; min-height: 44px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+#settings-panel .setting-range {
+  height: 44px; margin: 0; background: transparent;
+}
+#settings-panel .setting-range::-webkit-slider-runnable-track {
+  height: 5px; border-radius: 999px;
+  background: linear-gradient(90deg, rgba(216,179,106,.75), rgba(216,179,106,.15));
+}
+#settings-panel .setting-range::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 15px; height: 15px; margin-top: -5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #f6e3b3, #c79c4e 70%);
+  box-shadow: 0 2px 8px rgba(0,0,0,.55), 0 0 0 2px rgba(216,179,106,.22);
+}
+#settings-panel .setting-row .switch {
+  min-width: 44px; min-height: 44px; justify-content: flex-end;
+}
