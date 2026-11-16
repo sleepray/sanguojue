@@ -3499,6 +3499,11 @@ function pageState() {
       '合成 play/response 请求验证 90s/45s 读秒、10s 红色与超时 AI 代操作',
     ], '判定牌显示花色/点数/结果；五谷托盘逐张减少；无懈中央牌显示抵消；仁德有飞牌；中央牌左右角标；读秒 90/45s、10s 红色、超时清空；截图 qa_judge_card/qa_wugu_tray/qa_wuxie_center/qa_rende_flow/qa_center_card/qa_countdown_ring.png', 'P1', async (row) => {
       await startFrozenDemo8p();
+      // freeze=play 到 seat0 的出牌请求才真正冻结引擎；先等到该请求，避免合成的
+      // judge/五谷/无懈日志与真实牌局日志并发，导致五谷托盘被重新渲染
+      await waitState((s) => s.screenActive.game && s.seats === 7 &&
+        s.pending && s.pending.type === 'play' && s.pending.seat === 0,
+        15000, 'T48 冻结出牌请求');
       const judge = await cdp.eval(() => {
         const g = SGS_UI._state().game;
         g.logs = [];
@@ -3556,7 +3561,18 @@ function pageState() {
       }));
       if (wuguAfter.count > 2) row.notes.push('五谷调试：' + JSON.stringify({ before: wuguGain, after: wuguAfter }));
       assert(wuguAfter.count <= 2, '五谷拿牌后托盘未减少：' + wuguAfter.count);
-      assert(wuguGain.last.indexOf('获得') >= 0, '五谷拿牌提示：' + wuguGain.last);
+      // 拿牌提示由 render 后的异步刷新写入，全量时同帧读取可能早于 DOM 更新；轮询最多 2s 取最终值
+      let wuguLast = wuguAfter.last;
+      const wuguT0 = Date.now();
+      while (Date.now() - wuguT0 < 2000 && wuguLast.indexOf('获得') < 0) {
+        await sleep(200);
+        wuguLast = await cdp.eval(() => (document.querySelector('#wugu-last') || {}).textContent || '');
+      }
+      if (wuguLast.indexOf('获得') < 0) {
+        row.notes.push('五谷 last 实际：' + JSON.stringify({ before: wuguGain.last, after: wuguAfter.last, final: wuguLast, logs: wuguGain.logs }));
+      }
+      assert(wuguLast.indexOf('获得') >= 0,
+        '五谷拿牌提示：' + wuguLast + '（before=' + wuguGain.last + '，after=' + wuguAfter.last + '）');
 
       const wx = await cdp.eval(() => {
         const g = SGS_UI._state().game;
