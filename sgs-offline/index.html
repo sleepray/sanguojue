@@ -9,6 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0a0d10">
 <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/ui-107.css">
 </head>
 <body>
 <div id="app">
@@ -297,6 +298,13 @@
         <div class="setting-group">
           <div class="setting-title">音效 <b id="set-sfx-val">100%</b></div>
           <input class="setting-range" id="set-sfx" type="range" min="0" max="100" step="1" value="100" aria-label="音效音量">
+        </div>
+        <div class="setting-group setting-row">
+          <div class="setting-title">静音 <span class="setting-note">音乐与音效</span></div>
+          <label class="switch switch-mute">
+            <input id="set-mute" type="checkbox" aria-label="静音">
+            <span class="switch-track"></span>
+          </label>
         </div>
         <div class="setting-group setting-row">
           <div class="setting-title">动画效果 <span class="setting-note">关闭后减少动效</span></div>

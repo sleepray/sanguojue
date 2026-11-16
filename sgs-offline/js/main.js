@@ -12,6 +12,7 @@
   const EXTRA_PACK = 'extras';
   const ALL_PACKS = BASE_PACKS.concat([EXTRA_PACK]);
   const SAVE_KEY = 'sgs.save.v1';
+  const SETTINGS_KEY = 'sgs.settings.v1';
   let lastSnapshot = null;
   const menu = { mode: '8p', cardPack: 'full', packs: BASE_PACKS.slice(), pace: 'normal', aiLevel: 'normal', duelPool: 'classic' };
   // 整体节奏档位：AI 决策间隔、阶段停顿、托管速度一起缩放
@@ -33,8 +34,46 @@
   /* ============================================================
      菜单
      ============================================================ */
+  function readSettings() {
+    try {
+      const raw = global.localStorage && global.localStorage.getItem(SETTINGS_KEY);
+      return raw ? (JSON.parse(raw) || {}) : {};
+    } catch (e) { return {}; }
+  }
+
+  function writeSettings(patch) {
+    try {
+      const st = readSettings();
+      Object.keys(patch || {}).forEach(function (k) { st[k] = patch[k]; });
+      global.localStorage.setItem(SETTINGS_KEY, JSON.stringify(st));
+    } catch (e) { /* ignore */ }
+  }
+
+  // 静音与“后台/手动暂停”分离：静音只关闭音频总开关，不改变暂停态；
+  // 暂停中的解除静音重新 suspend，避免在暂停遮罩下提前出声。
+  function applyMute(muted, persist) {
+    muted = !!muted;
+    const A = global.SGS_AUDIO;
+    if (A) {
+      const want = !muted;
+      if (A.enabled !== want) A.enabled = want;
+      if (!muted && global.__SGS_LAST_PAUSE && typeof A.suspend === 'function') {
+        try { A.suspend(); } catch (e) { /* ignore */ }
+      }
+    }
+    const cb = q('set-mute');
+    if (cb) cb.checked = muted;
+    if (persist) writeSettings({ mute: muted });
+  }
+
+  function syncMuteSwitch() {
+    const cb = q('set-mute');
+    if (cb) cb.checked = !!readSettings().mute;
+  }
+
   function initAudio() {
     try {
+      applyMute(!!readSettings().mute, false);
       const A = global.SGS_AUDIO;
       if (!A) return;
       // 先挂起菜单 BGM，首次交互解锁后由 audio.js 播放
@@ -567,7 +606,7 @@
         if (resume && resume.classList.contains('is-on')) return true;
         const gi = d.querySelector('.general-info-mask [data-gi-close]');
         if (gi) { gi.click(); return true; }
-        if (d.querySelector('.settings-panel.is-on')) {
+        if (d.querySelector('.settings-panel.is-open')) {
           const sc = d.getElementById('btn-settings-close'); if (sc) sc.click();
           return true;
         }
@@ -632,6 +671,14 @@
       if (sc) sc.click();
       if (global.SGS_APP_PAUSE) global.SGS_APP_PAUSE(true, { keepAudio: true });
     });
+    const muteCb = q('set-mute');
+    if (muteCb) {
+      muteCb.checked = !!readSettings().mute;
+      muteCb.addEventListener('change', function () { applyMute(!!muteCb.checked, true); });
+    }
+    const settingsBtn = q('btn-settings');
+    if (settingsBtn) settingsBtn.addEventListener('click', syncMuteSwitch);
+    applyMute(!!readSettings().mute, false);
     bindMenu();
     updateMenuUI();
     updateContinueButton();

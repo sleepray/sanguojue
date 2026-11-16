@@ -1,0 +1,10 @@
+/* 1.0.7 B：设置内静音开关行；与既有 setting-row/switch 对齐，不改变全局样式 */
+#settings-panel .setting-row .switch { flex: 0 0 auto; }
+#settings-panel .setting-row #set-mute { pointer-events: auto; }
+
+/* 静音开关整行可点：视觉轨道仍为 40×22，点击热区补到 44×44（触控规范） */
+#settings-panel .switch-mute {
+  min-width: 44px;
+  min-height: 44px;
+  justify-content: flex-end;
+}

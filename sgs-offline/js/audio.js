@@ -382,6 +382,7 @@
     },
     resume: function () {
       state.suspended = false;
+      if (!state.enabled) return;
       if (state.bgmEl) {
         try {
           var p = state.bgmEl.play();
@@ -459,7 +460,7 @@
         if (state.bgmEl) {
           try { state.bgmEl.pause(); } catch (e) { /* 静默 */ }
         }
-      } else if (state.bgmKey && state.bgmEl) {
+      } else if (state.enabled && !state.suspended && state.bgmKey && state.bgmEl) {
         try {
           var p = state.bgmEl.play();
           if (p && typeof p.catch === 'function') p.catch(function () {});
