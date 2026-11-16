@@ -56,7 +56,9 @@ function game(specs, opt = {}) {
   return g;
 }
 const results = [];
+const skips = [];
 function t(id, name, cond, detail) { results.push({ id, name, pass: !!cond, detail }); console.log((cond ? 'PASS ' : 'FAIL ') + id + ' ' + name + ' :: ' + detail); }
+function skip(id, name, detail) { skips.push({ id, name, detail }); console.log('SKIP ' + id + ' ' + name + ' :: ' + detail); }
 const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',');
 
 (async () => {
@@ -3357,9 +3359,16 @@ const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',')
       const lines = String(r.stdout || '').trim().split('\n');
       parsed = JSON.parse(lines[lines.length - 1]);
     } catch (e) { parsed = null; }
-    const ok = r.status === 0 && parsed && parsed.ok && parsed.total >= 28;
-    t('T215', '暂停冻结（出牌/求桃 × 后台/手动）', ok,
-      parsed ? ('pause_check ' + parsed.pass + '/' + parsed.total) : ('exit=' + r.status + ' ' + String(r.stderr || '').slice(0, 160)));
+    const stderr = String(r.stderr || '');
+    const missChrome = /Chrome 不存在/.test(stderr);
+    const missServer = /本地服务不可用/.test(stderr);
+    if (r.status === 2 && (missChrome || missServer)) {
+      skip('T215', '暂停冻结（出牌/求桃 × 后台/手动）', missChrome ? '未找到 Chrome，跳过（不计失败）' : '本地 8899 服务不可用，跳过（不计失败）');
+    } else {
+      const ok = r.status === 0 && parsed && parsed.ok && parsed.total >= 28;
+      t('T215', '暂停冻结（出牌/求桃 × 后台/手动）', ok,
+        parsed ? ('pause_check ' + parsed.pass + '/' + parsed.total) : ('exit=' + r.status + ' ' + stderr.slice(0, 160)));
+    }
   }
 
   // ================= 牌移动钩子回归 =================
@@ -3615,9 +3624,287 @@ const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',')
     t('T235', '过拆丢最后手牌触发屯田', q.marks.tian === 1 && g.logs.some((l) => /屯田/.test(l.text)), '田=' + (q.marks.tian || 0) + '（应1），屯田日志=' + g.logs.some((l) => /屯田/.test(l.text)));
   }
 
-  // 汇总
+  // ================= 第二轮规则口径（手牌/装备离开必须钩；判定区不钩；置入装备不算获得） =================
+  // T236 涅槃弃置所有牌：手牌、装备分别触发连营/枭姬
+  {
+    const g = game([{ name: '庞统', skills: ['niepan', 'lianying', 'xiaoji'], hp: 0 }]);
+    const p = g.players[0];
+    p.hand = [C('sha', 'spade', 1)];
+    p.equips.armor = C('bagua', 'club', 2);
+    g.deck = [C('tao', 'heart', 3), C('tao', 'heart', 4), C('tao', 'heart', 5), C('tao', 'heart', 6), C('tao', 'heart', 7)];
+    g.handler = async (pl, req) => req.type === 'chooseOption' && /涅槃/.test(req.reason || '') ? 'yes' : null;
+    await g.dying(p, null);
+    t('T236', '涅槃分别触发连营/枭姬', g.logs.some((l) => /连营/.test(l.text)) && g.logs.some((l) => /枭姬/.test(l.text)),
+      '连营=' + g.logs.some((l) => /连营/.test(l.text)) + '，枭姬=' + g.logs.some((l) => /枭姬/.test(l.text)));
+  }
+
+  // T237 主公误杀忠臣：手牌/装备分别触发连营/枭姬
+  {
+    const g = game([{ name: '孙尚香', skills: ['xiaoji', 'lianying'], gender: 'female', hp: 3 }, { name: '忠臣', role: 'loyalist' }, { name: '甲' }]);
+    const p = g.players[0], dead = g.players[1];
+    p.role = 'lord';
+    p.hand = [C('sha', 'spade', 1)];
+    p.equips.armor = C('bagua', 'club', 2);
+    g.deck = [C('tao', 'heart', 3), C('tao', 'heart', 4), C('tao', 'heart', 5)];
+    g.handler = async () => null;
+    await g.kill(dead, p);
+    t('T237', '误杀忠臣分别触发连营/枭姬', g.logs.some((l) => /连营/.test(l.text)) && g.logs.some((l) => /枭姬/.test(l.text)),
+      '连营=' + g.logs.some((l) => /连营/.test(l.text)) + '，枭姬=' + g.logs.some((l) => /枭姬/.test(l.text)));
+  }
+
+  // T238 巧变移动装备：原持有者枭姬触发一次；置入目标装备不算获得（不触发清俭）
+  {
+    const g = game([{ name: '张郃', skills: ['qiaobian'] }, { name: '孙尚香', skills: ['xiaoji'], gender: 'female', hp: 3 }, { name: '夏侯惇', skills: ['j_qingjian'] }]);
+    const p = g.players[0], q = g.players[1], dest = g.players[2];
+    const bagua = C('bagua', 'club', 2);
+    q.equips.armor = bagua;
+    g.deck = [C('tao', 'heart', 3), C('tao', 'heart', 4)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseTargets') return req.reason && /移动其场上牌/.test(req.reason) ? [1] : [2];
+      if (req.type === 'chooseCardFrom') return { zone: 'equip', slot: 'armor' };
+      return null;
+    };
+    await g.qiaobianMove(p);
+    await new Promise((r) => setTimeout(r, 20));
+    const xiao = q.hand.length === 2;
+    const moved = dest.equips.armor && dest.equips.armor.id === bagua.id;
+    const noQing = !g.logs.some((l) => /清俭/.test(l.text));
+    t('T238', '巧变装备：原主枭姬、目标不触发清俭', xiao && moved && noQing,
+      '原主摸牌=' + q.hand.length + '（应2），装备已移动=' + !!moved + '，无清俭=' + noQing);
+  }
+
+  // T239 巧变移动判定区牌：不触发连营
+  {
+    const g = game([{ name: '张郃', skills: ['qiaobian'] }, { name: '陆逊', skills: ['lianying'], hp: 3 }, { name: '甲' }]);
+    const p = g.players[0], q = g.players[1];
+    q.judges.push(C('lebu', 'heart', 6));
+    g.deck = [C('tao', 'heart', 3)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseTargets') return req.reason && /移动其场上牌/.test(req.reason) ? [1] : [2];
+      if (req.type === 'chooseCardFrom') return { zone: 'judge', cardId: q.judges[0].id };
+      return null;
+    };
+    await g.qiaobianMove(p);
+    t('T239', '巧变判定区牌不触发连营', !g.logs.some((l) => /连营/.test(l.text)) && q.judges.length === 0, '连营=' + g.logs.some((l) => /连营/.test(l.text)) + '，原判定区=' + q.judges.length);
+  }
+
+  // T240 pickCardFrom 判定区：不触发连营
+  {
+    const g = game([{ name: '甲' }, { name: '陆逊', skills: ['lianying'], hp: 3 }]);
+    const p = g.players[0], q = g.players[1];
+    q.judges.push(C('lebu', 'heart', 7));
+    g.deck = [C('tao', 'heart', 3)];
+    g.handler = async (pl, req) => req.type === 'chooseCardFrom' ? { zone: 'judge', cardId: q.judges[0].id } : null;
+    const c = await g.pickCardFrom(q, p, { zones: ['judge'] });
+    t('T240', 'pickCardFrom 判定区不触发连营', !!c && !g.logs.some((l) => /连营/.test(l.text)), '取牌=' + !!c + '，连营=' + g.logs.some((l) => /连营/.test(l.text)));
+  }
+
+  // T241 直谏置入装备不触发清俭
+  {
+    const g = game([{ name: '张昭张纮', skills: ['zhijian'], hp: 3 }, { name: '夏侯惇', skills: ['j_qingjian'], hp: 4 }, { name: '甲' }]);
+    const p = g.players[0];
+    const bagua = C('bagua', 'club', 2);
+    p.hand = [bagua];
+    g.handler = async (pl, req) => req.type === 'chooseTargets' ? [1] : (req.type === 'chooseCards' ? [req.cards[0].id] : null);
+    await g.useSkillAction(p, { skill: 'zhijian', cards: [bagua.id], targets: [1] });
+    await new Promise((r) => setTimeout(r, 20));
+    t('T241', '直谏置入装备不触发清俭', !g.logs.some((l) => /清俭/.test(l.text)), '清俭=' + g.logs.some((l) => /清俭/.test(l.text)));
+  }
+
+  // T242 界结姻置入装备不触发清俭
+  {
+    const g = game([{ name: '孙尚香', gender: 'female', skills: ['j_jieyin'], hp: 3 }, { name: '夏侯惇', skills: ['j_qingjian'], hp: 3 }, { name: '甲' }]);
+    const p = g.players[0], q = g.players[1];
+    const bagua = C('bagua', 'club', 2);
+    p.equips.armor = bagua;
+    g.handler = async (pl, req) => req.type === 'chooseOption' && /结姻/.test(req.reason || '') ? 'equip' : null;
+    await g.useSkillAction(p, { skill: 'j_jieyin', targets: [1] });
+    await new Promise((r) => setTimeout(r, 20));
+    t('T242', '界结姻置入装备不触发清俭', !g.logs.some((l) => /清俭/.test(l.text)), '清俭=' + g.logs.some((l) => /清俭/.test(l.text)));
+  }
+
+  // T243 猛进弃装备：枭姬只触发一次
+  {
+    const g = game([{ name: '庞德', skills: ['mengjin'], hp: 4 }, { name: '孙尚香', skills: ['xiaoji'], gender: 'female', hp: 3 }]);
+    const p = g.players[0], q = g.players[1];
+    q.equips.armor = C('bagua', 'club', 2);
+    q.hand = [C('shan', 'diamond', 8)];
+    g.deck = [C('tao', 'heart', 3), C('tao', 'heart', 4)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'response' && req.need === 'shan') return { cardId: req.options[0].cardId };
+      if (req.type === 'chooseOption' && /猛进/.test(req.reason || '')) return 'yes';
+      if (req.type === 'chooseCardFrom') return { zone: 'equip', slot: 'armor' };
+      return null;
+    };
+    await g.resolveSlash(p, { id: 8001, name: 'sha', type: 'basic', suit: 'spade', rank: 7, color: 'black', cards: [] }, [q]);
+    t('T243', '猛进弃装备枭姬只触发一次', q.hand.length === 2, '摸牌=' + q.hand.length + '（应2）');
+  }
+
+  // T244 寒冰剑弃两件装备：枭姬各一次共4
+  {
+    const g = game([{ name: '庞德', hp: 4 }, { name: '孙尚香', skills: ['xiaoji'], gender: 'female', hp: 3 }]);
+    const p = g.players[0], q = g.players[1];
+    p.equips.weapon = C('hanbing', 'spade', 5);
+    q.equips.armor = C('bagua', 'club', 2);
+    q.equips.weapon = C('qinglong', 'spade', 4);
+    q.hand = [C('tao', 'heart', 9)];
+    g.deck = [C('tao', 'heart', 3), C('tao', 'heart', 4), C('tao', 'heart', 6), C('tao', 'heart', 7)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseOption' && /寒冰剑/.test(req.reason || '')) return 'yes';
+      if (req.type === 'chooseCardFrom') {
+        const eq = (req.choices || []).filter((c) => c.zone === 'equip');
+        return eq.length ? { zone: 'equip', slot: eq[0].slot } : { zone: 'hand' };
+      }
+      return null;
+    };
+    await g.resolveSlash(p, { id: 8002, name: 'sha', type: 'basic', suit: 'spade', rank: 8, color: 'black', cards: [] }, [q]);
+    t('T244', '寒冰剑两装备枭姬共4', q.hand.length === 5, '摸牌=' + q.hand.length + '（原手牌1+枭姬4=5）');
+  }
+
+  // T245 聚众弃装备：枭姬只触发一次
+  {
+    const g = game([{ name: '农民', skills: ['juzhong'] }, { name: '孙尚香', skills: ['xiaoji'], gender: 'female', hp: 3 }, { name: '队友', role: 'farmer' }], { mode: 'ddz' });
+    const p = g.players[0], q = g.players[1], user = g.players[2];
+    p.role = 'farmer'; p.skills = ['juzhong']; p.hand = [C('shan', 'heart', 2)];
+    q.equips.armor = C('bagua', 'club', 2);
+    g.deck = [C('tao', 'heart', 3), C('tao', 'heart', 4)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseOption' && /聚众/.test(req.reason || '')) return 'yes';
+      if (req.type === 'chooseCards') return [req.cards[0].id];
+      if (req.type === 'chooseTargets') return [1];
+      if (req.type === 'chooseCardFrom') return { zone: 'equip', slot: 'armor' };
+      return null;
+    };
+    await g.juzhongAfterShan(user);
+    t('T245', '聚众弃装备枭姬只触发一次', q.hand.length === 2, '摸牌=' + q.hand.length + '（应2）');
+  }
+
+  // T246 涯角弃装备：枭姬只触发一次
+  {
+    const g = game([{ name: '孙尚香', skills: ['xiaoji'], gender: 'female', hp: 3 }, { name: '赵云', skills: ['j_yajiao'], hp: 4 }]);
+    const q = g.players[0], p = g.players[1];
+    q.equips.armor = C('bagua', 'club', 2);
+    g.currentSeat = 0;
+    g.deck = [C('tao', 'heart', 4), C('tao', 'heart', 5), C('guohe', 'spade', 3)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseOption' && /涯角/.test(req.reason || '')) return 'yes';
+      if (req.type === 'chooseTargets') return [0];
+      if (req.type === 'chooseCardFrom') return { zone: 'equip', slot: 'armor' };
+      return null;
+    };
+    await g.yajiaoTrigger(p, C('sha', 'spade', 1));
+    t('T246', '涯角弃装备枭姬只触发一次', q.hand.length === 2, '摸牌=' + q.hand.length + '（应2）');
+  }
+
+  // T247 除疠弃装备：枭姬只触发一次
+  {
+    const g = game([{ name: '华佗', skills: ['jijiu', 'j_chuli'], hp: 3 }, { name: '孙尚香', skills: ['xiaoji'], gender: 'female', hp: 3 }, { name: '甲' }]);
+    const p = g.players[0], q = g.players[1];
+    p.hand = [C('sha', 'spade', 1), C('tao', 'heart', 2)];
+    q.equips.armor = C('bagua', 'club', 2);
+    g.deck = [C('tao', 'heart', 3), C('tao', 'heart', 4)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseCards') return [req.cards[0].id];
+      if (req.type === 'chooseCardFrom') return { zone: 'equip', slot: 'armor' };
+      return null;
+    };
+    await g.useSkillAction(p, { skill: 'j_chuli', cards: [], targets: [1] });
+    t('T247', '除疠弃装备枭姬只触发一次', q.hand.length === 2, '摸牌=' + q.hand.length + '（应2）');
+  }
+
+  // T248 烈刃获得目标最后手牌：目标连营
+  {
+    const g = game([{ name: '祝融', skills: ['lieren'], hp: 4 }, { name: '陆逊', skills: ['lianying'], hp: 4 }]);
+    const p = g.players[0], q = g.players[1];
+    p.hand = [C('tao', 'heart', 12), C('shan', 'diamond', 2)];
+    q.hand = [C('sha', 'spade', 3), C('shan', 'club', 4)];
+    g.deck = [C('tao', 'heart', 5)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseCards') return pl === p ? [p.hand.find((c) => c.rank === 12).id] : [q.hand[0].id];
+      if (req.type === 'chooseCardFrom') return { zone: 'hand' };
+      if (req.type === 'chooseHiddenCard') return 0;
+      return null;
+    };
+    await g.resolveSlash(p, { id: 8003, name: 'sha', type: 'basic', suit: 'spade', rank: 9, color: 'black', cards: [] }, [q]);
+    t('T248', '烈刃获得最后手牌触发连营', g.logs.some((l) => /连营/.test(l.text)), '连营=' + g.logs.some((l) => /连营/.test(l.text)));
+  }
+
+  // T249 利驭获得目标最后手牌：目标连营
+  {
+    const g = game([{ name: '吕布', skills: ['wushuang', 'j_liyu'], hp: 4 }, { name: '陆逊', skills: ['lianying'], hp: 4 }, { name: '甲' }]);
+    const p = g.players[0], q = g.players[1];
+    q.hand = [C('tao', 'heart', 1)];
+    g.deck = [C('tao', 'heart', 2)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseOption' && /利驭/.test(req.reason || '')) return 'yes';
+      if (req.type === 'chooseCardFrom') return { zone: 'hand' };
+      if (req.type === 'chooseHiddenCard') return 0;
+      return null;
+    };
+    await g.damage({ source: p, target: q, amount: 1, card: C('sha', 'spade', 3) });
+    t('T249', '利驭获得最后手牌触发连营', g.logs.some((l) => /连营/.test(l.text)), '连营=' + g.logs.some((l) => /连营/.test(l.text)));
+  }
+
+  // ================= AI 主动技（识度/筹伐/宴戏/三陈） =================
+  // T250 识度：敌方手牌多且己方有高点，AI 应发动
+  {
+    const g = game([{ name: '夏侯徽', skills: ['j_shidu'], hp: 3 }, { name: '甲', role: 'rebel', hp: 4 }], { mode: '1v1' });
+    const p = g.players[0], q = g.players[1];
+    p.role = 'loyalist';
+    p.hand = [C('tao', 'heart', 12), C('shan', 'diamond', 2)];
+    q.hand = [C('sha', 'spade', 3), C('sha', 'club', 4), C('shan', 'heart', 5), C('tao', 'diamond', 6), C('sha', 'heart', 7)];
+    g.currentSeat = 0; g.phase = 'play';
+    const ai = new SGS.AI(g, 0, { speed: 0, aiLevel: 'normal' });
+    const ans = await ai.decide({ type: 'play', player: p, actions: g.buildPlayActions(p) });
+    t('T250', 'AI 使用识度', ans && ans.kind === 'skill' && ans.skill === 'j_shidu', 'AI=' + (ans && ans.kind) + '/' + (ans && ans.skill));
+  }
+
+  // T251 筹伐：敌方有手牌，AI 应发动
+  {
+    const g = game([{ name: '司马昭', skills: ['j_choufa'], hp: 3 }, { name: '甲', role: 'rebel', hp: 4 }], { mode: '1v1' });
+    const p = g.players[0], q = g.players[1];
+    p.role = 'loyalist';
+    p.hand = [C('shan', 'diamond', 2)];
+    q.hand = [C('sha', 'spade', 3), C('sha', 'club', 4), C('shan', 'heart', 5)];
+    g.currentSeat = 0; g.phase = 'play';
+    const ai = new SGS.AI(g, 0, { speed: 0, aiLevel: 'normal' });
+    const ans = await ai.decide({ type: 'play', player: p, actions: g.buildPlayActions(p) });
+    t('T251', 'AI 使用筹伐', ans && ans.kind === 'skill' && ans.skill === 'j_choufa', 'AI=' + (ans && ans.kind) + '/' + (ans && ans.skill));
+  }
+
+  // T252 宴戏：敌方有手牌，AI 应发动
+  {
+    const g = game([{ name: '王元姬', skills: ['j_yanxi'], hp: 3 }, { name: '甲', role: 'rebel', hp: 4 }], { mode: '1v1' });
+    const p = g.players[0], q = g.players[1];
+    p.role = 'loyalist';
+    p.hand = [C('shan', 'diamond', 2)];
+    q.hand = [C('sha', 'spade', 3), C('tao', 'heart', 4)];
+    g.deck = [C('tao', 'heart', 5), C('sha', 'club', 6)];
+    g.currentSeat = 0; g.phase = 'play';
+    const ai = new SGS.AI(g, 0, { speed: 0, aiLevel: 'normal' });
+    const ans = await ai.decide({ type: 'play', player: p, actions: g.buildPlayActions(p) });
+    t('T252', 'AI 使用宴戏', ans && ans.kind === 'skill' && ans.skill === 'j_yanxi', 'AI=' + (ans && ans.kind) + '/' + (ans && ans.skill));
+  }
+
+  // T253 三陈：己方手牌少/质量差，AI 应发动并选自己
+  {
+    const g = game([{ name: '杜预', skills: ['j_sanchen'], hp: 4 }, { name: '甲', role: 'rebel', hp: 4 }], { mode: '1v1' });
+    const p = g.players[0], q = g.players[1];
+    p.role = 'loyalist';
+    p.hand = [C('shan', 'diamond', 2), C('shan', 'heart', 3)];
+    q.hand = [C('sha', 'spade', 4), C('sha', 'club', 5)];
+    g.currentSeat = 0; g.phase = 'play';
+    const ai = new SGS.AI(g, 0, { speed: 0, aiLevel: 'normal' });
+    const ans = await ai.decide({ type: 'play', player: p, actions: g.buildPlayActions(p) });
+    t('T253', 'AI 使用三陈并选自己', ans && ans.kind === 'skill' && ans.skill === 'j_sanchen' && ans.targets && ans.targets[0] === 0, 'AI=' + (ans && ans.kind) + '/' + (ans && ans.skill) + ' targets=' + JSON.stringify(ans && ans.targets));
+  }
+
+  // 汇总（SKIP 不计入失败，单独统计）
   const pass = results.filter((r) => r.pass).length;
-  console.log('\nSUMMARY pass=' + pass + '/' + results.length);
   const fails = results.filter((r) => !r.pass);
+  const total = results.length + skips.length;
+  console.log('\nSUMMARY pass=' + pass + ' fail=' + fails.length + ' skip=' + skips.length + ' total=' + total);
   console.log('FAILED: ' + fails.map((r) => r.id).join(','));
+  if (skips.length) console.log('SKIPPED: ' + skips.map((r) => r.id + '(' + r.detail + ')').join(','));
+  process.exit(fails.length ? 1 : 0);
 })().catch((e) => { console.error('HARNESS ERROR', e && e.stack || e); process.exit(2); });

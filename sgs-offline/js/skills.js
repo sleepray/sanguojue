@@ -621,7 +621,6 @@
             const prev = t.equips[slot];
             if (prev) { t.equips[slot] = null; this.toDiscard([prev]); await this.afterLoseCards(t, [prev]); }
             t.equips[slot] = c;
-            this.afterCardGain(t, [c]);
             await this.afterLoseCards(p, [c]);
           }
           p.used.j_jieyin = true;
@@ -875,7 +874,6 @@
             this.afterLoseCards(targets[0], [prev]);
           }
           targets[0].equips[slot] = c;
-          this.afterCardGain(targets[0], [c]);
           await this.afterLoseCards(p, [c]);
           this.drawCards(p, 1, '直谏');
           this.log(`${this.nameOf(p)} 对 ${this.nameOf(targets[0])} 发动【直谏】${prev ? '（替换原装备）' : ''}`, 'skill');
@@ -1658,7 +1656,6 @@
         const old = dest.equips[slot];
         if (old) { dest.equips[slot] = null; this.toDiscard([old]); this.afterLoseCards(dest, [old]); this.log(`${this.nameOf(dest)} 的 ${this.cardText(old)} 被替换弃置`, 'info'); }
         dest.equips[slot] = card;
-        this.afterCardGain(dest, [card]);
       } else if (card.type === 'delayed') {
         dest.judges.push(card);
       } else {

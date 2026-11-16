@@ -80,6 +80,8 @@
       if (!other) return 'neutral';
       const me = this.p;
       if (other.seat === me.seat) return 'self';
+      // 1v1 只有两名玩家，对手身份公开；不读隐藏身份字段
+      if (this.game.mode === '1v1') return 'enemy';
       // 团队/斗地主身份公开；身份局只认公开身份（主公/已揭示）
       if (this.game.teamMode || this.game.ddzMode) return me.role === other.role ? 'friend' : 'enemy';
       // 身份局只认公开身份：主公、已揭示；反贼也不互认
@@ -694,6 +696,31 @@
           return 4 + n * 1.5 + Math.min(spades, n) * 1.5; // 黑桃弃牌可摸回，近似免费
         }
         case 'guhuo': return 0; // 普通难度不赌蛊惑
+        // ---------------- 第二轮：4 个主动技 ----------------
+        case 'j_shidu': {
+          if (!hand.length || !enemies.length) return 0;
+          const maxRank = Math.max(...hand.map((c) => c.rank || 0));
+          const bestHand = enemies.reduce((m, q) => Math.max(m, q.hand.length), 0);
+          if (bestHand >= hand.length + 2) return 9;
+          if (maxRank >= 10 && bestHand >= 2) return 6;
+          return 0;
+        }
+        case 'j_choufa': {
+          if (!enemies.length) return 0;
+          const bestHand = enemies.reduce((m, q) => Math.max(m, q.hand.length), 0);
+          return bestHand >= 2 ? 6 : (bestHand === 1 ? 3 : 0);
+        }
+        case 'j_yanxi': {
+          if (!enemies.length) return 0;
+          const bestHand = enemies.reduce((m, q) => Math.max(m, q.hand.length), 0);
+          return bestHand >= 1 ? 8 : 0;
+        }
+        case 'j_sanchen': {
+          const selfBad = hand.filter((c) => valueOf(c) <= 4).length;
+          if (p.hand.length <= 2 || selfBad >= 2) return 7;
+          if (friends.some((q) => q.hand.length <= 2)) return 6;
+          return 0;
+        }
         default: return 0;
       }
     }
@@ -946,6 +973,24 @@
         case 'zhiba': {
           const lord = this.game.lord;
           return lord && lord.alive ? [lord.seat] : [];
+        }
+        case 'j_shidu': {
+          const e = this.rankTargets(cands.filter((q) => this.isEnemy(q) && q.hand.length), (q) => q.hand.length * 2 + (q.hp <= 1 ? 3 : 0) + this.threatOf(q));
+          return e.length ? [e[0].q.seat] : [];
+        }
+        case 'j_choufa': {
+          const e = this.rankTargets(cands.filter((q) => this.isEnemy(q) && q.hand.length), (q) => q.hand.length * 2 + this.threatOf(q));
+          return e.length ? [e[0].q.seat] : [];
+        }
+        case 'j_yanxi': {
+          const e = this.rankTargets(cands.filter((q) => this.isEnemy(q) && q.hand.length), (q) => q.hand.length * 2 + (q.hp <= 1 ? 2 : 0));
+          return e.length ? [e[0].q.seat] : [];
+        }
+        case 'j_sanchen': {
+          const selfBad = p.hand.filter((c) => valueOf(c) <= 4).length;
+          if (p.hand.length <= 2 || selfBad >= 2) return [p.seat];
+          const f = cands.filter((q) => q.seat !== p.seat && this.isFriend(q)).sort((x, y) => x.hand.length - y.hand.length);
+          return f.length ? [f[0].seat] : [p.seat];
         }
         case 'zhangba': {
           const c0 = byId(p.hand, (cards || [])[0]);

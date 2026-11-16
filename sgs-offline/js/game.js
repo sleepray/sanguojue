@@ -1580,10 +1580,15 @@
         const r = await this.askOption(p, '是否发动【涅槃】？弃置所有牌，复原武将牌，摸三张牌，回复至 3 点体力', ['yes', 'no'], ['发动涅槃', '不发动']);
         if (r === 'yes') {
           p.once.niepan = true;
-          const all = [...p.hand, ...Object.values(p.equips).filter(Boolean), ...p.judges];
+          const lostHand = [...p.hand];
+          const lostEquip = Object.values(p.equips).filter(Boolean);
+          const all = [...lostHand, ...lostEquip, ...p.judges];
           p.hand = []; p.judges = [];
           for (const k of Object.keys(p.equips)) p.equips[k] = null;
           this.toDiscard(all);
+          // 弃置所有牌：手牌、装备分别走失去钩子（判定区不触发连营/枭姬）
+          if (lostHand.length) await this.afterLoseCards(p, lostHand, true);
+          if (lostEquip.length) await this.afterLoseCards(p, lostEquip);
           p.hp = Math.min(p.maxHp, 3);
           p.flipped = false; p.chained = false;
           this.drawCards(p, 3, '涅槃');
@@ -1676,10 +1681,13 @@
           this.drawCards(source, 3, '击杀反贼奖励');
           this.log(`${this.nameOf(source)} 击杀反贼，摸三张牌`, 'reward');
         } else if (p.role === 'loyalist' && source.role === 'lord') {
-          const cards = [...source.hand, ...Object.values(source.equips).filter(Boolean)];
+          const lostHand = [...source.hand];
+          const lostEquip = Object.values(source.equips).filter(Boolean);
           source.hand = [];
           for (const k of Object.keys(source.equips)) source.equips[k] = null;
-          this.toDiscard(cards);
+          this.toDiscard([...lostHand, ...lostEquip]);
+          await this.afterLoseCards(source, lostHand, true);
+          if (lostEquip.length) await this.afterLoseCards(source, lostEquip);
           this.log(`主公误杀忠臣，弃置所有手牌和装备`, 'punish');
         }
       }
