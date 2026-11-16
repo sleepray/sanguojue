@@ -22,12 +22,15 @@ const PROFILE = path.join(ROOT, 'out', '.chrome-profile');
 const WHITE = path.join(__dirname, 'layout_whitelist.json');
 
 const VIEWPORTS = [
-  { id: '323x792', width: 323, height: 792 },
-  { id: '412x915', width: 412, height: 915 },
-  { id: '619x720', width: 619, height: 720 },
-  { id: '800x1280', width: 800, height: 1280 },
+  { id: '792x323', width: 792, height: 323 },
+  { id: '915x412', width: 915, height: 412 },
+  { id: '997x448', width: 997, height: 448 },
+  { id: '720x619', width: 720, height: 619 },
   { id: '1280x800', width: 1280, height: 800 },
+  { id: '1376x1032', width: 1376, height: 1032 },
+  { id: '412x915', width: 412, height: 915 },
 ];
+const MOBILE_LANDSCAPE = [792, 915, 997, 720];
 const FULL_MODES = ['8p', '3v3'];
 const MINI_MODES = ['1v1', '5p'];
 const FULL_SCENES = ['play1', 'play5', 'play10', 'play15', 'target', 'wugu', 'rescue', 'pindian', 'hidden', 'judge', 'intro', 'skilldesc', 'log', 'settings', 'pause'];
@@ -47,7 +50,7 @@ function args() {
   return out;
 }
 const A = args();
-const full = !A.viewport && !A.scene;
+const full = !A.viewport && !A.scene && !A['before-shots'] && !A['after-shots'];
 const onlyVp = A.viewport ? VIEWPORTS.filter(v => v.id === A.viewport || String(v.width) === A.viewport) : VIEWPORTS;
 const onlyScene = A.scene && A.scene !== 'all' ? String(A.scene).split(',') : null;
 
@@ -100,7 +103,7 @@ async function main() {
   });
   let page = await browser.newPage();
   page.on('pageerror', e => console.error('PAGEERROR', e.message));
-  let report = { generated: new Date().toISOString(), viewports: [], issues: [], notes: [], audits: [] };
+  let report = { generated: new Date().toISOString(), viewports: [], issues: [], notes: [], audits: [], seatmax: [] };
   if (!full) {
     try {
       const old = JSON.parse(fs.readFileSync(path.join(LATEST, 'layout-report.json'), 'utf8'));
@@ -112,9 +115,34 @@ async function main() {
           issues: old.issues.filter(i => !ids.has(i.viewport)),
           notes: (old.notes || []).filter(n => !ids.has(n.viewport)),
           audits: (old.audits || []).filter(a => !ids.has(a.viewport)),
+          seatmax: (old.seatmax || []).filter(a => !ids.has(a.viewport)),
         };
       }
     } catch (e) { /* first incremental run */ }
+  }
+  if (A['before-shots'] || A['after-shots']) {
+    const prefix = A['after-shots'] ? 'after' : 'before';
+    for (const vp of onlyVp.filter(v => [792, 915, 997].indexOf(v.width) >= 0)) {
+      await page.setViewport({ width: vp.width, height: vp.height, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+      for (const mode of ['1v1', '5p', '8p']) {
+        await page.goto(BASE + '?nofx=1&demo=1&freeze=play&seed=20261116&speed=0&mode=' + mode, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        await page.waitForFunction(() => {
+          const s = window.SGS_UI && SGS_UI._state && SGS_UI._state();
+          return !!(s && s.game && s.game.players && s.game.players.length);
+        }, { timeout: 15000 });
+        await sleep(1300);
+        const f = path.join(LATEST, `${prefix}_${mode}_${vp.id}.jpg`);
+        try {
+          await page.screenshot({ path: f, type: 'jpeg', quality: 70, fullPage: false });
+          console.log('SHOT', path.relative(ROOT, f));
+        } catch (e) {
+          report.notes.push({ viewport: vp.id, mode, note: prefix + ' shot failed: ' + e.message });
+        }
+      }
+    }
+    await browser.close();
+    try { fs.rmSync(PROFILE, { recursive: true, force: true, maxRetries: 8, retryDelay: 200 }); } catch (e) { /* ignore */ }
+    return;
   }
   let shotIndex = 0;
   for (const vp of onlyVp) {
@@ -131,7 +159,9 @@ async function main() {
     let vpShot = false;
     const modes = FULL_MODES.concat(MINI_MODES);
     for (const mode of modes) {
-      const scenes = FULL_MODES.includes(mode) ? FULL_SCENES : MINI_SCENES;
+      const scenes = FULL_MODES.includes(mode)
+        ? (mode === '8p' ? FULL_SCENES.concat(['seatmax_top', 'seatmax_side', 'seatmax_human']) : FULL_SCENES)
+        : MINI_SCENES;
       for (const scene of scenes) {
         if (onlyScene && !onlyScene.includes(scene)) continue;
         let one;
@@ -169,6 +199,14 @@ async function main() {
           if (clip.width < 1 || clip.height < 1) continue;
           const f = path.join(LATEST, `issue_${vp.id}_${++shotIndex}.jpg`);
           try { await page.screenshot({ path: f, type: 'jpeg', quality: 70, clip }); it.screenshot = path.relative(ROOT, f); } catch (e) { /* ignore */ }
+        }
+        // 第三轮 seat-max 截图：792/997/1280 三视口
+        if (!A['no-shot'] && mode === '8p' && scene.indexOf('seatmax') === 0 && [792, 997, 1280].indexOf(vp.width) >= 0) {
+          const f = path.join(LATEST, `seatmax_${scene.replace('seatmax_', '')}_${vp.id}.jpg`);
+          try {
+            await page.screenshot({ path: f, type: 'jpeg', quality: 70, fullPage: false });
+            report.seatmax.push({ viewport: vp.id, scene, path: path.relative(ROOT, f) });
+          } catch (e) { report.notes.push({ viewport: vp.id, scene, note: 'seatmax shot failed: ' + e.message }); }
         }
         // 任务3校准：8p 出牌/技能描述/武将介绍 各 1 张人工抽查图
         if (!A['no-shot'] && mode === '8p' && ['play5', 'skilldesc', 'intro'].indexOf(scene) >= 0) {
@@ -283,6 +321,46 @@ async function runScene(page, vp, mode, scene, whitelist) {
     };
     p.judges = [C('lebu', 'spade', 3), C('bingliang', 'club', 4)];
     p.hp = Math.max(1, p.maxHp || 4);
+    if (String(scene).indexOf('seatmax') === 0) {
+      function fullEquips(q) {
+        q.equips = { weapon: C('qinggang', 'spade', 6), armor: C('bagua', 'spade', 2), offhorse: C('chitu', 'heart', 5), defhorse: C('dilu', 'club', 5) };
+      }
+      function hand15(q) {
+        const arr = [];
+        while (arr.length < 15) {
+          const base = (g.deck && g.deck[arr.length]) || (p.hand && p.hand[arr.length]) || { name: 'sha', suit: 'spade', rank: 1 };
+          arr.push(Object.assign({}, base, { id: 850000 + arr.length }));
+        }
+        q.hand = arr;
+      }
+      function judge3(q) { q.judges = [C('lebu', 'spade', 3), C('bingliang', 'club', 4), C('shandian', 'spade', 5)]; }
+      function marks(q, which) {
+        q.marks = q.marks || {};
+        if (which === 'buqu') q.marks.buqu = [{ name: 'buqu' }, { name: 'buqu2' }, { name: 'buqu3' }];
+        if (which === 'tian') q.marks.tian = 3;
+        if (which === 'huashen') q.marks.huashen = { options: [{ name: '化身1' }, { name: '化身2' }] };
+      }
+      const top = g.players[3] || g.players[1];
+      const side = g.players[1] || g.players[2];
+      const extra = g.players[4] || side;
+      const longNames = ['卧龙诸葛亮', '颜良文丑', '张昭张纮', '张虎乐綝'];
+      const targets = [top, side, p, extra];
+      targets.forEach((q, i) => {
+        if (!q) return;
+        q.general = q.general || {};
+        q.general.name = longNames[i];
+        q.name = longNames[i];
+        q.maxHp = i === 0 ? 10 : i === 1 ? 9 : 9;
+        q.hp = i === 0 ? 10 : i === 1 ? 9 : 3;
+        q.alive = true;
+        q.chained = true; q.flipped = true;
+        q.role = i === 0 ? 'landlord' : i === 1 ? 'lord' : q.role;
+        fullEquips(q); judge3(q); hand15(q); marks(q, i === 0 ? 'buqu' : i === 1 ? 'tian' : 'huashen');
+      });
+      const focus = String(scene).slice('seatmax_'.length);
+      if (focus === 'side') { side.general.name = '颜良文丑'; side.name = '颜良文丑'; }
+      if (focus === 'human') { p.general.name = '张昭张纮'; p.name = '张昭张纮'; }
+    }
     SGS_UI.render(g);
     if (scene === 'target') {
       SGS_UI.request({ type: 'chooseTargets', player: p, candidates: g.players.map(x => x.seat), min: 1, max: 2, reason: '请选择至多两名角色（布局检查）' }, () => {});
@@ -328,7 +406,7 @@ async function runScene(page, vp, mode, scene, whitelist) {
   await sleep(scene === 'pause' ? 900 : 350);
   // 动画残留检查前等待 2s；不作用于交互场景的即时检查
   if (scene === 'play5' || scene === 'target' || scene === 'wugu' || scene === 'judge') await sleep(2100);
-  const found = await page.evaluate(auditPage, { whitelist, keySel: SELECTOR_KEY, textSel: SELECTOR_TEXT, clickSel: SELECTOR_INTERACTIVE, overlaySel: OVERLAY_SEL, scene, mobile: [323, 412, 619].indexOf(vp.width) >= 0, vp: { width: vp.width, height: vp.height } });
+  const found = await page.evaluate(auditPage, { whitelist, keySel: SELECTOR_KEY, textSel: SELECTOR_TEXT, clickSel: SELECTOR_INTERACTIVE, overlaySel: OVERLAY_SEL, scene, mobile: MOBILE_LANDSCAPE.indexOf(vp.width) >= 0, mobileLandscape: MOBILE_LANDSCAPE.indexOf(vp.width) >= 0, vp: { width: vp.width, height: vp.height } });
   return found;
 }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -454,7 +532,77 @@ function auditPage(opts) {
       }
     }
   });
-  // 1b) 交互元素：手机三视口 <44x44 或 <12px → P1；桌面不强制 44
+  // 1b) 手机横屏：玩家区占比、内部纵向空白、关键元素横向越界、座位名字号/被压
+  function effectiveFont(el) {
+    let fs = parseFloat(getComputedStyle(el).fontSize) || 0;
+    let n = el;
+    while (n && n !== document.body) {
+      const t = getComputedStyle(n).transform;
+      if (t && t !== 'none') {
+        const m = t.match(/matrix\(([^)]+)\)/);
+        if (m) {
+          const v = m[1].split(',').map(Number);
+          const sx = Math.sqrt(v[0] * v[0] + v[1] * v[1]);
+          const sy = Math.sqrt(v[2] * v[2] + v[3] * v[3]);
+          fs *= Math.max(sx || 1, sy || 1);
+        }
+      }
+      n = n.parentElement;
+    }
+    return fs;
+  }
+  if (opts.mobileLandscape) {
+    const human = document.querySelector('.human');
+    if (human && visible(human)) {
+      const hr = rect(human);
+      const ratio = hr.height / vh;
+      if (ratio > 0.35) add('P1', '玩家区高度>35%', pathOf(human), `${Math.round(hr.height)}px=${(ratio * 100).toFixed(1)}% of ${vh}`);
+    }
+    const action = document.querySelector('.action-bar');
+    const handCards = Array.from(document.querySelectorAll('.hand-card')).filter(visible);
+    if (action && visible(action) && handCards.length) {
+      const ar = rect(action);
+      const top = Math.min.apply(null, handCards.map(e => rect(e).top));
+      const gap = top - ar.bottom;
+      if (gap > 16) add('P1', '玩家区纵向空白>16px', pathOf(action), `${Math.round(gap)}px 状态条→手牌顶`);
+    }
+    const gapGroups = [
+      ['.human-mid', '.action-bar,.hand-wrap'],
+      ['.human-right', '.me-block,.me-marks'],
+    ];
+    gapGroups.forEach(([parentSel, childSel]) => {
+      const parent = document.querySelector(parentSel);
+      if (!parent || !visible(parent)) return;
+      const kids = Array.from(parent.querySelectorAll(':scope > ' + childSel)).filter(visible)
+        .map(e => ({ e, r: rect(e) })).sort((a, b) => a.r.top - b.r.top);
+      for (let i = 1; i < kids.length; i++) {
+        const gap = kids[i].r.top - kids[i - 1].r.bottom;
+        if (gap > 16) add('P1', '玩家区纵向空白>16px', pathOf(parent), `${Math.round(gap)}px ${pathOf(kids[i - 1].e)}→${pathOf(kids[i].e)}`);
+      }
+    });
+    document.querySelectorAll('.seat').forEach(seat => {
+      if (!visible(seat)) return;
+      const sr = rect(seat);
+      if (sr.left < 0 || sr.right > vw) add('P1', '关键元素横向越界', pathOf(seat), `left=${Math.round(sr.left)} right=${Math.round(sr.right)} vw=${vw}`);
+      const name = seat.querySelector('.seat-name');
+      if (name && visible(name)) {
+        const nr = rect(name), fs = effectiveFont(name);
+        if (fs < 12) add('P1', '座位名字号<12', pathOf(name), `effective=${fs.toFixed(2)}px computed=${getComputedStyle(name).fontSize}`);
+        const others = Array.from(seat.querySelectorAll('.seat-hand,.seat-hp,.seat-role,.seat-equip-list,.seat-distance,.seat-mid,.seat-badges')).filter(visible);
+        others.forEach(o => {
+          const or = rect(o);
+          if (nr.left < or.right - 1 && nr.right > or.left + 1 && nr.top < or.bottom - 1 && nr.bottom > or.top + 1) {
+            add('P1', '座位名被同座位元素覆盖', pathOf(name), '覆盖者=' + pathOf(o));
+          }
+        });
+      }
+    });
+    Array.from(document.querySelectorAll('.seat-name,.seat-name *')).filter(visible).forEach(n => {
+      const r = rect(n);
+      if (r.left < 0 || r.right > vw) add('P1', '关键元素横向越界', pathOf(n), `left=${Math.round(r.left)} right=${Math.round(r.right)} vw=${vw}`);
+    });
+  }
+  // 1c) 工具控件：手机横屏 <44x44 或 <12px → P1；桌面不强制 44
   if (opts.mobile) {
     const INTERACTIVE = '.topbar button,.topbar .tb-btn,.tb-btn,.more-menu button,.more-menu [role=button],.more-item,#more-menu button,#more-menu [role=button],.settings-panel button,.settings-panel input[type=range],.settings-panel .switch,.settings-panel .switch-mute,.settings-panel .setting-row,.pick-bar button,#btn-pause';
     const seen = new Set();
