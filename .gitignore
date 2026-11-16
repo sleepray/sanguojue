@@ -11,3 +11,6 @@ sanguo-duel/
 .tools/
 **/.DS_Store
 **/*.log
+
+# deps
+sgs-offline/node_modules/
