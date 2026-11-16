@@ -1,5 +1,6 @@
 /* 只读审计脚本：受控场景验证技能/卡牌实际行为，不改引擎 */
 const path = require('path');
+const { spawnSync } = require('child_process');
 const base = path.join(__dirname, '..', 'js');
 require(path.join(base, 'skilldesc.js'));
 require(path.join(base, 'data.js'));
@@ -3343,6 +3344,275 @@ const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',')
     const g = game([{ name: '甲', skills: [] }, { name: '乙', skills: [] }]);
     const txt = g.cardText({ name: 'shandian', suit: 'spade', rank: 2 });
     t('T214', '拼音卡名归一化', txt.indexOf('闪电') >= 0 && txt.indexOf('shandian') < 0, txt);
+  }
+
+  // T215 暂停冻结（不变量 3/4）：调用 pause_check.js 驱动真实页面
+  // 出牌阶段 + 求桃询问 × 后台暂停/手动暂停 keepAudio，共 28 条断言
+  {
+    const r = spawnSync(process.execPath, [path.join(__dirname, 'pause_check.js'), '--json'], {
+      encoding: 'utf8', cwd: path.join(__dirname, '..'), timeout: 180000,
+    });
+    let parsed = null;
+    try {
+      const lines = String(r.stdout || '').trim().split('\n');
+      parsed = JSON.parse(lines[lines.length - 1]);
+    } catch (e) { parsed = null; }
+    const ok = r.status === 0 && parsed && parsed.ok && parsed.total >= 28;
+    t('T215', '暂停冻结（出牌/求桃 × 后台/手动）', ok,
+      parsed ? ('pause_check ' + parsed.pass + '/' + parsed.total) : ('exit=' + r.status + ' ' + String(r.stderr || '').slice(0, 160)));
+  }
+
+  // ================= 牌移动钩子回归 =================
+  // T216 枭姬：装备被【过河拆桥】拆掉只应摸 2 张（pickCardFrom 已触发，调用方不得重复）
+  {
+    const g = game([{ name: '甲', skills: [] }, { name: '孙尚香', skills: ['xiaoji'], gender: 'female', hp: 3 }]);
+    const p = g.players[0], q = g.players[1];
+    q.equips.armor = C('bagua', 'club', 2);
+    g.deck = [C('tao', 'heart', 1), C('tao', 'heart', 2), C('tao', 'heart', 3), C('tao', 'heart', 4)];
+    g.handler = async (pl, req) => req.type === 'chooseCardFrom' ? { zone: 'equip', slot: 'armor' } : null;
+    const vc = { id: 7001, name: 'guohe', type: 'trick', suit: 'spade', rank: 3, color: 'black', cards: [] };
+    await g.resolveDismantle(p, vc, q, false);
+    t('T216', '枭姬-过拆装备只触发一次', q.hand.length === 2, '摸牌=' + q.hand.length + '（应2）');
+  }
+
+  // T217 枭姬：挑衅弃置装备只应摸 2 张
+  {
+    const g = game([{ name: '张辽', skills: ['tiaoxin'] }, { name: '孙尚香', skills: ['xiaoji'], gender: 'female', hp: 3 }]);
+    const p = g.players[0], q = g.players[1];
+    q.equips.weapon = C('qinglong', 'spade', 5);
+    g.deck = [C('tao', 'heart', 1), C('tao', 'heart', 2), C('tao', 'heart', 3), C('tao', 'heart', 4)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'response') return null;
+      if (req.type === 'chooseCardFrom') return { zone: 'equip', slot: 'weapon' };
+      return null;
+    };
+    await g.useSkillAction(p, { skill: 'tiaoxin', targets: [1] });
+    t('T217', '枭姬-挑衅装备只触发一次', q.hand.length === 2, '摸牌=' + q.hand.length + '（应2）');
+  }
+
+  // T218 枭姬：趫猛弃置非坐骑装备只应摸 2 张
+  {
+    const g = game([{ name: '公孙瓒', skills: ['qiaomeng'], hp: 4 }, { name: '孙尚香', skills: ['xiaoji'], gender: 'female', hp: 3 }]);
+    const p = g.players[0], q = g.players[1];
+    q.equips.armor = C('bagua', 'club', 2);
+    g.deck = [C('tao', 'heart', 1), C('tao', 'heart', 2), C('tao', 'heart', 3), C('tao', 'heart', 4)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseOption' && /趫猛/.test(req.reason || '')) return 'yes';
+      if (req.type === 'chooseCardFrom') return { zone: 'equip', slot: 'armor' };
+      return null;
+    };
+    await g.damage({ source: p, target: q, amount: 1, card: C('sha', 'spade', 7) });
+    t('T218', '枭姬-趫猛装备只触发一次', q.hand.length === 2, '摸牌=' + q.hand.length + '（应2）');
+  }
+
+  // T219 枭姬：刚烈（界）黑判定弃装备只应摸 2 张
+  {
+    const g = game([{ name: '夏侯惇', skills: ['j_ganglie'], hp: 4 }, { name: '孙尚香', skills: ['xiaoji'], gender: 'female', hp: 3 }]);
+    const p = g.players[0], q = g.players[1];
+    q.equips.armor = C('bagua', 'club', 2);
+    g.deck = [C('tao', 'heart', 1), C('tao', 'heart', 2), C('tao', 'heart', 3), C('sha', 'spade', 4)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseOption' && /刚烈/.test(req.reason || '')) return 'yes';
+      if (req.type === 'chooseCardFrom') return { zone: 'equip', slot: 'armor' };
+      return null;
+    };
+    await g.damage({ source: q, target: p, amount: 1 });
+    t('T219', '枭姬-刚烈装备只触发一次', q.hand.length === 2, '摸牌=' + q.hand.length + '（应2）');
+  }
+
+  // T220 连营：仁德交出最后手牌应触发
+  {
+    const g = game([{ name: '刘备', skills: ['rende', 'lianying'] }, { name: '甲' }]);
+    const p = g.players[0];
+    const c = C('sha', 'spade', 1);
+    p.hand = [c];
+    g.deck = [C('tao', 'heart', 2)];
+    g.handler = async () => null;
+    await g.useSkillAction(p, { skill: 'rende', cards: [c.id], targets: [1] });
+    t('T220', '连营-仁德交出最后手牌', p.hand.length === 1 && g.logs.some((l) => /连营/.test(l.text)), '手牌=' + p.hand.length + '（应1）');
+  }
+
+  // T221 连营：反间交出最后手牌应触发
+  {
+    const g = game([{ name: '周瑜', skills: ['fanjian', 'lianying'] }, { name: '甲' }]);
+    const p = g.players[0];
+    const c = C('sha', 'spade', 1);
+    p.hand = [c];
+    g.deck = [C('tao', 'heart', 2)];
+    g.handler = async (pl, req) => req.type === 'chooseOption' ? 'spade' : null;
+    await g.useSkillAction(p, { skill: 'fanjian', cards: [c.id], targets: [1] });
+    t('T221', '连营-反间交出最后手牌', p.hand.length === 1 && g.logs.some((l) => /连营/.test(l.text)), '手牌=' + p.hand.length + '（应1）');
+  }
+
+  // T222 连营：蛊惑最后一张手牌应触发
+  {
+    const g = game([{ name: '于吉', skills: ['guhuo', 'lianying'] }, { name: '甲' }]);
+    const p = g.players[0];
+    const c = C('tao', 'heart', 3);
+    p.hand = [c];
+    g.deck = [C('tao', 'heart', 4)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseOption' && /质疑/.test(req.reason || '')) return 'no';
+      return null;
+    };
+    await g.useSkillAction(p, { skill: 'guhuo', cards: [c.id], declare: 'tao', targets: [] });
+    t('T222', '连营-蛊惑最后手牌', p.hand.length === 1 && g.logs.some((l) => /连营/.test(l.text)), '手牌=' + p.hand.length + '（应1）');
+  }
+
+  // T223 连营：丈八最后两张手牌当杀应触发
+  {
+    const g = game([{ name: '甲', skills: ['zhangba', 'lianying'] }, { name: '乙' }]);
+    const p = g.players[0];
+    const c1 = C('sha', 'spade', 1), c2 = C('shan', 'club', 2);
+    p.hand = [c1, c2];
+    g.deck = [C('tao', 'heart', 3)];
+    g.handler = async () => null;
+    await g.useSkillAction(p, { skill: 'zhangba', cards: [c1.id, c2.id], targets: [1] });
+    t('T223', '连营-丈八最后两张手牌', p.hand.length === 1 && g.logs.some((l) => /连营/.test(l.text)), '手牌=' + p.hand.length + '（应1）');
+  }
+
+  // T224 连营：火攻弃置最后手牌应触发
+  {
+    const g = game([{ name: '甲', skills: ['huogong', 'lianying'] }, { name: '乙' }]);
+    const p = g.players[0], q = g.players[1];
+    p.hand = [C('tao', 'heart', 1)];
+    q.hand = [C('sha', 'heart', 2)];
+    g.deck = [C('tao', 'heart', 3)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseCardFrom') return { zone: 'hand' };
+      if (req.type === 'chooseHiddenCard') return 0;
+      if (req.type === 'chooseCards') return [req.cards[0].id];
+      return null;
+    };
+    const vc = { id: 7002, name: 'huogong', type: 'trick', suit: 'heart', rank: 9, color: 'red', cards: [] };
+    await g.resolveVirtualCard(p, vc, [q], {});
+    t('T224', '连营-火攻弃最后手牌', p.hand.length === 1 && g.logs.some((l) => /连营/.test(l.text)), '手牌=' + p.hand.length + '（应1）');
+  }
+
+  // T225 连营：反馈获得陆逊最后一张手牌应触发
+  {
+    const g = game([{ name: '司马懿', skills: ['fankui'], hp: 4 }, { name: '陆逊', skills: ['lianying'], hp: 4 }]);
+    const p = g.players[0], q = g.players[1];
+    q.hand = [C('tao', 'heart', 1)];
+    g.deck = [C('tao', 'heart', 2)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseOption') return 'yes';
+      if (req.type === 'chooseCardFrom') return { zone: 'hand' };
+      if (req.type === 'chooseHiddenCard') return 0;
+      return null;
+    };
+    await g.damage({ source: q, target: p, amount: 1 });
+    t('T225', '连营-反馈获得最后手牌', q.hand.length === 1 && g.logs.some((l) => /连营/.test(l.text)), '陆逊手牌=' + q.hand.length + '（应1）');
+  }
+
+  // T226 连营：识度获得目标全部手牌应触发目标连营
+  {
+    const g = game([{ name: '夏侯徽', skills: ['j_shidu'] }, { name: '陆逊', skills: ['lianying'], hp: 4 }]);
+    const p = g.players[0], q = g.players[1];
+    p.hand = [C('tao', 'heart', 12), C('shan', 'diamond', 2)];
+    q.hand = [C('sha', 'spade', 3), C('shan', 'club', 4)];
+    g.deck = [C('tao', 'heart', 5)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseCards') {
+        if (/拼点/.test(req.reason || '')) return pl === p ? [p.hand.find((c) => c.rank === 12).id] : [q.hand[0].id];
+        return [req.cards[0].id];
+      }
+      return null;
+    };
+    await g.useSkillAction(p, { skill: 'j_shidu', targets: [1] });
+    t('T226', '连营-识度获得全部手牌', g.logs.some((l) => /连营/.test(l.text)), '连营日志=' + g.logs.some((l) => /连营/.test(l.text)));
+  }
+
+  // T227 连营：宴戏取走目标最后一张手牌应触发目标连营
+  {
+    const g = game([{ name: '王元姬', skills: ['j_yanxi'], hp: 3 }, { name: '陆逊', skills: ['lianying'], hp: 4 }]);
+    const p = g.players[0], q = g.players[1];
+    q.hand = [C('tao', 'heart', 1)];
+    g.deck = [C('sha', 'spade', 2), C('guohe', 'club', 3), C('tao', 'heart', 4)];
+    g.handler = async (pl, req) => req.type === 'chooseOption' ? '2' : null;
+    await g.useSkillAction(p, { skill: 'j_yanxi', targets: [1] });
+    t('T227', '连营-宴戏取走最后手牌', g.logs.some((l) => /连营/.test(l.text)), '连营日志=' + g.logs.some((l) => /连营/.test(l.text)));
+  }
+
+  // T228 连营：清俭交出最后手牌应触发
+  {
+    const g = game([{ name: '夏侯惇', skills: ['j_qingjian', 'lianying'] }, { name: '甲' }]);
+    const p = g.players[0];
+    const c = C('sha', 'spade', 1);
+    p.hand = [c];
+    g.deck = [C('tao', 'heart', 2)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseOption' && /清俭/.test(req.reason || '')) return 'yes';
+      if (req.type === 'chooseCards') return [req.cards[0].id];
+      if (req.type === 'chooseTargets') return [1];
+      return null;
+    };
+    await g.afterCardGainHook(p, [c]);
+    t('T228', '连营-清俭交出最后手牌', p.hand.length === 1 && g.logs.some((l) => /连营/.test(l.text)), '手牌=' + p.hand.length + '（应1）');
+  }
+
+  // T229 连营：界遗计把摸到的最后两张手牌给出后应触发
+  {
+    const g = game([{ name: '郭嘉', skills: ['j_yiji', 'lianying'], hp: 4 }, { name: '甲' }]);
+    const p = g.players[0], q = g.players[1];
+    g.deck = [C('sha', 'spade', 1), C('shan', 'diamond', 2), C('tao', 'heart', 3)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseOption' && /遗计/.test(req.reason || '')) return 'yes';
+      if (req.type === 'chooseCards') return req.cards.map((c) => c.id);
+      if (req.type === 'chooseTargets') return [1];
+      return null;
+    };
+    await g.damage({ source: q, target: p, amount: 1 });
+    t('T229', '连营-界遗计交出最后手牌', g.logs.some((l) => /连营/.test(l.text)), '连营日志=' + g.logs.some((l) => /连营/.test(l.text)));
+  }
+
+  // T230 好施交给目标牌应触发目标的获得牌钩子（清俭）
+  {
+    const g = game([{ name: '鲁肃', skills: ['haoshi'], hp: 3 }, { name: '夏侯惇', skills: ['j_qingjian'], hp: 4 }, { name: '甲', hp: 4 }]);
+    const p = g.players[0];
+    p.hand = [C('sha', 'spade', 1), C('sha', 'spade', 2)];
+    g.deck = [C('tao', 'heart', 11), C('tao', 'heart', 12), C('shan', 'diamond', 13), C('shan', 'diamond', 14), C('sha', 'club', 5), C('sha', 'club', 6)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseCards') return req.cards.slice(0, req.min || 1).map((c) => c.id);
+      if (req.type === 'chooseTargets') return [2];
+      if (req.type === 'chooseOption') return 'yes';
+      return null;
+    };
+    await g.skillDrawPhase(p);
+    await new Promise((r) => setTimeout(r, 30));
+    const qjAsks = g._asks.filter((r) => r.type === 'chooseOption' && /清俭/.test(r.reason || '')).length;
+    t('T230', '好施交牌触发清俭获得钩子', g.logs.some((l) => /清俭/.test(l.text)) && qjAsks === 1, '清俭日志=' + g.logs.some((l) => /清俭/.test(l.text)) + '，清俭询问=' + qjAsks + '（应1）');
+  }
+
+  // T231 基础遗计经 distributeCards 交出最后手牌应触发连营
+  {
+    const g = game([{ name: '郭嘉', skills: ['yiji', 'lianying'], hp: 4 }, { name: '甲' }]);
+    const p = g.players[0], q = g.players[1];
+    g.deck = [C('sha', 'spade', 1), C('shan', 'diamond', 2), C('tao', 'heart', 3)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseOption') return 'yes';
+      if (req.type === 'distribute') return (req.cards || []).map((c) => ({ cardId: c.id, seat: 1 }));
+      return null;
+    };
+    await g.damage({ source: q, target: p, amount: 1 });
+    t('T231', '连营-基础遗计交出最后手牌', p.hand.length === 1 && g.logs.some((l) => /连营/.test(l.text)), '郭嘉手牌=' + p.hand.length + '（应1）');
+  }
+
+  // T235 过河拆桥让邓艾失去最后手牌应触发屯田（回合外失去牌）
+  {
+    const g = game([{ name: '甲', skills: [] }, { name: '邓艾', skills: ['tuntian'], hp: 4 }]);
+    const p = g.players[0], q = g.players[1];
+    q.hand = [C('tao', 'heart', 2)];
+    g.currentSeat = 0;
+    g.deck = [C('tao', 'heart', 3), C('sha', 'spade', 4)];
+    g.handler = async (pl, req) => {
+      if (req.type === 'chooseCardFrom') return { zone: 'hand' };
+      if (req.type === 'chooseHiddenCard') return 0;
+      return null;
+    };
+    const vc = { id: 7003, name: 'guohe', type: 'trick', suit: 'spade', rank: 3, color: 'black', cards: [] };
+    await g.resolveDismantle(p, vc, q, false);
+    t('T235', '过拆丢最后手牌触发屯田', q.marks.tian === 1 && g.logs.some((l) => /屯田/.test(l.text)), '田=' + (q.marks.tian || 0) + '（应1），屯田日志=' + g.logs.some((l) => /屯田/.test(l.text)));
   }
 
   // 汇总

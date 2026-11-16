@@ -329,6 +329,7 @@
           p.hand = p.hand.filter((c) => !cards.some((x) => x.id === c.id));
           targets[0].hand.push(...cards);
           for (const c of cards) this.afterCardGain(targets[0], [c]);
+          await this.afterLoseCards(p, cards, true);
           p.givenRende = (p.givenRende || 0) + cards.length;
           this.log(`${this.nameOf(p)} 发动【仁德】交给 ${this.nameOf(targets[0])} ${cards.length} 张牌`, 'skill');
           if (p.givenRende >= 2 && !p.flags.rendeHealed) { p.flags.rendeHealed = true; await this.recover(p, 1, p, '仁德'); }
@@ -344,6 +345,7 @@
           p.hand = p.hand.filter((c) => !cards.some((x) => x.id === c.id));
           t.hand.push(...cards);
           for (const c of cards) this.afterCardGain(t, [c]);
+          await this.afterLoseCards(p, cards, true);
           p.flags.rendeGiven[t.seat] = true;
           const prev = p.flags.rendeCount || 0;
           p.flags.rendeCount = prev + cards.length;
@@ -428,12 +430,14 @@
           if (!win) { this.log(`【识度】${this.nameOf(p)} 拼点未赢，无后续效果`, 'skill'); return; }
           const all = t.hand.splice(0);
           for (const c of all) { p.hand.push(c); this.afterCardGain(p, [c]); }
+          if (all.length) await this.afterLoseCards(t, all, true);
           const give = Math.floor(p.hand.length / 2);
           if (give > 0) {
             const sel = await this.ask(p, { type: 'chooseCards', player: p, reason: `识度：交给其 ${give} 张手牌`, cards: p.hand.slice(), min: give, max: give });
             const cs = (sel || []).slice(0, give).map((x) => this.findCard(p, x.id)).filter(Boolean);
             p.hand = p.hand.filter((c) => cs.indexOf(c) < 0);
             for (const c of cs) { t.hand.push(c); this.afterCardGain(t, [c]); }
+            if (cs.length) await this.afterLoseCards(p, cs, true);
             this.log(`${this.nameOf(p)} 发动【识度】获得 ${this.nameOf(t)} 全部手牌，交回 ${cs.length} 张`, 'skill');
           } else {
             this.log(`${this.nameOf(p)} 发动【识度】获得 ${this.nameOf(t)} 全部手牌`, 'skill');
@@ -464,6 +468,7 @@
           p.used.j_yanxi = true;
           const handCard = t.hand[this.rand(t.hand.length)];
           t.hand = t.hand.filter((c) => c.id !== handCard.id);
+          await this.afterLoseCards(t, [handCard], true);
           const c1 = this.deck.pop(), c2 = this.deck.pop();
           const cards = [handCard, c1, c2].filter(Boolean);
           this.shuffle(cards);
@@ -616,6 +621,7 @@
             const prev = t.equips[slot];
             if (prev) { t.equips[slot] = null; this.toDiscard([prev]); await this.afterLoseCards(t, [prev]); }
             t.equips[slot] = c;
+            this.afterCardGain(t, [c]);
             await this.afterLoseCards(p, [c]);
           }
           p.used.j_jieyin = true;
@@ -644,10 +650,12 @@
               await this.afterLoseCards(p, [mc]);
               if (mc.suit === 'spade') this.drawCards(p, 1, '除疠');
             }
+            const equipBefore = Object.values(t.equips).filter(Boolean);
+            const handBefore = t.hand.length;
             const tc = await this.pickCardFrom(t, p, { zones: ['hand', 'equip', 'judge'], reason: '除疠：弃置其一张牌' });
             if (tc) {
               this.toDiscard([tc]);
-              await this.afterLoseCards(t, [tc]);
+              if (equipBefore.indexOf(tc) < 0) await this.afterLoseCards(t, [tc], t.hand.length === handBefore - 1);
               if (tc.suit === 'spade') this.drawCards(t, 1, '除疠');
             }
           }
@@ -664,6 +672,7 @@
           const suit = this.suitOf(p, c);
           t.hand.push(c);
           this.afterCardGain(t, [c]);
+          await this.afterLoseCards(p, [c], true);
           this.log(`${this.nameOf(p)} 对 ${this.nameOf(t)} 发动【反间】，展示并交给 ${this.cardText(c)}（${D.SUITS[suit] ? D.SUITS[suit].name : '?'}）`, 'skill');
           this.emit();
           const opt = await this.askOption(t, '【反间】：展示所有手牌并弃置与此牌相同花色的牌，或失去 1 点体力', ['discard', 'losehp'], ['展示手牌并弃置同花色', '失去 1 点体力']);
@@ -731,6 +740,7 @@
           p.hand = p.hand.filter((x) => x.id !== c.id);
           targets[0].hand.push(c);
           this.afterCardGain(targets[0], [c]);
+          await this.afterLoseCards(p, [c], true);
           this.log(`${this.nameOf(p)} 对 ${this.nameOf(targets[0])} 发动【反间】，展示 ${this.cardText(c)}（选择：${D.SUITS[suit] ? D.SUITS[suit].name : '?'}）`, 'skill');
           this.emit();
           if (c.suit !== suit) await this.damage({ source: p, target: targets[0], amount: 1, reason: '反间' });
@@ -843,8 +853,10 @@
             await this.resolveSlash(t, vc, [p]);
             this.table = this.table.filter((c) => c !== vc);
           } else {
+            const equipBefore = Object.values(t.equips).filter(Boolean);
+            const handBefore = t.hand.length;
             const c = await this.pickCardFrom(t, p, { zones: ['hand', 'equip', 'judge'], reason: '挑衅：弃置其一张牌' });
-            if (c) { this.toDiscard([c]); await this.afterLoseCards(t, [c]); this.log(`${this.nameOf(p)} 弃置 ${this.nameOf(t)} 一张牌`, 'skill'); }
+            if (c) { this.toDiscard([c]); if (equipBefore.indexOf(c) < 0) await this.afterLoseCards(t, [c], t.hand.length === handBefore - 1); this.log(`${this.nameOf(p)} 弃置 ${this.nameOf(t)} 一张牌`, 'skill'); }
           }
           return;
         }
@@ -863,6 +875,7 @@
             this.afterLoseCards(targets[0], [prev]);
           }
           targets[0].equips[slot] = c;
+          this.afterCardGain(targets[0], [c]);
           await this.afterLoseCards(p, [c]);
           this.drawCards(p, 1, '直谏');
           this.log(`${this.nameOf(p)} 对 ${this.nameOf(targets[0])} 发动【直谏】${prev ? '（替换原装备）' : ''}`, 'skill');
@@ -916,8 +929,8 @@
           // 交换后补失去/获得钩子
           for (const c of h1) this.afterCardGain(targets[0], [c]);
           for (const c of h0) this.afterCardGain(targets[1], [c]);
-          if (h0.length) await this.afterLoseCards(targets[0], h0);
-          if (h1.length) await this.afterLoseCards(targets[1], h1);
+          if (h0.length) await this.afterLoseCards(targets[0], h0, true);
+          if (h1.length) await this.afterLoseCards(targets[1], h1, true);
           this.log(`${this.nameOf(p)} 发动【缔盟】交换 ${this.nameOf(targets[0])} 与 ${this.nameOf(targets[1])} 的手牌`, 'skill');
           this.emit();
           return;
@@ -1027,6 +1040,7 @@
             if (r === 'yes') doubters.push(q);
           }
           p.hand = p.hand.filter((c) => c.id !== phys.id);
+          await this.afterLoseCards(p, [phys], true);
           this.log(`${this.nameOf(p)} 发动【蛊惑】，声明【${CARDS[dn].name}】${doubters.length ? '，质疑者：' + doubters.map((q) => this.nameOf(q)).join('、') : '，无人质疑'}`, 'skill');
           this.emit();
           let resolve = doubters.length === 0;
@@ -1060,6 +1074,7 @@
         case 'zhangba': {
           if (cards.length < 2) return;
           p.hand = p.hand.filter((c) => !cards.some((x) => x.id === c.id));
+          await this.afterLoseCards(p, cards, true);
           const vc = { id: cards[0].id, name: 'sha', type: 'basic', nature: 'normal', suit: cards[0].suit, rank: cards[0].rank, color: cards[0].color, cards: cards.slice(), skill: 'zhangba' };
           this.table.push(vc);
           await this.resolveSlash(p, vc, targets);
@@ -1334,6 +1349,8 @@
                 const moved = p.hand.filter((c) => ids.includes(c.id));
                 p.hand = p.hand.filter((c) => !ids.includes(c.id));
                 t.hand.push(...moved);
+                for (const c of moved) this.afterCardGain(t, [c]);
+                await this.afterLoseCards(p, moved, true);
                 this.log(`${this.nameOf(p)} 将 ${moved.length} 张牌交给 ${this.nameOf(t)}`, 'skill');
               }
             }
@@ -1537,6 +1554,16 @@
     // 获得牌后的异步钩子：清俭（夏侯惇 Po）
     async afterCardGainHook(p, cards) {
       if (!p || !p.alive || !p.skills || !p.skills.includes('j_qingjian')) return;
+      if (p._qingjianBusy) return;
+      p._qingjianBusy = true;
+      try {
+        await this._afterCardGainHookInner(p, cards);
+      } finally {
+        p._qingjianBusy = false;
+      }
+    },
+
+    async _afterCardGainHookInner(p, cards) {
       if (this.phase === 'draw' && this.currentSeat === p.seat) return; // 摸牌阶段外
       p.flags = p.flags || {};
       if (p.flags.qingjianTurn === this.turnCount) return;
@@ -1544,6 +1571,7 @@
       if (!pool.length) return;
       const r = await this.askOption(p, '【清俭】：是否展示并交给一名其他角色任意张牌，令当前回合角色本回合手牌上限 +X？', ['yes', 'no'], ['发动', '放弃']);
       if (r !== 'yes') return;
+      p.flags.qingjianTurn = this.turnCount;
       const others = this.alivePlayers.filter((q) => q.seat !== p.seat).map((q) => q.seat);
       if (!others.length) return;
       const sel = await this.ask(p, { type: 'chooseCards', player: p, reason: '清俭：选择交给其他角色的牌', cards: pool, min: 1, max: pool.length });
@@ -1554,12 +1582,12 @@
       if (!t || !t.alive) return;
       const types = new Set(chosen.map((c) => { const d = CARDS[c.name] || {}; return d.type === 'delayed' ? 'trick' : d.type; }));
       const x = types.size;
-      p.flags.qingjianTurn = this.turnCount;
       for (const c of chosen) {
         p.hand = p.hand.filter((y) => y.id !== c.id);
         t.hand.push(c);
         this.afterCardGain(t, [c]);
       }
+      await this.afterLoseCards(p, chosen, true);
       const cur = this.players[this.currentSeat];
       if (cur && cur.alive) { cur.flags = cur.flags || {}; cur.flags.qingjianLimit = (cur.flags.qingjianLimit || 0) + x; }
       this.log(`${this.nameOf(p)} 发动【清俭】交给 ${this.nameOf(t)} ${chosen.length} 张牌，当前回合角色手牌上限 +${x}`, 'skill');
@@ -1630,6 +1658,7 @@
         const old = dest.equips[slot];
         if (old) { dest.equips[slot] = null; this.toDiscard([old]); this.afterLoseCards(dest, [old]); this.log(`${this.nameOf(dest)} 的 ${this.cardText(old)} 被替换弃置`, 'info'); }
         dest.equips[slot] = card;
+        this.afterCardGain(dest, [card]);
       } else if (card.type === 'delayed') {
         dest.judges.push(card);
       } else {

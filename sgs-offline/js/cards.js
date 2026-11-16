@@ -711,8 +711,10 @@
           if (p.skills.includes('mengjin') && this.allCardsOf(target).length) {
             const r = await this.askOption(p, '是否发动【猛进】弃置目标一张牌？', ['yes', 'no'], ['发动', '放弃']);
             if (r === 'yes') {
+              const equipBefore = Object.values(target.equips).filter(Boolean);
+              const handBefore = target.hand.length;
               const c = await this.pickCardFrom(target, p, { reason: '猛进：弃置一张牌' });
-              if (c) { this.toDiscard([c]); this.afterLoseCards(target, [c]); }
+              if (c) { this.toDiscard([c]); if (equipBefore.indexOf(c) < 0) this.afterLoseCards(target, [c], target.hand.length === handBefore - 1); }
             }
           }
           // 青龙偃月刀
@@ -757,8 +759,10 @@
           const r = await this.askOption(p, '是否发动【寒冰剑】防止伤害，改为弃置目标两张牌？', ['yes', 'no'], ['发动', '放弃']);
           if (r === 'yes') {
             for (let i = 0; i < 2; i++) {
+              const equipBefore = Object.values(target.equips).filter(Boolean);
+              const handBefore = target.hand.length;
               const pick = await this.pickCardFrom(target, p, { reason: '寒冰剑：弃置一张牌' });
-              if (pick) { this.toDiscard([pick]); this.afterLoseCards(target, [pick]); }
+              if (pick) { this.toDiscard([pick]); if (equipBefore.indexOf(pick) < 0) this.afterLoseCards(target, [pick], target.hand.length === handBefore - 1); }
             }
             continue;
           }
@@ -778,8 +782,13 @@
         if (target.alive && p.alive && p.skills.includes('lieren') && this.allCardsOf(target).length) {
           const win = await this.pindian(p, target, '烈刃');
           if (win) {
+            const equipBefore = Object.values(target.equips).filter(Boolean);
+            const handBefore = target.hand.length;
             const c = await this.pickCardFrom(target, p, { reason: '烈刃：获得一张牌' });
-            if (c) { p.hand.push(c); this.afterCardGain(p, [c]); this.log(`${this.nameOf(p)} 发动【烈刃】获得一张牌`, 'skill'); }
+            if (c) {
+              p.hand.push(c); this.afterCardGain(p, [c]); this.log(`${this.nameOf(p)} 发动【烈刃】获得一张牌`, 'skill');
+              if (equipBefore.indexOf(c) < 0) this.afterLoseCards(target, [c], target.hand.length === handBefore - 1);
+            }
           }
         }
       }
@@ -826,6 +835,8 @@
     async resolveDismantle(p, vc, target, gain) {
       if (!target || !target.alive) return;
       if (await this.isNullified(vc, target, p)) return;
+      const equipBefore = Object.values(target.equips).filter(Boolean);
+      const handBefore = target.hand.length;
       const card = await this.pickCardFrom(target, p, { reason: gain ? '顺手牵羊：选择获得一张牌' : '过河拆桥：选择弃置一张牌' });
       if (!card) return;
       if (gain) {
@@ -836,7 +847,8 @@
         this.toDiscard([card]);
         this.log(`${this.nameOf(p)} 弃置 ${this.nameOf(target)} 一张牌`, 'info');
       }
-      this.afterLoseCards(target, [card]);
+      // 装备已在 pickCardFrom 内触发失去钩子，避免枭姬双触发
+      if (equipBefore.indexOf(card) < 0) this.afterLoseCards(target, [card], target.hand.length === handBefore - 1);
       this.emit();
     },
 
@@ -966,6 +978,7 @@
         const c = p.hand.find((x) => x.id === sel[0].id);
         p.hand = p.hand.filter((x) => x !== c);
         this.toDiscard([c]);
+        await this.afterLoseCards(p, [c], true);
         await this.damage({ source: p, target, amount: 1, nature: 'fire', card: vc });
       }
     },
@@ -1195,8 +1208,10 @@
         const ts = await this.ask(p, { type: 'chooseTargets', player: p, reason: '涯角：选择攻击范围内包含你的角色', candidates: cands, min: 1, max: 1 });
         const q = ts && this.players[ts[0]];
         if (q && q.alive) {
+          const equipBefore = Object.values(q.equips).filter(Boolean);
+          const handBefore = q.hand.length;
           const c = await this.pickCardFrom(q, p, { zones: ['hand', 'equip', 'judge'], reason: '涯角：弃置其一张牌' });
-          if (c) { this.toDiscard([c]); await this.afterLoseCards(q, [c]); this.log(`${this.nameOf(p)} 发动【涯角】弃置 ${this.nameOf(q)} 的 ${this.cardText(c)}`, 'skill'); }
+          if (c) { this.toDiscard([c]); if (equipBefore.indexOf(c) < 0) await this.afterLoseCards(q, [c], q.hand.length === handBefore - 1); this.log(`${this.nameOf(p)} 发动【涯角】弃置 ${this.nameOf(q)} 的 ${this.cardText(c)}`, 'skill'); }
         }
         this.deck.push(top);
       }

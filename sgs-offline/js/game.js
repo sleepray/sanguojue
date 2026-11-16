@@ -1302,6 +1302,8 @@
       if (source && source.alive && target.alive && source.skills.includes('qiaomeng') && card && ['sha', 'huosha', 'leisha'].includes(card.name)) {
         const r = await this.askOption(source, `【趫猛】：是否弃置 ${this.nameOf(target)} 区域里的一张牌？`, ['yes', 'no'], ['发动', '放弃']);
         if (r === 'yes') {
+          const equipBefore = Object.values(target.equips).filter(Boolean);
+          const handBefore = target.hand.length;
           const picked = await this.pickCardFrom(target, source, { zones: ['hand', 'equip', 'judge'], reason: '趫猛：弃置其区域里的一张牌' });
           if (picked) {
             if (picked.type === 'equip' && ['offhorse', 'defhorse'].includes(picked.subtype)) {
@@ -1309,7 +1311,8 @@
               this.log(`${this.nameOf(source)} 发动【趫猛】获得 ${this.nameOf(target)} 的坐骑 ${this.cardText(picked)}`, 'skill');
             } else {
               this.toDiscard([picked]);
-              await this.afterLoseCards(target, [picked]);
+              // 装备已在 pickCardFrom 内触发，避免枭姬双触发
+              if (equipBefore.indexOf(picked) < 0) await this.afterLoseCards(target, [picked], target.hand.length === handBefore - 1);
               this.log(`${this.nameOf(source)} 发动【趫猛】弃置 ${this.nameOf(target)} 的 ${this.cardText(picked)}`, 'skill');
             }
             this.emit();
@@ -1320,9 +1323,12 @@
       if (source && source.alive && target.alive && source.skills.includes('j_liyu') && card && ['sha', 'huosha', 'leisha'].includes(card.name)) {
         const r = await this.askOption(source, `【利驭】：是否获得 ${this.nameOf(target)} 区域里的一张牌？`, ['yes', 'no'], ['发动', '放弃']);
         if (r === 'yes') {
+          const equipBefore = Object.values(target.equips).filter(Boolean);
+          const handBefore = target.hand.length;
           const picked = await this.pickCardFrom(target, source, { zones: ['hand', 'equip', 'judge'], reason: '利驭：获得其区域里的一张牌' });
           if (picked) {
             this.gainSpecific(source, picked);
+            if (equipBefore.indexOf(picked) < 0) await this.afterLoseCards(target, [picked], target.hand.length === handBefore - 1);
             this.log(`${this.nameOf(source)} 发动【利驭】获得 ${this.nameOf(target)} 的 ${this.cardText(picked)}`, 'skill');
             if (picked.type !== 'equip') {
               this.drawCards(target, 1, '利驭');
@@ -1435,9 +1441,12 @@
             options: [{ id: 'yes', label: '发动' }, { id: 'no', label: '放弃' }],
           });
           if (res !== 'yes') break;
+          const equipBefore = Object.values(source.equips).filter(Boolean);
+          const handBefore = source.hand.length;
           const picked = await this.pickCardFrom(source, target, { zones: ['hand', 'equip'], reason: '反馈：选择一张牌获得' });
           if (picked) {
             this.gainSpecific(target, picked);
+            if (equipBefore.indexOf(picked) < 0) await this.afterLoseCards(source, [picked], source.hand.length === handBefore - 1);
             this.log(`${this.nameOf(target)} 发动【反馈】获得 ${this.nameOf(source)} 一张牌`, 'skill');
             this.emit();
           }
@@ -1450,9 +1459,12 @@
           options: [{ id: 'yes', label: '发动' }, { id: 'no', label: '放弃' }],
         });
         if (res === 'yes') {
+          const equipBefore = Object.values(source.equips).filter(Boolean);
+          const handBefore = source.hand.length;
           const picked = await this.pickCardFrom(source, target, { zones: ['hand', 'equip'], reason: '反馈：选择一张牌获得' });
           if (picked) {
             this.gainSpecific(target, picked);
+            if (equipBefore.indexOf(picked) < 0) await this.afterLoseCards(source, [picked], source.hand.length === handBefore - 1);
             this.log(`${this.nameOf(target)} 发动【反馈】获得 ${this.nameOf(source)} 一张牌`, 'skill');
             this.emit();
           }
@@ -1470,8 +1482,14 @@
             this.log(`【刚烈】判定为红色，对 ${this.nameOf(source)} 造成 1 点伤害`, 'skill');
             await this.damage({ source: target, target: source, amount: 1, reason: '刚烈' });
           } else {
+            const equipBefore = Object.values(source.equips).filter(Boolean);
+            const handBefore = source.hand.length;
             const c = await this.pickCardFrom(source, target, { zones: ['hand', 'equip', 'judge'], reason: '刚烈：弃置其一张牌' });
-            if (c) { this.toDiscard([c]); await this.afterLoseCards(source, [c]); this.log(`${this.nameOf(target)} 因【刚烈】弃置 ${this.nameOf(source)} 一张牌`, 'skill'); }
+            if (c) {
+              this.toDiscard([c]);
+              if (equipBefore.indexOf(c) < 0) await this.afterLoseCards(source, [c], source.hand.length === handBefore - 1);
+              this.log(`${this.nameOf(target)} 因【刚烈】弃置 ${this.nameOf(source)} 一张牌`, 'skill');
+            }
           }
         }
       }
@@ -1519,14 +1537,17 @@
             if (others.length) {
               const ts = await this.ask(target, { type: 'chooseTargets', player: target, reason: '遗计：选择交给的角色', candidates: others, min: 1, max: Math.min(2, chosen.length) });
               const seats = (ts || []).slice(0, Math.min(2, chosen.length));
+              const given = [];
               for (let k = 0; k < chosen.length && seats.length; k++) {
                 const q = this.players[seats[k % seats.length]];
                 const c = chosen[k];
                 if (!q || !q.alive || !c) continue;
                 target.hand = target.hand.filter((x) => x.id !== c.id);
                 q.hand.push(c);
+                given.push(c);
                 this.afterCardGain(q, [c]);
               }
+              if (given.length) await this.afterLoseCards(target, given, true);
               this.log(`${this.nameOf(target)} 发动【遗计】交给 ${seats.map((s2) => this.nameOf(this.players[s2])).join('、')} ${chosen.length} 张牌`, 'skill');
             }
           }
@@ -1846,10 +1867,12 @@
       const sel = await this.ask(holder, { type: 'chooseTargets', player: holder, reason: '聚众：选择一名角色弃置其一张牌', candidates: cands, min: 1, max: 1 });
       const t = sel && this.players[sel[0]];
       if (!t) return;
+      const equipBefore = Object.values(t.equips).filter(Boolean);
+      const handBefore = t.hand.length;
       const c = await this.pickCardFrom(t, holder, { zones: ['hand', 'equip', 'judge'], reason: '聚众：弃置一张牌' });
       if (c) {
         this.toDiscard([c]);
-        await this.afterLoseCards(t, [c]);
+        if (equipBefore.indexOf(c) < 0) await this.afterLoseCards(t, [c], t.hand.length === handBefore - 1);
         this.log(`${this.nameOf(holder)} 发动【聚众】弃置 ${this.nameOf(t)} 一张牌`, 'skill');
         this.emit();
       }
@@ -1878,9 +1901,18 @@
     }
 
     afterCardGain(p, cards) {
-      // 获得牌后的异步技能钩子（清俭等）；保持 afterCardGain 同步语义，调用方无需 await
+      // 获得牌后的异步技能钩子（清俭等）；保持 afterCardGain 同步语义，调用方无需 await。
+      // 同一同步批次的多次获得合并为一次钩子（避免“逐张”导致清俭重复询问/只看到一张）。
       if (!p || !p.alive || !cards || !cards.length) return;
-      this.afterCardGainHook(p, cards).catch((e) => console.error(e));
+      if (!p._gainBatch) {
+        Object.defineProperty(p, '_gainBatch', { value: [], configurable: true, writable: true, enumerable: false });
+        Promise.resolve().then(() => {
+          const batch = p._gainBatch || [];
+          p._gainBatch = null;
+          if (batch.length) this.afterCardGainHook(p, batch).catch((e) => console.error(e));
+        });
+      }
+      for (const c of cards) if (c) p._gainBatch.push(c);
     }
 
     afterLoseCards(p, cards, fromHand) {
@@ -1983,6 +2015,7 @@
       });
       const plan = Array.isArray(res) ? res : [];
       const used = new Set();
+      const lost = [];
       for (const item of plan) {
         const c = cards.find((x) => x.id === item.cardId);
         if (!c || used.has(c.id)) continue;
@@ -1991,8 +2024,10 @@
         if (!to || !to.alive) continue; // 死者不能获得牌
         giver.hand = giver.hand.filter((x) => x.id !== c.id);
         to.hand.push(c);
+        lost.push(c);
         this.afterCardGain(to, [c]);
       }
+      if (lost.length) await this.afterLoseCards(giver, lost, true);
       for (const c of cards) {
         if (!used.has(c.id)) {
           giver.hand = giver.hand.filter((x) => x.id !== c.id);
