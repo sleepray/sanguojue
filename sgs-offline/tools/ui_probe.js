@@ -301,7 +301,68 @@ async function probeMute(page) {
   }
 }
 
-/* ---------------- 4. pick-bar 暂停入口 ---------------- */
+/* ---------------- 4. 真实牌局选目标（顺手牵羊，seed=2） ---------------- */
+async function probeRealTarget(page) {
+  await open(page, '?mode=1v1&screen=game&seed=2');
+  await waitFor(page, () => page.evaluate(() => {
+    const b = document.querySelector('#btn-pause');
+    return !!b && b.getBoundingClientRect().width >= 44;
+  }), 10000);
+  const idx = await page.evaluate(() => Array.prototype.findIndex.call(
+    document.querySelectorAll('#hand .hand-card'),
+    (c) => /顺手牵羊/.test((c.querySelector('.hc-name') || {}).textContent || '')
+  ));
+  if (idx < 0) { skip('真实选目标/顺手牵羊', 'seed=2 起手无【顺手牵羊】，本条跳过'); return; }
+  const cardGuard = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('#hand .hand-card')];
+    let bad = 0;
+    for (const c of cards) {
+      const a = c.querySelector('.hc-rank'), b = c.querySelector('.hc-name');
+      if (!a || !b) continue;
+      const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+      if (!(ra.right <= rb.left || rb.right <= ra.left || ra.bottom <= rb.top || rb.bottom <= ra.top)) bad += 1;
+    }
+    return { total: cards.length, bad };
+  });
+  if (cardGuard.bad === 0) pass('手牌/点数与牌名不重叠', `${cardGuard.total} 张`);
+  else fail('手牌/点数压住牌名', JSON.stringify(cardGuard));
+  await page.evaluate((i) => document.querySelectorAll('#hand .hand-card')[i].click(), idx);
+  await sleep(500);
+  const selected = await page.evaluate(() => ({
+    bar: document.querySelector('#action-bar').innerText.replace(/\s+/g, ' '),
+    targets: document.querySelectorAll('#seats .seat-targetable').length,
+  }));
+  if (!/取消/.test(selected.bar) || !/确认/.test(selected.bar) || selected.targets < 1) {
+    fail('真实选目标/进入选目标', JSON.stringify(selected));
+    return;
+  }
+  await page.evaluate(() => document.querySelector('#btn-pause').click());
+  await sleep(700);
+  const paused = await page.evaluate(() => ({
+    overlay: document.querySelector('#resume-overlay').classList.contains('is-on'),
+    bar: document.querySelector('#action-bar').innerText.replace(/\s+/g, ' '),
+  }));
+  await page.evaluate(() => document.querySelector('#btn-resume').click());
+  await sleep(500);
+  const resumed = await page.evaluate(() => document.querySelector('#action-bar').innerText.replace(/\s+/g, ' '));
+  if (paused.overlay && /取消/.test(paused.bar) && /取消/.test(resumed)) {
+    pass('真实选目标/暂停后目标选择保持', '顺手牵羊');
+  } else {
+    fail('真实选目标/暂停后应保持目标选择', JSON.stringify({ paused, resumed }));
+  }
+  const backRet = await back(page);
+  const afterBack = await page.evaluate(() => ({
+    bar: document.querySelector('#action-bar').innerText.replace(/\s+/g, ' '),
+    modal: !!document.querySelector('.modal-mask'),
+  }));
+  if (backRet === true && !afterBack.modal && /出牌阶段|结束出牌/.test(afterBack.bar)) {
+    pass('真实选目标/返回键取消选择且不弹退出确认');
+  } else {
+    fail('真实选目标/返回键应取消选择', JSON.stringify({ backRet, afterBack }));
+  }
+}
+
+/* ---------------- 5. pick-bar 暂停入口 ---------------- */
 async function probePickPause(page) {
   // 用真实开局（非 demo freeze），避免 demo 的 freeze('play') 在注入后清掉 tablePick
   await open(page, '?mode=8p&screen=select&seed=7');
@@ -356,6 +417,29 @@ async function probePickPause(page) {
   }
   if (geo && geo.w >= 44 && geo.h >= 44) pass('pick-bar/暂停按钮 ≥44×44（注入 chooseTargets）', `${geo.w}x${geo.h} topbar=${geo.topbar}`);
   else fail('pick-bar/暂停按钮 应 ≥44×44', JSON.stringify(geo));
+  const guards = await page.evaluate(() => {
+    const pb = document.querySelector('#pick-bar').getBoundingClientRect();
+    const seats = [...document.querySelectorAll('#seats .seat')].map((s) => s.getBoundingClientRect());
+    const ok = document.querySelector('#pick-bar [data-pick="ok"]');
+    const topbar = getComputedStyle(document.querySelector('#screen-game .topbar')).visibility;
+    const pauses = [...document.querySelectorAll('#screen-game .tb-btn, #pick-bar [data-pick="pause"]')].filter((b) => {
+      const r = b.getBoundingClientRect(); const st = getComputedStyle(b);
+      return st.visibility !== 'hidden' && st.display !== 'none' && r.width > 1 && r.height > 1 && /暂停/.test(b.textContent);
+    }).length;
+    return {
+      pauses,
+      topbar,
+      noSeatOverlap: seats.every((r) => pb.bottom <= r.top + 0.5),
+      confirmDisabled: !!(ok && ok.disabled),
+      targetable: document.querySelectorAll('#seats .seat-targetable').length,
+    };
+  });
+  if (guards.pauses === 1 && guards.topbar === 'hidden') pass('pick-bar/只保留 1 个暂停入口（顶栏已隐藏）');
+  else fail('pick-bar/应只保留 1 个暂停入口', JSON.stringify(guards));
+  if (guards.noSeatOverlap) pass('pick-bar/不遮挡座位');
+  else fail('pick-bar/不得遮挡座位', JSON.stringify(guards));
+  if (guards.confirmDisabled) pass('pick-bar/0 目标时确认置灰不可点');
+  else fail('pick-bar/0 目标时确认应 disabled', JSON.stringify(guards));
 
   if (!geo) { fail('pick-bar/暂停按钮 应 ≥44×44', 'pick-bar 未渲染（注入被覆盖）'); return; }
   await page.evaluate(() => document.querySelector('#pick-bar [data-pick="pause"]').click());
@@ -402,6 +486,7 @@ async function probePickPause(page) {
     await probeBack(page);
     await probePause(page);
     await probeMute(page);
+    await probeRealTarget(page);
     await probePickPause(page);
 
     const p = results.filter((r) => r.level === 'PASS').length;

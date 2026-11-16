@@ -539,7 +539,7 @@
             session += 1;
             UI.showScreen('menu');
             try { if (global.SGS_AUDIO) global.SGS_AUDIO.playBgm('menu'); } catch (e) { /* ignore */ }
-          }, { okText: '退出' });
+          }, { okText: '退出', danger: true });
           return;
         }
         session += 1;
@@ -553,7 +553,7 @@
       },
       onContinue: function () { loadGame(); },
       onSurrender: function () {
-        UI.confirmDialog('确定投降？本局将判负。', function () { UI.surrender(); }, { okText: '投降' });
+        UI.confirmDialog('确定投降？本局将判负。', function () { UI.surrender(); }, { okText: '投降', danger: true });
       },
       onTrust: function () {
         trusteeship = !trusteeship;
@@ -629,6 +629,11 @@
           const lc = d.getElementById('btn-log-close'); if (lc) lc.click();
           return true;
         }
+        // 选目标/选牌中的“取消”优先消费返回键，避免直接弹退出确认
+        const pickCancel = d.querySelector('#pick-bar [data-pick="cancel"]');
+        if (pickCancel) { pickCancel.click(); return true; }
+        const playCancel = d.querySelector('#action-bar [data-act="play-cancel"]');
+        if (playCancel) { playCancel.click(); return true; }
         if (d.querySelector('.modal-mask')) {
           // 选择/确认弹窗不能用返回键退出，避免误放弃强制选择
           return true;

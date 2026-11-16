@@ -786,7 +786,12 @@
     game = g;
     last.damageMuteUntil = (typeof performance !== 'undefined' ? performance.now() : Date.now()) + 1500;
     humanSeat = g && g.humanSeat != null ? g.humanSeat : 0;
-    if (els.screenGame) els.screenGame.classList.toggle('mode-1v1', !!(g && g.mode === '1v1'));
+    if (els.screenGame) {
+      els.screenGame.classList.toggle('mode-1v1', !!(g && g.mode === '1v1'));
+      ['8p', '5p', '3v3', 'ddz'].forEach(function (m) {
+        els.screenGame.classList.toggle('mode-' + m, !!(g && g.mode === m));
+      });
+    }
     lastPhaseShown = null;
     hoverSeat = null;
     heldBarHTML = ''; holdUntil = 0;
@@ -2153,6 +2158,7 @@
       }
       setHTML(ref.hp, beadsHTML(Math.max(0, p.hp), p.maxHp, ''));
       setHTML(ref.name, esc(displayName(p)) + '<span class="seat-hpnum">' + Math.max(0, p.hp) + '/' + p.maxHp + '</span>');
+      root.classList.toggle('is-hp-num', p.maxHp > 5);
       if (ref.kd.textContent !== (p.kingdom || (gen && gen.kingdom) || '')) {
         ref.kd.textContent = p.kingdom || (gen && gen.kingdom) || '';
         ref.kd.style.background = color;
@@ -2239,6 +2245,7 @@
     els.meRole.className = 'pf-role' + roleClassOf(g, me) + (meLordLike ? ' is-lord' : '') + (!me.alive ? ' is-dead' : '');
 
     setHTML(els.meHp, beadsHTML(Math.max(0, me.hp), me.maxHp, '') + '<span class="hp-num">' + Math.max(0, me.hp) + ' / ' + me.maxHp + '</span>');
+    els.meHp.classList.toggle('is-hp-num', me.maxHp > 5);
 
     const st = [];
     if (me.chained) st.push('<span class="badge-mini is-chain">横置</span>');
@@ -4023,13 +4030,14 @@
     const root = els.modalRoot;
     if (!root) { if (global.confirm(message)) onOk(); return; }
     const okText = opts.okText || '确定';
+    const danger = !!opts.danger;
     confirmOpen = true;
-    root.innerHTML = '<div class="modal-mask"><div class="modal">' +
+    root.innerHTML = '<div class="modal-mask"><div class="modal modal-confirm">' +
       '<div class="modal-head"><span class="modal-title">提示</span></div>' +
       '<div class="modal-reason">' + esc(message) + '</div>' +
       '<div class="modal-body"></div>' +
       '<div class="modal-foot"><button class="btn btn-outline" data-c="0">取消</button>' +
-      '<button class="btn btn-primary" data-c="1">' + esc(okText) + '</button></div>' +
+      '<button class="btn ' + (danger ? 'btn-danger' : 'btn-primary') + '" data-c="1">' + esc(okText) + '</button></div>' +
       '</div></div>';
     function close() {
       confirmOpen = false;

@@ -2436,72 +2436,7 @@ body > .sgs-tooltip {
   #screen-game .played-card .pc-name { font-size: 10px; }
 }
 
-/* 844×390 等手机横屏：压缩顶栏/牌桌/人类区，让座位和手牌落在视口内 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
-  :root { --seat-w: 68px; --seat-h: 92px; --hand-w: 54px; --hand-h: 74px; }
-  #screen-game .seat { --seat-w: 68px; --seat-h: 92px; }
-  #screen-game {
-    grid-template-rows: calc(38px + env(safe-area-inset-top, 0px)) minmax(0, 1fr) 160px;
-  }
-  #screen-game .topbar {
-    display: flex; align-items: center; gap: 5px; height: 38px;
-    padding: 0 max(6px, env(safe-area-inset-right, 0px)) 0 max(6px, env(safe-area-inset-left, 0px));
-  }
-  #screen-game .tb-left { flex: 0 0 auto; gap: 8px; }
-  #screen-game .tb-center { flex: 1 1 auto; min-width: 0; gap: 4px; }
-  #screen-game .tb-prompt { display: none !important; }
-  #screen-game .tb-phase { font-size: 10px; padding: 2px 6px; }
-  #screen-game .tb-count { min-width: 58px; font-size: 10px; padding: 1px 5px; }
-  #screen-game .tb-right { flex: 0 0 auto; gap: 2px; }
-  #screen-game .tb-right .tb-btn { padding: 2px 4px; font-size: 9px; letter-spacing: 0; min-height: 24px; }
-  #screen-game .tb-item { font-size: 9px; gap: 2px; }
-  #screen-game .tb-item b { font-size: 12px; }
-  #screen-game .seats { transform: scale(.9); transform-origin: 50% 48%; }
-  #screen-game .seat-kingdom { left: -2px; top: -2px; width: 19px; height: calc(100% + 4px); font-size: 8px; padding-top: 3px; border-radius: 3px; }
-  #screen-game .seat-name { display: none; }
-  #screen-game .seat-hand { left: -5px; bottom: -3px; width: 24px; height: 18px; padding: 0 1px; font-size: 7px; }
-  #screen-game .seat-hp { left: 1px; bottom: 14px; gap: 1px; }
-  #screen-game .seat-hp .bead { width: 4px; height: 4px; }
-  #screen-game .seat-role { right: 2px; top: 2px; padding: 1px 3px; font-size: 7px; }
-  #screen-game .seat-mid, #screen-game .seat-equip-list { display: none; }
-  #screen-game .seat-distance { bottom: 31px; font-size: 7px; padding: 1px 3px; }
-  #screen-game .human {
-    grid-template-columns: 86px minmax(0, 1fr) 190px;
-    grid-template-rows: minmax(0, 1fr);
-    gap: 6px; padding: 3px max(6px, env(safe-area-inset-right, 0px))
-             4px max(6px, env(safe-area-inset-left, 0px));
-  }
-  #screen-game .human-left { padding: 2px; gap: 2px; }
-  #screen-game .portrait-frame { width: 64px; height: 86px; }
-  #screen-game .human-mid { padding: 0; gap: 0; }
-  #screen-game .action-bar { min-height: 32px; padding: 2px 5px; gap: 4px; }
-  #screen-game .bar-icon { width: 16px; height: 16px; font-size: 9px; }
-  #screen-game .bar-title { font-size: 10px; }
-  #screen-game .bar-sub { display: none; }
-  #screen-game .bar-btn { padding: 2px 5px; font-size: 8px; }
-  #screen-game .hand-wrap { border: 0; background: transparent; box-shadow: none; }
-  #screen-game .hand-wrap::before, #screen-game .hand-wrap::after { display: none; }
-  #screen-game .human-right {
-    padding: 2px 3px; gap: 3px; overflow: hidden;
-    flex-direction: row; align-items: flex-start; flex-wrap: wrap;
-  }
-  #screen-game .human-right .me-block { flex: 1 1 78px; min-width: 0; }
-  #screen-game .human-right .me-block:last-of-type { display: none; }
-  #screen-game .me-marks { display: none; }
-  #screen-game .mini-title { font-size: 7px; padding-bottom: 1px; }
-  #screen-game .skill-btn { padding: 1px 3px; font-size: 8px; }
-  #screen-game .equip-grid { gap: 2px; }
-  #screen-game .equip-slot { height: 25px; }
-  #screen-game .equip-slot .eq-name { display: none; }
-  #screen-game .human-left, #screen-game .human-right { border: 0; background: transparent; }
-  #screen-game .table-center { top: 58%; }
-  #screen-game .phase-orbit { width: 78px; height: 78px; }
-  #screen-game .orbit-phase { font-size: 14px; }
-  #screen-game .orbit-sub, #screen-game .orbit-timer { font-size: 8px; }
-  #screen-game .played-card { width: 68px; height: 94px; }
-  #screen-game .played-card .pc-name { font-size: 9px; }
-  #screen-game .phase-banner, #screen-game .skill-banner { transform: translate(-50%, -50%) scale(.78); }
-}
+
 
 
 /* 安全区：桌面 env 为 0，不改变原布局；手机刘海/底部手势区留白 */
@@ -2511,11 +2446,7 @@ body > .sgs-tooltip {
   #screen-game .human { padding-left: max(6px, env(safe-area-inset-left, 0px)); padding-right: max(6px, env(safe-area-inset-right, 0px)); }
   #screen-select .select-foot { padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)); }
 }
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
-  #screen-game { grid-template-rows: calc(38px + env(safe-area-inset-top, 0px)) minmax(0, 1fr) calc(160px + env(safe-area-inset-bottom, 0px)); }
-  #screen-game .topbar { padding-left: max(6px, env(safe-area-inset-left, 0px)); padding-right: max(6px, env(safe-area-inset-right, 0px)); }
-  #screen-game .human { padding-left: max(6px, env(safe-area-inset-left, 0px)); padding-right: max(6px, env(safe-area-inset-right, 0px)); }
-}
+
 
 /* 手机浮层：五谷托盘锚在底栏上方，避免盖住手牌/出屏幕 */
 @media (max-width: 480px) and (orientation: portrait) {
@@ -2592,13 +2523,7 @@ body > .sgs-tooltip {
   }
   #screen-game .human { padding-bottom: max(6px, env(safe-area-inset-bottom, 0px)); }
 }
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
-  #screen-game .topbar {
-    height: calc(38px + env(safe-area-inset-top, 0px));
-    padding-top: env(safe-area-inset-top, 0px);
-  }
-  #screen-game .human { padding-bottom: max(4px, env(safe-area-inset-bottom, 0px)); }
-}
+
 /* APK/横屏矮视口（998×448 等）：选将卡压缩，底部确定/返回必须可见 */
 @media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
   #screen-select { padding: 6px 10px 4px; }
@@ -2640,20 +2565,7 @@ body > .sgs-tooltip {
   #screen-game .human-right .me-block:last-of-type { display: none; }
   #screen-game .human-right::after { display: none; }
 }
-/* APK 横屏：底栏从 160 压到 130，恢复牌桌/手牌比例；手牌贴底 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
-  :root { --hand-w: 50px; --hand-h: 68px; }
-  #screen-game { grid-template-rows: calc(38px + env(safe-area-inset-top, 0px)) minmax(0, 1fr) calc(130px + env(safe-area-inset-bottom, 0px)); }
-  #screen-game .human { grid-template-columns: 78px minmax(0, 1fr) 164px; gap: 5px; padding-top: 2px; padding-bottom: max(3px, env(safe-area-inset-bottom, 0px)); }
-  #screen-game .portrait-frame { width: 56px; height: 74px; }
-  #screen-game .human-left { padding: 1px; }
-  #screen-game .action-bar { min-height: 30px; padding: 2px 5px; }
-  #screen-game .hand-card { bottom: 5px; }
-  #screen-game .human-right { gap: 1px; padding: 1px 2px; }
-  #screen-game .human-right .equip-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }
-  #screen-game .human-right .equip-slot { height: 22px; }
-  #screen-game .hand-wrap { margin-top: 1px; }
-}
+
 /* 手机/APK：菜单操作条固定在底部，首屏始终可开始/演示/继续 */
 @media (max-width: 1100px), (max-height: 600px) {
   #screen-menu .menu-actions {
@@ -2709,6 +2621,11 @@ body > .sgs-tooltip {
     width: auto; height: auto; font-size: 10px; line-height: 1.15;
   }
   #screen-game .seat-name .seat-hpnum { display: none; }
+  #screen-game .seat.is-hp-num .seat-name .seat-hpnum {
+    position: absolute; left: 2px; bottom: 18px; margin: 0;
+    padding: 0 3px; border-radius: 3px; background: rgba(6,8,10,.85);
+    font-size: 9px; line-height: 13px; color: #ffd9a2;
+  }
   #screen-game .seat-role { right: 2px; top: 2px; }
 }
 @media (max-width: 1100px) {
@@ -3653,7 +3570,7 @@ body > .sgs-tooltip {
 .pick-bar .btn { padding: 3px 8px !important; font-size: 10px !important; }
 
 /* 宽屏短横屏：底栏 264 不够，补 26px 消除 human 内容纵向裁切 */
-@media (min-width: 761px) and (max-height: 820px) {
+@media (min-width: 1101px) and (max-height: 820px) {
   #screen-game { grid-template-rows: 42px minmax(0, 1fr) 290px; }
 }
 
@@ -3695,12 +3612,7 @@ body.is-table-pick #screen-game .pick-bar { z-index: 130; }
   #screen-game .topbar { gap: 0 6px; }
   #screen-game .tb-right { height: auto; min-height: 44px; gap: 6px; }
 }
-/* 短横屏顶栏 38→44，容纳 44×44 按钮；底部 160 不变 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
-  #screen-game { grid-template-rows: calc(44px + env(safe-area-inset-top, 0px)) minmax(0, 1fr) calc(160px + env(safe-area-inset-bottom, 0px)); }
-  #screen-game .topbar { height: calc(44px + env(safe-area-inset-top, 0px)); }
-  #screen-game .tb-right { gap: 4px; }
-}
+
 
 /* 选目标：pick-bar 替换顶栏时仍保留 44 高暂停按钮 */
 .pick-bar { top: calc(4px + env(safe-area-inset-top, 0px)) !important; }
@@ -3723,11 +3635,11 @@ body.is-table-pick #screen-game .pick-bar { z-index: 130; }
 }
 
 /* 平板/桌面矮视口：顶栏 42→44，避免 44 高按钮压住座位 2px */
-@media (min-width: 761px) and (max-height: 820px) {
+@media (min-width: 1101px) and (max-height: 820px) {
   #screen-game { grid-template-rows: 44px minmax(0, 1fr) 290px; }
   #screen-game .topbar { height: 44px; }
 }
-@media (min-width: 761px) and (max-height: 790px) {
+@media (min-width: 1101px) and (max-height: 790px) {
   #screen-game { grid-template-rows: 44px minmax(0, 1fr) 238px; }
 }
 
@@ -3742,3 +3654,389 @@ body.is-table-pick #screen-game .pick-bar { z-index: 130; }
 @media (max-width: 480px) {
   .general-info-modal .gi-name { font-size: 17px; letter-spacing: .02em; white-space: nowrap; }
 }
+
+/* ===== 1.0.7 B3: 手机横屏（高≤640）玩家区重设计 =====
+ * 合并 792×323 / 915×412 / 997×448 的旧短横屏覆盖；顶栏 40、玩家区按内容 112、
+ * 牌桌占剩余高度（≥50%）。结构：头像 | 装备/判定图标条 | 手牌 | 技能。
+ */
+@media (orientation: landscape) and (max-height: 640px) and (max-width: 1100px) {
+  /* 顶栏 40：按钮仍保留 44 高点击区，上下各溢出 2px（不压座位） */
+  #screen-game { grid-template-rows: 40px minmax(0, 1fr) auto; }
+  #screen-game .topbar {
+    height: 40px; overflow: visible;
+    padding: 0 max(6px, env(safe-area-inset-right, 0px)) 0 max(6px, env(safe-area-inset-left, 0px));
+  }
+  #screen-game .tb-prompt { display: none !important; }
+  #screen-game .tb-count { display: none; }
+  #screen-game .tb-right { height: 40px; align-items: center; gap: 4px; }
+  #screen-game .tb-right .tb-btn { min-width: 44px; min-height: 44px; margin: -2px 0; padding: 0 10px; font-size: 12px; }
+  #screen-game .tb-left { gap: 8px; }
+  #screen-game .tb-item { font-size: 9px; }
+  #screen-game .tb-item b { font-size: 12px; }
+  #screen-game .tb-phase { font-size: 10px; padding: 2px 7px; }
+
+  /* 玩家区：内容高度 112（14 状态行 + 94 手牌 + 4 内边距），≤35% */
+  #screen-game .human {
+    height: 111px; min-height: 0;
+    display: grid;
+    grid-template-columns: 76px 34px minmax(0, 1fr) 106px;
+    grid-template-rows: 106px;
+    gap: 6px; padding: 2px 6px;
+    overflow: hidden;
+  }
+  #screen-game .human-left {
+    grid-column: 1; grid-row: 1;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; padding: 0; min-width: 0; justify-content: flex-start;
+  }
+  #screen-game .portrait-frame,
+  #screen-game.mode-1v1 .portrait-frame { width: 74px; height: 90px; flex: 0 0 auto; border-radius: 6px; }
+  #screen-game .pf-name { left: 4px; right: 4px; bottom: 4px; font-size: 12px; }
+  #screen-game .pf-title { display: none; }
+  #screen-game .pf-role { left: 4px; top: 4px; font-size: 9px; padding: 1px 4px; }
+  #screen-game .pf-kingdom { right: 4px; top: 4px; width: 18px; height: 18px; font-size: 10px; }
+  #screen-game .pf-status { top: 38%; gap: 3px; }
+  #screen-game .me-hp { height: 12px; gap: 3px; }
+  #screen-game .me-hp .bead { width: 6px; height: 6px; }
+  #screen-game .me-hp .hp-num { display: none; }
+
+  /* 技能列：保留按钮且 ≥44 高 */
+  #screen-game .human-right { display: contents; }
+  #screen-game .me-skills-block {
+    grid-column: 4; grid-row: 1; min-height: 0;
+    display: flex; flex-direction: column; gap: 4px; overflow-y: auto;
+  }
+  #screen-game .me-skills-block .mini-title { display: none; }
+  #screen-game .me-skills-block .skill-list { display: flex; flex-direction: column; gap: 4px; max-height: none !important; overflow: visible !important; }
+  #screen-game .human-right .skill-btn { min-height: 44px; font-size: 12px; padding: 4px 6px; }
+
+  /* 装备/判定：头像右侧竖排小图标条；空装备只留细框，空判定隐藏 */
+  #screen-game .human-right .me-block:nth-of-type(2) {
+    grid-column: 2; grid-row: 1; align-self: start; min-height: 0; padding: 0;
+  }
+  #screen-game .human-right .me-block:nth-of-type(2) .mini-title { display: none; }
+  #screen-game .equip-grid { display: flex; flex-direction: column; gap: 1px; align-items: center; }
+  #screen-game .equip-slot { width: 12px; height: 12px; min-height: 0; padding: 0; border-radius: 2px; }
+  #screen-game .equip-slot .eq-name, #screen-game .equip-slot .eq-sr, #screen-game .equip-slot .eq-ico,
+  #screen-game .equip-slot .eq-label { display: none; }
+  #screen-game .equip-slot.is-empty { background: transparent; border-color: rgba(216,179,106,.22); }
+  #screen-game .equip-slot .eq-dot { width: 10px; height: 10px; font-size: 7px; }
+  #screen-game .equip-slot .eq-glyph { font-size: 7px; line-height: 1; }
+  #screen-game .human-right .me-block:nth-of-type(3) {
+    grid-column: 2; grid-row: 1; align-self: end; min-height: 0; padding: 0;
+  }
+  #screen-game .human-right .me-block:nth-of-type(3) .mini-title { display: none; }
+  #screen-game .judge-list { display: flex; flex-direction: column; gap: 1px; align-items: center; }
+  #screen-game .judge-empty { display: none; }
+  #screen-game .human-right .me-block:nth-of-type(3):has(.judge-empty) { display: none; }
+  #screen-game .judge-list .jd-mini, #screen-game .judge-list .judge-card { width: 12px; height: 14px; font-size: 7px; }
+  #screen-game .judge-list .judge-chip {
+    width: 12px; height: 14px; padding: 0; gap: 0; overflow: hidden;
+    font-size: 0; border-radius: 2px;
+  }
+  #screen-game .judge-list .judge-chip img { width: 12px; height: 14px; border-radius: 2px; }
+  #screen-game .me-marks { display: none; }
+
+  /* 手牌区：状态行 14 + 手牌 94，无 >16 纵向空白 */
+  #screen-game .human-mid {
+    grid-column: 3; grid-row: 1; min-height: 0;
+    display: grid; grid-template-columns: minmax(0, 1fr) 58px; grid-template-rows: 14px 90px;
+    gap: 0 6px; padding: 0;
+  }
+  #screen-game .action-bar { display: contents; }
+  #screen-game .bar-prompt { grid-column: 1; grid-row: 1; display: flex; align-items: center; min-width: 0; padding: 0 6px; gap: 0; border-radius: 6px; background: linear-gradient(180deg, rgba(27,33,38,.72), rgba(15,19,23,.72)); }
+  #screen-game .bar-icon { display: none; }
+  #screen-game .bar-text { display: flex; min-width: 0; }
+  #screen-game .bar-title { font-size: 12px; line-height: 14px; }
+  #screen-game .bar-sub { display: none; }
+  #screen-game .bar-btns { grid-column: 2; grid-row: 1 / span 2; align-self: center; justify-content: center; flex-wrap: nowrap; }
+  #screen-game .bar-btn { min-width: 56px; min-height: 44px; padding: 0 6px; font-size: 12px; letter-spacing: 0; }
+  #screen-game .hand-wrap { grid-column: 1; grid-row: 2; height: 90px; min-height: 90px; margin: 0; border-radius: 6px; }
+  #screen-game .hand { height: 100%; }
+  #screen-game .hand-card { --hand-w: 68px; --hand-h: 90px; --rot: 0deg !important; --y: 0px !important; bottom: 0; transform: translateX(var(--x, 0)) translateY(0) rotate(0deg); }
+  #screen-game .hand-card .hc-suit { top: 2px; bottom: auto; left: 2px; font-size: 12px; z-index: 4; }
+  #screen-game .hand-card .hc-rank { top: auto; bottom: 2px; right: 2px; font-size: 11px; padding: 0 3px; border-radius: 3px; background: rgba(0,0,0,.62); z-index: 4; }
+  #screen-game .hand-card .hc-name { left: 2px; right: 22px; bottom: 0; padding: 12px 0 2px; font-size: 10px; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+  #screen-game .hand-wrap::before { display: none; }
+  #screen-game .hand-timer { top: -14px; right: 64px; height: 14px; padding: 0 6px; font-size: 11px; line-height: 12px; }
+
+  /* 牌桌：剩余高度 ≥50%；座位按模式缩放，不压顶栏/玩家区 */
+  #screen-game .table { min-height: 0; }
+  #screen-game .played-card { width: 68px; height: 94px; }
+  #screen-game .played-card .pc-name { font-size: 9px; }
+  #screen-game .phase-orbit { width: 78px; height: 78px; }
+  #screen-game .orbit-phase { font-size: 14px; }
+  #screen-game .orbit-sub, #screen-game .orbit-timer { font-size: 8px; }
+  #screen-game .phase-banner, #screen-game .skill-banner { transform: translate(-50%, -50%) scale(.78); }
+  #screen-game .table-center,
+  #screen-game.mode-1v1 .table-center { top: 46% !important; }
+  #screen-game .seat { --seat-w: clamp(68px, 18vh, 72px); --seat-h: clamp(64px, 18vh, 80px); }
+  #screen-game.mode-5p .seat { --seat-w: clamp(58px, 16vh, 70px); --seat-h: clamp(72px, 21vh, 92px); }
+  #screen-game.mode-1v1 .seat { --seat-w: clamp(66px, 18vh, 80px); --seat-h: clamp(78px, 23vh, 104px); }
+  #screen-game .seats { transform: scale(1); }
+
+  /* 座位信息：名字 ≥12、手牌数右下、装备只留小图标 */
+  #screen-game .seat-name,
+  #screen-game.mode-1v1 .seat-name {
+    left: 2px; right: 2px; top: auto; bottom: 0; width: auto; height: 16px;
+    display: flex; align-items: center; justify-content: flex-start;
+    writing-mode: horizontal-tb; text-orientation: mixed;
+    font-size: 12px; line-height: 16px; letter-spacing: 0; padding: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    background: linear-gradient(180deg, rgba(0,0,0,.04), rgba(0,0,0,.84));
+    border-radius: 0 0 4px 0;
+  }
+  #screen-game .seat-name .seat-hpnum { display: none; }
+  #screen-game .seat.is-hp-num .seat-name .seat-hpnum {
+    position: absolute; left: 2px; bottom: 18px; margin: 0;
+    padding: 0 3px; border-radius: 3px; background: rgba(6,8,10,.85);
+    font-size: 9px; line-height: 13px; color: #ffd9a2;
+  }
+  #screen-game .seat-hand,
+  #screen-game.mode-1v1 .seat-hand {
+    left: 26px; right: auto; top: 2px; bottom: auto; width: 16px; height: 12px; min-width: 0;
+    padding: 0; justify-content: center; font-size: 9px;
+    border-radius: 0 0 4px 0;
+  }
+  #screen-game .seat-hand::before { display: none; }
+  #screen-game .seat-role { top: 1px; right: 1px; font-size: 9px; padding: 0 4px; }
+  #screen-game .seat-hp { left: 2px; bottom: 17px; gap: 2px; }
+  #screen-game .seat-hp .bead { width: 5px; height: 5px; }
+  #screen-game .seat .seat-equip-list,
+  #screen-game .seat.eq-right .seat-equip-list,
+  #screen-game .seat.eq-left .seat-equip-list,
+  #screen-game .seat.eq-bottom .seat-equip-list {
+    top: 2px !important; right: 2px !important; bottom: auto !important; left: auto !important;
+    transform: none !important; width: auto !important; display: grid !important;
+    grid-template-columns: repeat(2, 8px); gap: 1px !important; z-index: 6; align-items: start !important;
+  }
+  #screen-game .seat .seat-equip-list .eq-bar {
+    width: 8px !important; height: 8px !important; max-width: none !important;
+    padding: 0 !important; gap: 0 !important; border: 0 !important; background: transparent !important;
+  }
+  #screen-game .seat .seat-equip-list .eq-ico { width: 8px !important; height: 8px !important; flex: 0 0 8px !important; }
+  #screen-game .seat .seat-equip-list .eq-sr,
+  #screen-game .seat .seat-equip-list .eq-name { display: none !important; }
+  #screen-game .seat-eqs, #screen-game .seat-badges { display: none; }
+  #screen-game .seat-mid { display: contents; }
+  #screen-game .seat-role { display: none; }
+  #screen-game .seat-jds {
+    position: absolute; right: 2px; top: 20px; left: auto; transform: none;
+    display: flex; flex-direction: row; gap: 1px; z-index: 6;
+  }
+  #screen-game .seat-jds .jd-dot { width: 8px; height: 8px; font-size: 6px; }
+  #screen-game .seat-distance { bottom: 18px; font-size: 10px; padding: 1px 5px; }
+
+  /* pick-bar 不压座位；只保留一个暂停入口（顶栏已隐藏） */
+  .pick-bar { top: env(safe-area-inset-top, 0px) !important; }
+  .pick-bar-inner { height: 44px !important; padding: 0 6px !important; gap: 4px !important; }
+  .pick-bar .btn { min-width: 44px; min-height: 44px; padding: 0 6px !important; font-size: 12px !important; }
+  .pick-bar-text { max-width: 120px !important; font-size: 11px !important; }
+  .pick-bar-count { min-width: 26px !important; font-size: 11px !important; }
+  #screen-game .pick-bar .btn-primary:disabled {
+    background: rgba(255,255,255,.06); color: var(--muted); border-color: var(--line-soft);
+    box-shadow: none; filter: none; opacity: .7;
+  }
+}
+
+/* ===== 1.0.7 B3 1c: 座位名/装备、1v1 头像、目标高亮、确认框、菜单 ===== */
+/* 2/1：座位名有效字号 ≥12，名字与手牌数分开 */
+#screen-game .seat-name,
+#screen-game.mode-1v1 .seat-name {
+  font-size: 12px; line-height: 16px; letter-spacing: 0;
+}
+#screen-game .seat-name .seat-hpnum { display: none; }
+
+/* 3：手机/窄屏座位装备只留小图标，不压名字/头像 */
+@media (max-width: 760px) {
+  #screen-game .seat .seat-equip-list {
+    top: 2px !important; right: 2px !important; bottom: auto !important; left: auto !important;
+    transform: none; width: auto !important; display: grid !important;
+    grid-template-columns: repeat(2, 8px); gap: 1px !important; z-index: 6; align-items: start !important;
+  }
+  #screen-game .seat .seat-equip-list .eq-bar {
+    width: 8px !important; height: 8px !important; max-width: none !important;
+    padding: 0 !important; gap: 0 !important; border: 0 !important; background: transparent !important;
+  }
+  #screen-game .seat .seat-equip-list .eq-ico { width: 8px !important; height: 8px !important; flex: 0 0 8px !important; }
+  #screen-game .seat .seat-equip-list .eq-sr,
+  #screen-game .seat .seat-equip-list .eq-name { display: none !important; }
+  #screen-game .seat .seat-hand {
+    left: 2px; right: auto; top: 18px; bottom: auto; width: 20px; height: 14px;
+    padding: 0; font-size: 9px; border-radius: 3px;
+  }
+  #screen-game .seat .seat-hand::before { display: none; }
+  #screen-game .seat-name, #screen-game.mode-1v1 .seat-name { left: 2px; right: 2px; bottom: 0; }
+}
+/* 4：1v1 自己的头像按列宽收缩，不再左裁 */
+@media (max-width: 1100px) and (orientation: portrait) {
+  #screen-game.mode-1v1 .portrait-frame {
+    width: 100%; max-width: 100%; height: auto; aspect-ratio: 168 / 222;
+    margin: 0 auto;
+  }
+}
+/* 11：可选目标明显高亮、不可选变暗；距离标签移到座位左上角，不挡脸 */
+#screen-game .seat-targetable {
+  border-color: #7fe0bd;
+  box-shadow: 0 0 0 3px rgba(111,191,160,.5), 0 0 34px rgba(111,191,160,.35), 0 10px 26px rgba(0,0,0,.55);
+}
+#screen-game .seat-dim { filter: brightness(.45) saturate(.55); }
+#screen-game .seat-distance {
+  left: 0; right: auto; top: 0; bottom: auto; transform: none;
+  font-size: 9px; padding: 0 4px; line-height: 12px; z-index: 9;
+}
+#screen-game .seat-targetable .seat-distance { opacity: 1; }
+/* 12：确认框 360–480 宽、去掉空 body、危险操作红色 */
+.modal.modal-confirm { width: min(480px, 86vw); max-width: 480px; min-width: min(360px, 86vw); }
+.modal.modal-confirm .modal-body:empty { display: none; }
+.modal.modal-confirm .modal-foot { padding-top: 10px; }
+.btn.btn-danger {
+  color: #fff2ee; border-color: rgba(178,58,50,.75);
+  background: linear-gradient(160deg, #b23a32, #7d211b);
+  box-shadow: 0 4px 14px rgba(178,58,50,.28);
+}
+.btn.btn-danger:hover:not(:disabled) { filter: brightness(1.1); }
+
+/* ===== 1.0.7 B3 1c-13: 手机横屏主菜单两栏，一屏放下，开始按钮始终可见 ===== */
+@media (orientation: landscape) and (max-height: 640px) and (max-width: 1100px) {
+  #screen-menu { padding: 0; }
+  #screen-menu .menu-frame {
+    width: 100%; height: 100%; padding: 6px 14px 8px;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  #screen-menu .menu-head { margin: 0 0 6px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  #screen-menu .logo-mark { width: 34px; height: 34px; font-size: 20px; }
+  #screen-menu .logo { font-size: 28px; letter-spacing: .12em; }
+  #screen-menu .logo-sub { font-size: 10px; margin-left: 8px; }
+  #screen-menu .logo-desc, #screen-menu .menu-tips, #screen-menu .menu-note { display: none; }
+  #screen-menu .menu-panel {
+    flex: 1 1 auto; min-height: 0; padding: 0; overflow: hidden;
+    display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto auto; gap: 2px 20px;
+  }
+  #screen-menu .menu-actions {
+    grid-column: 1 / -1; grid-row: 1; order: 0;
+    margin: 0 0 4px; display: flex; gap: 10px; justify-content: center;
+  }
+  #screen-menu .menu-actions .btn { padding: 7px 16px; font-size: 14px; min-width: 0; }
+  #screen-menu .menu-row { padding: 4px 0; gap: 8px; align-items: center; }
+  #screen-menu [data-row="mode"] { grid-column: 1; grid-row: 2 / span 2; align-items: flex-start; }
+  #screen-menu [data-row="packs"] { grid-column: 2; grid-row: 2; }
+  #screen-menu [data-row="extras"] { grid-column: 2; grid-row: 3; }
+  #screen-menu [data-row="duel-pool"] { grid-column: 2; grid-row: 4; }
+  #screen-menu [data-row="deck"] { grid-column: 2; grid-row: 5; }
+  #screen-menu [data-row="pace"] { grid-column: 1; grid-row: 4; }
+  #screen-menu [data-row="ai"] { grid-column: 1; grid-row: 5; }
+  #screen-menu .menu-label { font-size: 11px; min-width: 48px; letter-spacing: .04em; }
+  #screen-menu .menu-label span { font-size: 8px; }
+  #screen-menu .seg { gap: 4px; }
+  #screen-menu .seg-btn { min-width: 0; padding: 4px 7px; font-size: 11px; }
+  #screen-menu .seg-btn em { font-size: 8px; margin-top: 1px; }
+  #screen-menu #seg-mode { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  #screen-menu #seg-mode .seg-btn { min-width: 0; }
+  #screen-menu .chips { gap: 4px; }
+  #screen-menu .chip { padding: 3px 8px; font-size: 11px; }
+  #screen-menu .extras-switch { padding: 2px 6px; }
+  #screen-menu .extras-copy b { font-size: 11px; }
+  #screen-menu .extras-copy em { font-size: 8px; }
+  #screen-menu .menu-row[data-row="duel-pool"].is-hidden { display: none; }
+}
+
+/* ===== 1.0.7 B3 1c-14: 手机横屏设置面板紧凑化，全部选项一屏可见 ===== */
+@media (orientation: landscape) and (max-height: 640px) and (max-width: 1100px) {
+  #settings-panel { top: 40px !important; height: calc(100dvh - 40px) !important; }
+  #settings-panel .settings-head { padding: 2px 10px; }
+  #settings-panel .settings-body { padding: 2px 12px 4px; }
+  #settings-panel .setting-group { padding: 3px 0; gap: 2px; }
+  #settings-panel .setting-title { font-size: 11px; }
+  #settings-panel .setting-range { margin: 0; }
+  #settings-panel .setting-pace button { padding: 4px 6px; min-height: 44px; }
+  #settings-panel .settings-foot { padding: 6px 12px; }
+}
+
+/* 1c-5：手机/窄屏手牌点数与牌名分区（点数移到右下角，牌名底部左对齐） */
+@media (max-width: 1100px) {
+  #screen-game .hand-card .hc-suit { top: 2px; bottom: auto; left: 2px; font-size: 12px; z-index: 4; }
+  #screen-game .hand-card .hc-rank {
+    top: auto; bottom: 2px; right: 2px; font-size: 11px;
+    padding: 0 3px; border-radius: 3px; background: rgba(0,0,0,.62); z-index: 4;
+  }
+  #screen-game .hand-card .hc-name {
+    left: 2px; right: 22px; bottom: 0; padding: 12px 0 2px;
+    font-size: 10px; letter-spacing: 0; text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+}
+
+/* 1c-15：体力上限 >5 用「♥ 当前/上限」数字，避免 10 颗圆点溢出座位 */
+#screen-game .seat.is-hp-num .seat-hp { display: none; }
+#screen-game .seat.is-hp-num .seat-name .seat-hpnum {
+  display: inline !important; margin-left: 3px; font-size: 10px;
+  color: #ffd9a2; letter-spacing: 0;
+}
+#screen-game .me-hp.is-hp-num .beads { display: none; }
+#screen-game .me-hp.is-hp-num .hp-num { display: inline; font-size: 11px; color: #ffd9a2; }
+
+/* 792×323 极短横屏：菜单再压缩一档，保证 AI/牌堆行完整 */
+@media (orientation: landscape) and (max-height: 360px) and (max-width: 1100px) {
+  #screen-menu .menu-row { padding: 2px 0; }
+  #screen-menu .seg-btn { padding: 3px 6px; }
+  #screen-menu .seg-btn em { font-size: 7px; }
+  #screen-menu .menu-actions { margin-bottom: 2px; }
+  #screen-menu .logo { font-size: 24px; }
+  #screen-menu .logo-mark { width: 28px; height: 28px; font-size: 17px; }
+  #screen-menu .menu-head { margin-bottom: 3px; }
+}
+
+/* ===== 1.0.7 B3 1c-13b: 桌面主菜单两栏，开始按钮始终在首屏 ===== */
+@media (min-width: 1101px) {
+  #screen-menu .menu-frame {
+    width: min(1180px, 94vw); max-width: 1180px; max-height: calc(100vh - 24px); margin-left: auto; margin-right: auto;
+    padding: 8px 24px 10px; display: flex; flex-direction: column;
+  }
+  #screen-menu .menu-head { margin-bottom: 8px; }
+  #screen-menu .logo { font-size: 42px; }
+  #screen-menu .logo-mark { width: 46px; height: 46px; font-size: 26px; }
+  #screen-menu .logo-desc { font-size: 11px; margin-top: 2px; }
+  #screen-menu .menu-panel {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto auto; gap: 0 28px;
+    padding: 0 6px; min-height: 0; overflow: hidden; width: 100%; max-width: none;
+  }
+  #screen-menu .menu-actions {
+    grid-column: 1 / -1; grid-row: 1; order: 0;
+    margin: 0 0 8px; display: flex; gap: 14px; justify-content: center;
+  }
+  #screen-menu [data-row="mode"] { grid-column: 1; grid-row: 2 / span 2; align-items: flex-start; }
+  #screen-menu [data-row="packs"] { grid-column: 2; grid-row: 2; }
+  #screen-menu [data-row="extras"] { grid-column: 2; grid-row: 3; }
+  #screen-menu [data-row="duel-pool"] { grid-column: 2; grid-row: 4; }
+  #screen-menu [data-row="deck"] { grid-column: 2; grid-row: 5; }
+  #screen-menu [data-row="pace"] { grid-column: 1; grid-row: 4; }
+  #screen-menu [data-row="ai"] { grid-column: 1; grid-row: 5; }
+  #screen-menu .menu-row { padding: 6px 0; gap: 12px; }
+  #screen-menu .menu-label { min-width: 76px; font-size: 13px; }
+  #screen-menu .seg-btn { min-width: 0; padding: 7px 10px; font-size: 13px; }
+  #screen-menu .seg-btn em { font-size: 9px; }
+  #screen-menu .menu-tips { display: none; }
+  #screen-menu .menu-note { margin-top: 2px; font-size: 11px; }
+}
+
+/* 任务 2：结算页按钮 ≥44 高，纳入触控基线 */
+#screen-result .result-actions .btn {
+  min-height: 44px; min-width: 96px; padding: 8px 16px; font-size: 13px;
+}
+
+/* 1b 修复：玩家区内部不产生滚动溢出（满装备+判定/伪元素） */
+#screen-game .human-left::after,
+#screen-game .human-right::after { display: none !important; }
+#screen-game .human-right .equip-slot,
+#screen-game .human-right .equip-slot.is-filled,
+#screen-game .human-right .equip-slot.is-empty {
+  width: 12px !important; height: 12px !important; min-height: 0 !important; padding: 0 !important;
+}
+#screen-game .human-right .equip-slot .eq-short,
+#screen-game .human-right .equip-slot .eq-name,
+#screen-game .human-right .equip-slot .eq-label { display: none !important; }
+#screen-game .human-right .equip-grid { gap: 1px !important; }
+#screen-game .human-right .judge-list { gap: 1px !important; min-height: 0 !important; }
