@@ -33,7 +33,7 @@ const VIEWPORTS = [
 const MOBILE_LANDSCAPE = [792, 915, 997, 720];
 const FULL_MODES = ['8p', '3v3'];
 const MINI_MODES = ['1v1', '5p'];
-const FULL_SCENES = ['play1', 'play5', 'play10', 'play15', 'target', 'response', 'discard', 'wugu', 'rescue', 'pindian', 'hidden', 'judge', 'intro', 'skilldesc', 'log', 'settings', 'pause'];
+const FULL_SCENES = ['play1', 'play5', 'play10', 'play15', 'target', 'response', 'discard', 'wugu', 'rescue', 'pindian', 'hidden', 'judge', 'intro', 'skilldesc', 'log', 'settings', 'pause', 'dying'];
 const MINI_SCENES = ['play5', 'target'];
 const SELECTOR_TEXT = '.seat-name,.seat-role,.seat-hand,.seat-hp,.seat-distance,.tb-item,.tb-btn,.bar-title,.bar-sub,.skill-btn,.equip-slot,.gc-name,.gc-skill,.gc-skill-descs,.gc-pack,.modal-title,.modal-reason,.modal-body,.modal-foot,.option-btn,.rp-name,.rp-info,.rp-role,.result-title,.result-sub,.log-line,.wugu-card,.judge-card,.judge-meta,.pindian-card,.rescue-banner,.hand-reveal,#skill-banner,.select-title,.select-meta,.menu-label';
 const SELECTOR_INTERACTIVE = 'button,.btn,.tb-btn,.skill-btn,.equip-slot,.hand-card,.seat,.gc-skill,.role-mark-btn';
@@ -119,6 +119,43 @@ async function main() {
         };
       }
     } catch (e) { /* first incremental run */ }
+  }
+  if (A.menu) {
+    const B5 = path.join(OUT, 'b5');
+    fs.mkdirSync(B5, { recursive: true });
+    const menuIssues = [];
+    for (const vp of onlyVp) {
+      await page.setViewport({ width: vp.width, height: vp.height, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+      await page.goto(BASE, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      await page.waitForFunction(() => document.querySelector('#screen-menu.is-active'), { timeout: 10000 }).catch(() => {});
+      await sleep(600);
+      const idle = await waitForIdle(page, 5000);
+      const res = await page.evaluate(() => {
+        const out = [];
+        const vis = (e) => { const r = e.getBoundingClientRect(), c = getComputedStyle(e); return r.width > 1 && r.height > 1 && c.display !== 'none' && c.visibility !== 'hidden'; };
+        const actions = document.querySelector('.b5-actions,.menu-actions');
+        if (!actions || !vis(actions)) out.push({ level: 'P1', type: '菜单右栏不可见', selector: '.b5-actions', measure: '' });
+        else { const r = actions.getBoundingClientRect(); if (r.right > innerWidth + 1 || r.left < -1) out.push({ level: 'P1', type: '菜单右栏越界', selector: '.b5-actions', measure: `${Math.round(r.left)}..${Math.round(r.right)} vw=${innerWidth}` }); }
+        ['#btn-start', '#btn-continue', '#btn-demo', '#btn-saves'].forEach(sel => {
+          const b = document.querySelector(sel); if (!b || !vis(b)) return;
+          const r = b.getBoundingClientRect();
+          if (r.height < 44) out.push({ level: 'P1', type: '菜单按钮高度<44', selector: sel, measure: `${Math.round(r.width)}x${Math.round(r.height)}` });
+          if (r.right > innerWidth + 1 || r.left < -1) out.push({ level: 'P1', type: '菜单按钮越界', selector: sel, measure: `${Math.round(r.left)}..${Math.round(r.right)} vw=${innerWidth}` });
+        });
+        if (document.documentElement.scrollWidth > innerWidth + 1) out.push({ level: 'P1', type: '主菜单横向滚动', selector: 'document', measure: `scrollWidth=${document.documentElement.scrollWidth} vw=${innerWidth}` });
+        return out;
+      });
+      const f = path.join(B5, 'menu_' + vp.id + '.jpg');
+      await page.screenshot({ path: f, type: 'jpeg', quality: 70, fullPage: false });
+      res.forEach(i => { i.viewport = vp.id; menuIssues.push(i); });
+      console.log('MENU', vp.id, 'issues=' + res.length, path.relative(ROOT, f));
+      if (!idle.idle) report.notes.push({ viewport: vp.id, scene: 'menu', note: 'waitForIdle timeout residue=' + idle.residue.join(',') });
+    }
+    fs.writeFileSync(path.join(B5, 'menu-report.json'), JSON.stringify({ generated: new Date().toISOString(), issues: menuIssues }, null, 2));
+    console.log('MENU_SUMMARY', JSON.stringify({ count: menuIssues.length, issues: menuIssues }));
+    await browser.close();
+    try { fs.rmSync(PROFILE, { recursive: true, force: true, maxRetries: 8, retryDelay: 200 }); } catch (e) { /* ignore */ }
+    return;
   }
   if (A['before-shots'] || A['after-shots']) {
     const prefix = A['after-shots'] ? 'after' : 'before';
@@ -384,6 +421,10 @@ async function runScene(page, vp, mode, scene, whitelist) {
       const cand = (a.targetCandidates || [])[0];
       const seatEl = cand != null ? document.querySelector('.seat[data-seat="' + cand + '"]') : null;
       if (seatEl) seatEl.click();
+    } else if (scene === 'dying') {
+      const q = g.players[3] || g.players[1];
+      if (q) { q.hp = 0; q.alive = true; }
+      SGS_UI.render(g);
     } else if (scene === 'response') {
       SGS_UI.preview('response');
     } else if (scene === 'discard') {
@@ -488,6 +529,15 @@ function auditPage(opts) {
     return s.display !== 'none' && s.visibility !== 'hidden' && Number(s.opacity) > 0.01 && r.width > 1 && r.height > 1;
   }
   function rect(e) { const r = e.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; }
+  function hasHot32(el) {
+    const r = rect(el);
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const pts = [[cx - 15, cy - 15], [cx + 15, cy - 15], [cx - 15, cy + 15], [cx + 15, cy + 15]];
+    return pts.every(p => {
+      const t = document.elementFromPoint(Math.max(0, Math.min(innerWidth - 1, p[0])), Math.max(0, Math.min(innerHeight - 1, p[1])));
+      return t && (t === el || el.contains(t) || (t.closest && t.closest('.seat-role') === el));
+    });
+  }
   function contentRect(e) {
     const r = rect(e), c = getComputedStyle(e);
     const bl = parseFloat(c.borderLeftWidth) || 0, bt = parseFloat(c.borderTopWidth) || 0;
@@ -684,6 +734,15 @@ function auditPage(opts) {
     });
   }
   const fullOverlayOpen = Array.from(document.querySelectorAll('#resume-overlay.is-on,.modal-mask,.settings-panel.is-open,.log-panel.is-open')).some(visible);
+  // 1d-0) 座位内角标禁止 backdrop-filter/filter（1.1）
+  Array.from(document.querySelectorAll('.seat *')).forEach(e => {
+    if (!visible(e)) return;
+    const c = getComputedStyle(e);
+    const bf = c.backdropFilter || c.webkitBackdropFilter || 'none';
+    if (bf !== 'none' || (c.filter && c.filter !== 'none')) {
+      add('P1', '座位内滤镜模糊', pathOf(e), `backdrop-filter=${bf} filter=${c.filter}`);
+    }
+  });
   // 1d) 所有动作栏状态：按钮中心+四角可点、右边界、不与技能列/手牌/座位/中央牌重叠（仅顶层 game；弹窗/暂停下动作栏本就被遮罩）
   if (context === 'game' && !fullOverlayOpen && (opts.mobileLandscape || vw >= 1100)) {
     const ab = document.querySelector('.action-bar');
@@ -716,6 +775,14 @@ function auditPage(opts) {
     const played = Array.from(document.querySelectorAll('.played-cards .played-card')).filter(visible);
     const pc = document.querySelector('.played-cards');
     if (pc && played.length) {
+      const handEl = document.querySelector('.hand-card');
+      const handH = handEl ? rect(handEl).height : 88;
+      const requiredH = vw <= 800 ? 66 : handH * 0.9;
+      if (played.length > 4) add('P1', '中央牌超过4张', '.played-cards', String(played.length));
+      played.forEach(card => {
+        const ch = rect(card).height;
+        if (ch + 0.5 < requiredH) add('P1', '中央牌高度不足', pathOf(card), `${Math.round(ch)}px < ${Math.round(requiredH)}px (handH=${Math.round(handH)})`);
+      });
       const pr = rect(pc);
       if (pr.left < 0 || pr.right > vw) add('P1', '中央出牌区越界', '.played-cards', `left=${Math.round(pr.left)} right=${Math.round(pr.right)}`);
       ['.seat', '.seat-attach', '.seat-equip-bar', '.seat-external-equips', '.action-bar', '.pick-bar'].forEach(sel => {
@@ -739,10 +806,10 @@ function auditPage(opts) {
   // 1g) 身份/判定/手牌数角标：不重叠、热区≥32（手机横屏）
   if (opts.mobileLandscape) {
     // 口径对齐 v6：只有身份牌/身份按钮要求独立热区≥32；手牌数/势力/判定点击座位即可。
-    const roles = Array.from(document.querySelectorAll('.seat-role,.seat-role-btn')).filter(visible);
+    const roles = (opts.scene === 'hidden' || fullOverlayOpen) ? [] : Array.from(document.querySelectorAll('.seat-role,.seat-role-btn')).filter(visible);
     roles.forEach(b => {
       const r = rect(b);
-      if (r.width < 32 || r.height < 32) add('P1', '身份热区<32', pathOf(b), `${Math.round(r.width)}x${Math.round(r.height)}`);
+      if ((r.width < 32 || r.height < 32) && !hasHot32(b)) add('P1', '身份热区<32', pathOf(b), `${Math.round(r.width)}x${Math.round(r.height)}`);
     });
     const badges = Array.from(document.querySelectorAll('.seat-role,.seat-hand,.seat-jds .jd-dot,.seat-jds .judge-chip,.judge-list .jd-mini,.seat-judges .jd-mini,.seat-judge-icon,.seat-judge,.seat-badge')).filter(visible);
     for (let i = 0; i < badges.length; i++) for (let j = i + 1; j < badges.length; j++) {
@@ -773,6 +840,64 @@ function auditPage(opts) {
         if (t.scrollWidth > t.clientWidth + 1) add('P1', '外挂栏牌名截断', pathOf(t), `${t.scrollWidth}/${t.clientWidth}`, { text: t.innerText });
       });
     });
+  }
+  // 1i) 装备顺序/花色点数/无攻击范围 + 判定居中/字号/裁切 + 濒死描边
+  {
+    const st = window.SGS_UI && SGS_UI._state ? SGS_UI._state() : null;
+    const g = st && st.game;
+    const suitMap = { spade: '♠', heart: '♥', club: '♣', diamond: '♦' };
+    const rankMap = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
+    const order = ['weapon', 'armor', 'defhorse', 'offhorse'];
+    if (g) {
+      Array.from(document.querySelectorAll('.seat[data-seat]')).forEach(seat => {
+        const p = g.players.find(x => String(x.seat) === seat.dataset.seat);
+        if (!p) return;
+        const bars = Array.from(seat.querySelectorAll('.seat-equip-list .eq-bar'));
+        const got = bars.map(b => b.dataset.slot);
+        const want = order.filter(sl => p.equips && p.equips[sl]);
+        if (got.join(',') !== want.join(',')) add('P1', '外挂栏装备顺序错误', pathOf(seat.querySelector('.seat-equip-list') || seat), `got=${got.join(',')} want=${want.join(',')}`);
+        bars.forEach(b => {
+          const sl = b.dataset.slot, c = p.equips && p.equips[sl];
+          if (!c) return;
+          const sr = b.querySelector('.eq-sr');
+          if (sr) {
+            const exp = (suitMap[c.suit] || '') + (rankMap[c.rank] || c.rank);
+            if (sr.textContent.replace(/\s/g, '') !== exp) add('P1', '外挂栏花色点数不符', pathOf(sr), `text=${sr.textContent} expect=${exp}`);
+          }
+        });
+        const range = seat.querySelector('.seat-equip-list .eq-range');
+        if (range && visible(range)) add('P1', '外挂栏显示攻击范围', pathOf(range), range.textContent);
+        const jds = seat.querySelector('.seat-jds');
+        if (jds && visible(jds) && jds.children.length) {
+          const jr = rect(jds), sr = rect(seat);
+          const off = Math.abs((jr.left + jr.right) / 2 - (sr.left + sr.right) / 2);
+          if (off > 2) add('P1', '判定图标未居中', pathOf(jds), `offset=${off.toFixed(1)}px`);
+          Array.from(jds.children).forEach(d => {
+            const c = getComputedStyle(d), dr = rect(d);
+            if (parseFloat(c.fontSize) < 14) add('P1', '判定图标字号<14', pathOf(d), c.fontSize);
+            if (dr.width < 14 || dr.height < 14) add('P1', '判定图标裁切', pathOf(d), `${Math.round(dr.width)}x${Math.round(dr.height)}`);
+            const oc = c.overflow + ' ' + c.overflowX + ' ' + c.overflowY;
+            if (/hidden|clip/.test(oc) && (d.scrollWidth > d.clientWidth + 1 || d.scrollHeight > d.clientHeight + 1)) add('P1', '判定图标裁切', pathOf(d), `scroll=${d.scrollWidth}x${d.scrollHeight} overflow=${oc}`);
+          });
+        }
+      });
+      const ownSlots = Array.from(document.querySelectorAll('.human-right .equip-slot[data-slot]'));
+      const ownGot = ownSlots.map(b => b.dataset.slot);
+      const p0 = g.players[0];
+      const ownWant = order.filter(sl => p0 && p0.equips && p0.equips[sl]);
+      if (ownGot.join(',') !== ownWant.join(',')) add('P1', '自己装备顺序错误', '.human-right .equip-slot', `got=${ownGot.join(',')} want=${ownWant.join(',')}`);
+      const ownRange = document.querySelector('.human-right .equip-slot .eq-range');
+      if (ownRange && visible(ownRange)) add('P1', '自己装备显示攻击范围', pathOf(ownRange), ownRange.textContent);
+    }
+    if (opts.scene === 'dying') {
+      const dy = Array.from(document.querySelectorAll('.seat')).find(s => {
+        const cls = s.className || '';
+        if (/dying|is-dying/.test(cls)) return true;
+        const c = getComputedStyle(s);
+        return /rgb\(178,\s*58,\s*50\)|red/.test(c.borderColor + ' ' + c.boxShadow);
+      });
+      if (!dy) add('P1', '濒死座位无红描边', '.seat', '未找到 is-dying / 红色 border');
+    }
   }
   // 2) 外框重叠
   function boxes(sel) { return Array.from(document.querySelectorAll(sel)).filter(visible).map(e => ({ e, r: rect(e) })); }
@@ -809,8 +934,9 @@ function auditPage(opts) {
   // 5) 字体/拼音
   if (document.fonts && document.fonts.status !== 'loaded') add('P2', '字体未就绪', 'document.fonts', document.fonts.status);
   const texts = Array.from(document.querySelectorAll(opts.textSel)).filter(e => visible(e) && inContext(e));
-  const py = /^(sha|shan|tao|guohe|wuxie|juedou|wugu|lebu|bingliang|shandian|jiedao|tiesuo|huogong|shunshou)(\b|$)/i;
-  texts.forEach(e => { const t = (e.innerText || '').trim(); if (t && py.test(t) && !/[\u4e00-\u9fa5]/.test(t)) add('P1', '纯拼音文案', pathOf(e), t.slice(0, 30)); });
+  const py = /(?:^|[^a-z])(dayuan|sha|shan|tao|zhuge|qinggang|bagua|chitu|dilu|guohe|wuxie|juedou|wugu|lebu|bingliang|shandian|jiedao|tiesuo|huogong|shunshou|cixiong|qingnang|zhangba|fangtian|qilin|hanbing|tengjia|renwang|jueying|zhuahuang|dawan|zhuque)(?:$|[^a-z])/i;
+  const pinyinEls = Array.from(document.querySelectorAll(opts.textSel + ',.eq-bar,.eq-short,.eq-name,.eq-type,.judge-chip')).filter(e => visible(e) && inContext(e));
+  pinyinEls.forEach(e => { const t = (e.innerText || '').trim(); if (t && py.test(t)) add('P1', '纯拼音卡名', pathOf(e), t.slice(0, 50)); });
   return { issues };
 }
 
