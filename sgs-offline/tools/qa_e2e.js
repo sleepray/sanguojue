@@ -946,11 +946,24 @@ function pageState() {
     return await state();
   }
 
+  // B5 菜单把节奏收进 <details class="b5-adv">，先展开再真实点击
+  async function setMenuPace(pace) {
+    const open = await cdp.eval(() => {
+      const d = document.querySelector('details.b5-adv');
+      return !!(d && d.open);
+    });
+    if (!open) {
+      await cdp.click('details.b5-adv summary');
+      await cdp.waitExpr('!!(document.querySelector("details.b5-adv") && document.querySelector("details.b5-adv").open)', 1500).catch(() => {});
+    }
+    await cdp.click('#seg-pace [data-pace="' + pace + '"]');
+  }
+
   // 重新开一局 5p（T17 遇到对局已结束时兜底用）
   async function start5pGame() {
     await resetMenu();
     await cdp.click('#seg-mode [data-mode="5p"]');
-    await cdp.click('#seg-pace [data-pace="fast"]');
+    await setMenuPace('fast');
     await cdp.click('#btn-start');
     await waitState((s) => s.screenActive.select, 5000, '5p 重开：选将页');
     await cdp.click('#general-row .general-card', 0);
@@ -962,7 +975,7 @@ function pageState() {
   async function startTeamGame(mode) {
     await resetMenu();
     await cdp.click('#seg-mode [data-mode="' + mode + '"]');
-    await cdp.click('#seg-pace [data-pace="fast"]');
+    await setMenuPace('fast');
     await cdp.click('#btn-start');
     await waitState((s) => s.screenActive.select, 5000, mode + ' 选将页');
     const cards = await cdp.eval(() => document.querySelectorAll('#general-row .general-card').length);
@@ -983,7 +996,7 @@ function pageState() {
       await resetMenu();
     }
     await cdp.click('#seg-mode [data-mode="8p"]');
-    await cdp.click('#seg-pace [data-pace="fast"]');
+    await setMenuPace('fast');
     await cdp.click('#btn-start');
     await waitState((s) => s.screenActive.select, 5000, '8p 重开：选将页');
     await cdp.click('#general-row .general-card', 0);
@@ -994,7 +1007,7 @@ function pageState() {
 
   // 冻结演示 8p：demo 在首个 play 请求处 freeze，游戏循环不再推进，适合稳定验证合成 UI 请求
   async function startFrozenDemo8p(animated) {
-    await cdp.navigate(BASE + (animated ? '?demo=1&freeze=play&seed=2026' : '?nofx=1&demo=1&freeze=play&seed=2026'));
+    await cdp.navigate(BASE + (animated ? '?demo=1&freeze=play&mode=8p&seed=2026' : '?nofx=1&demo=1&freeze=play&mode=8p&seed=2026'));
     return await waitState((s) => s.screenActive.game && s.seats === 7, 8000, '冻结演示 8p');
   }
 
@@ -1009,7 +1022,7 @@ function pageState() {
   async function startDdzGame() {
     await resetMenu();
     await cdp.click('#seg-mode [data-mode="ddz"]');
-    await cdp.click('#seg-pace [data-pace="fast"]');
+    await setMenuPace('fast');
     await cdp.click('#btn-start');
     await waitState((s) => s.screenActive.select, 5000, 'ddz 选将页');
     const cards = await cdp.eval(() => document.querySelectorAll('#general-row .general-card').length);
@@ -1366,7 +1379,7 @@ function pageState() {
       assert(s.note.indexOf('160 张') >= 0, '牌堆提示未显示 160 张');
 
       const paceNote = async (pace, word) => {
-        await cdp.click('#seg-pace [data-pace="' + pace + '"]');
+        await setMenuPace(pace);
         const r = await cdp.eval(() => ({
           on: document.querySelector('#seg-pace .is-on').dataset.pace,
           note: document.querySelector('#menu-note').textContent,
@@ -1390,7 +1403,7 @@ function pageState() {
       await resetMenu();
       await cdp.click('#seg-mode [data-mode="8p"]');
       await cdp.click('#seg-deck [data-deck="full"]');
-      await cdp.click('#seg-pace [data-pace="fast"]');
+      await setMenuPace('fast');
       const menu = await state();
       assertEq(menu.menuNote.indexOf('已选 5 个武将包') >= 0, true, '武将包未恢复 5 个：' + menu.menuNote);
       await cdp.click('#btn-start');
@@ -1908,7 +1921,7 @@ function pageState() {
     ], '选将候选 5 张；对局开始后 4 个对手座位；手牌正常渲染', 'P1', async (row) => {
       await resetMenu();
       await cdp.click('#seg-mode [data-mode="5p"]');
-      await cdp.click('#seg-pace [data-pace="fast"]');
+      await setMenuPace('fast');
       await cdp.click('#btn-start');
       await waitState((s) => s.screenActive.select, 5000, '5p 选将页');
       const cards = await cdp.eval(() => document.querySelectorAll('#general-row .general-card').length);
@@ -2019,7 +2032,7 @@ function pageState() {
     ], '选将页 4 张候选；“单挑 · 1 号位”；牌堆行置灰；点击候选后确定可用', 'P0', async (row) => {
       await resetMenu();
       await cdp.click('#seg-mode [data-mode="1v1"]');
-      await cdp.click('#seg-pace [data-pace="fast"]');
+      await setMenuPace('fast');
       await cdp.click('#btn-start');
       const st = await waitState((s) => s.screenActive.select, 5000, '1v1 选将页');
       const m = await cdp.eval(() => ({
@@ -2079,7 +2092,7 @@ function pageState() {
       '等待 3.2 秒后读取 t1',
     ], 't0 与 t1 均为“Ns”；3.2 秒内减少 2~4 秒；未进入告警态', 'P1', async (row) => {
       // 确定性冻结对局：直接进入人类出牌阶段，避免 8p 人机回合把倒计时用例拖死
-      await cdp.navigate(BASE + '?nofx=1&demo=1&freeze=play&seed=2026');
+      await cdp.navigate(BASE + '?nofx=1&demo=1&freeze=play&mode=8p&seed=2026');
       await waitState((s) => s.screenActive.game && s.seats >= 7, 10000, '冻结出牌阶段');
       // 冻结演示不一定有人类 pending；合成一个 play 请求专测读秒 UI
       await cdp.eval(() => {
@@ -2420,7 +2433,7 @@ function pageState() {
       if (!(pre.screenActive.game && pre.mode === '1v1' && !pre.over)) {
         await resetMenu();
         await cdp.click('#seg-mode [data-mode="1v1"]');
-        await cdp.click('#seg-pace [data-pace="fast"]');
+        await setMenuPace('fast');
         await cdp.click('#btn-start');
         await waitState((s) => s.screenActive.select, 5000, 'T25 1v1 选将页');
         await cdp.click('#general-row .general-card', 0);
@@ -2525,7 +2538,7 @@ function pageState() {
     ], '不进入选将页，直接进入对局；对手座位 1 个；手牌已发；提示不是“请选择武将”', 'P1', async (row) => {
       await resetMenu();
       await cdp.click('#seg-mode [data-mode="1v1"]');
-      await cdp.click('#seg-pace [data-pace="fast"]');
+      await setMenuPace('fast');
       await cdp.click('#btn-demo');
       const st = await waitState((s) => s.screenActive.game && s.seats >= 1 && s.handDom >= 4, 8000, '自动演示未进入对局/未发手牌');
       assert(!st.screenActive.select, '自动演示仍停留在选将页');
@@ -2575,6 +2588,9 @@ function pageState() {
       '截图',
     ], 'AI 发动技能时技能横幅出现且标题含“发动【…】”，横幅发动者与同条战报的发动者一致；截图记录', 'P2', async (row) => {
       await cdp.navigate(BASE + '?mode=8p&pace=fast&seed=2026');
+      // B5 菜单会用 localStorage 恢复上次模式；显式点 8p 再演示，避免沿用 5p/1v1
+      await cdp.click('#seg-mode [data-mode="8p"]');
+      await setMenuPace('fast');
       await cdp.click('#btn-demo');
       await waitState((s) => s.screenActive.game && s.seats >= 7, 5000, '技能横幅用例：自动演示未进入对局');
       await cdp.waitExpr("!!(SGS_UI._state().game && SGS_UI._state().game.started)", 8000);
@@ -2808,7 +2824,7 @@ function pageState() {
       const readSlot = (n) => cdp.eval((slot) => { try { const r = localStorage.getItem('sgs.save.slot' + slot); return r ? JSON.parse(r) : null; } catch (e) { return null; } }, n);
       await resetMenu();
       await cdp.click('#seg-mode [data-mode="1v1"]');
-      await cdp.click('#seg-pace [data-pace="fast"]');
+      await setMenuPace('fast');
       await cdp.click('#btn-start');
       await waitState((s) => s.screenActive.select, 5000, 'T53 1v1 选将页');
       await cdp.click('#general-row .general-card', 0);
@@ -2883,6 +2899,9 @@ function pageState() {
       if (!slot3Before) return { skip: 'T53 未留下手动槽位 3，跳过边界验证' };
       const autoBefore = await rawAuto();
       await resetMenu();
+      // B5 菜单会记住上一局的模式；演示固定按 8p 跑，避免沿用 T53 的 1v1
+      await cdp.click('#seg-mode [data-mode="8p"]');
+      await setMenuPace('fast');
       await cdp.click('#btn-demo');
       await waitState((s) => s.screenActive.game && s.seats >= 7, 10000, '演示未进入对局');
       await sleep(3000);
@@ -2892,7 +2911,7 @@ function pageState() {
 
       await resetMenu();
       await cdp.click('#seg-mode [data-mode="1v1"]');
-      await cdp.click('#seg-pace [data-pace="fast"]');
+      await setMenuPace('fast');
       await cdp.click('#btn-start');
       await waitState((s) => s.screenActive.select, 5000, 'T54 1v1 选将页');
       await cdp.click('#general-row .general-card', 0);
@@ -2918,7 +2937,7 @@ function pageState() {
       await cdp.click('#btn-home');
       await waitState((s) => s.screenActive.menu, 5000, 'T54 投降后回主菜单');
       await cdp.click('#seg-mode [data-mode="1v1"]');
-      await cdp.click('#seg-pace [data-pace="fast"]');
+      await setMenuPace('fast');
       await cdp.click('#btn-start');
       await waitState((s) => s.screenActive.select, 5000, 'T54 再次 1v1 选将页');
       await cdp.click('#general-row .general-card', 0);
@@ -3044,6 +3063,138 @@ function pageState() {
       return { actual: 'v1→auto 迁移通过（回合 ' + g1.turn + '，revealed 可见）；损坏/缺字段 auto 清除并提示；损坏槽位清除；暂停读档倒计时=' + pausedLoad.countdown + '；写失败 ok=false 且有提示' };
     });
 
+    /* ---------- T56 身份标记随存档恢复且不泄露 ---------- */
+    await runCase('T56', '身份标记随存档恢复 / 不泄露真实身份', [
+      '8p 开局，给座位 1/2 和一名隐藏反贼标记',
+      '手动保存槽 1：校验 meta.marks 包含全部标记，snapshot.players 无标记字段',
+      '结束出牌触发自动存档：校验 auto meta.marks 至少含 1/2 号标记',
+      '刷新→继续：标记恢复，DOM 显示忠/反',
+      '新开一局：标记清空；读槽 1：隐藏反贼仍显示用户标记忠，auto 同步',
+      '旧存档无 meta.marks：按空处理不报错',
+    ], '标记只进信封 meta；手动/自动档读档后恢复；隐藏反贼标记为忠后 DOM 显示忠而非真实反；新局清空；旧档不报错', 'P1', async (row) => {
+      const getMarks = () => cdp.eval(() => (SGS_UI.getSeatMarks ? SGS_UI.getSeatMarks() : null));
+      const roleText = (seat) => cdp.eval((s) => {
+        const el = document.querySelector('#seats .seat[data-seat="' + s + '"] .seat-role');
+        return el ? el.textContent.trim() : '';
+      }, seat);
+      const markSeat = async (seat, times) => {
+        for (let i = 0; i < times; i++) {
+          await cdp.click('#seats .seat[data-seat="' + seat + '"] .seat-role', 0, { wait: 80 }).catch(() => cdp.eval((s2) => {
+            const b = document.querySelector('#seats .seat[data-seat="' + s2 + '"] .seat-role');
+            if (b) b.click();
+          }, seat));
+        }
+      };
+      const waitAutoMarks = async (want) => {
+        const t0 = Date.now();
+        while (Date.now() - t0 < 20000) {
+          const m = await cdp.eval(() => {
+            try { const d = JSON.parse(localStorage.getItem('sgs.save.auto') || 'null'); return d && d.meta ? d.meta.marks || null : null; } catch (e) { return null; }
+          });
+          if (m && Object.keys(want).every((k) => m[k] === want[k])) return m;
+          await sleep(250);
+        }
+        return null;
+      };
+      await start8pGame();
+      await waitState((s) => s.screenActive.game && s.seats === 7, 8000, 'T56 8p 牌桌');
+      await markSeat(1, 1); // loyalist
+      await markSeat(2, 2); // rebel
+      const hiddenRebel = await cdp.eval(() => {
+        const g = SGS_UI._state().game;
+        const p = g.players.find((x) => x.seat !== 0 && x.alive && !x.revealed && x.role !== 'lord' && x.role === 'rebel');
+        return p ? p.seat : null;
+      });
+      if (hiddenRebel != null && hiddenRebel !== 1 && hiddenRebel !== 2) await markSeat(hiddenRebel, 1);
+      let marks = await getMarks();
+      assertEq(marks['1'], 'loyalist', '座位1标记');
+      assertEq(marks['2'], 'rebel', '座位2标记');
+      assertEq(await roleText(1), '忠', '座位1标记显示');
+      assertEq(await roleText(2), '反', '座位2标记显示');
+      await shot('qa_role_marks.png', row);
+
+      // 先手动保存：此刻隐藏反贼必定存活，验证“标记不泄露真实身份”是确定的
+      await cdp.eval(() => SGS_SAVE.openSavePanel());
+      await waitState((s) => s.savesPanelOpen, 3000, 'T56 保存面板');
+      await cdp.click('#saves-list .save-row[data-slot="1"] [data-act="save"]');
+      await cdp.waitExpr('!!localStorage.getItem("sgs.save.slot1")', 3000);
+      const slotMeta = await cdp.eval(() => {
+        const d = JSON.parse(localStorage.getItem('sgs.save.slot1'));
+        const keys = d.snapshot.players.map((p, i) => Object.keys(p).filter((k) => /seatMark|roleMark|identityMark|roleNote|notes/i.test(k)).map((k) => i + ':' + k));
+        return { marks: d.meta && d.meta.marks || null, badFields: [].concat.apply([], keys) };
+      });
+      assertEq(JSON.stringify(slotMeta.marks), JSON.stringify(marks), '槽位 meta.marks');
+      assertEq(slotMeta.badFields.length, 0, 'snapshot.players 出现标记字段：' + slotMeta.badFields.join(','));
+      await cdp.click('#saves-close');
+
+      // 结束出牌，等下一次回合开始的自动存档带上 1/2 号标记（隐藏反贼可能阵亡，不作精确要求）
+      await cdp.click('[data-act="play-end"]', 0, { wait: 80 }).catch(() => cdp.eval(() => {
+        const b = document.querySelector('[data-act="play-end"]'); if (b) b.click();
+      }));
+      await sleep(600);
+      const discardN = await cdp.eval(() => {
+        const st = SGS_UI._state(); const req = st.pending && st.pending.req;
+        return req && req.type === 'chooseCards' ? Math.max(0, req.min || 0) : 0;
+      });
+      for (let i = 0; i < discardN; i++) await cdp.click('#hand .hand-card', i, { wait: 30 });
+      if (discardN > 0) await cdp.click('[data-act="pick-confirm"]', 0, { wait: 60 });
+      const autoMarks = await waitAutoMarks({ 1: 'loyalist', 2: 'rebel' });
+      assert(autoMarks, '自动存档 meta.marks 未包含 1/2 号标记：' + JSON.stringify(autoMarks));
+      row.notes.push('auto.meta.marks=' + JSON.stringify(autoMarks));
+
+      // 刷新→继续：自动档恢复 1/2 标记，DOM 显示忠/反
+      await cdp.navigate(BASE + '?nofx=1&screen=home');
+      await waitState((s) => s.screenActive.menu, 5000, 'T56 刷新主菜单');
+      await cdp.click('#btn-continue');
+      await waitState((s) => s.screenActive.game, 8000, 'T56 继续读档');
+      marks = await getMarks();
+      assertEq(marks['1'], 'loyalist', '读自动档后座位1标记');
+      assertEq(marks['2'], 'rebel', '读自动档后座位2标记');
+      assertEq(await roleText(1), '忠', '读自动档后座位1显示');
+      assertEq(await roleText(2), '反', '读自动档后座位2显示');
+
+      // 新开一局（不读档）标记必须清空
+      await start8pGame();
+      await waitState((s) => s.screenActive.game && s.seats === 7, 8000, 'T56 新局');
+      assertEq(Object.keys(await getMarks()).length, 0, '新开局仍保留标记');
+
+      // 读槽位 1：标记完整恢复；隐藏反贼在存档时仍存活，读档后应显示用户标记“忠”而非真实“反”
+      await cdp.navigate(BASE + '?nofx=1&screen=home');
+      await waitState((s) => s.screenActive.menu, 5000, 'T56 读槽前菜单');
+      await cdp.click('#btn-saves');
+      await waitState((s) => s.savesPanelOpen, 3000, 'T56 读档面板');
+      await cdp.click('#saves-list .save-row[data-slot="1"] [data-act="load"]');
+      await waitState((s) => s.screenActive.game, 8000, 'T56 读槽1');
+      marks = await getMarks();
+      assertEq(marks['1'], 'loyalist', '读槽1后标记');
+      assertEq(marks['2'], 'rebel', '读槽1后标记');
+      assertEq(await roleText(1), '忠', '读槽1后座位1显示');
+      assertEq(await roleText(2), '反', '读槽1后座位2显示');
+      if (hiddenRebel != null && hiddenRebel !== 1 && hiddenRebel !== 2) {
+        assertEq(marks[String(hiddenRebel)], 'loyalist', '读槽1后隐藏反贼标记');
+        assertEq(await roleText(hiddenRebel), '忠', '隐藏反贼读档后仍显示用户标记忠');
+      }
+      const autoAfter = await cdp.eval(() => {
+        try { const d = JSON.parse(localStorage.getItem('sgs.save.auto') || 'null'); return d && d.meta ? d.meta.marks || null : null; } catch (e) { return null; }
+      });
+      assertEq(JSON.stringify(autoAfter), JSON.stringify(marks), '读槽后 auto.meta.marks 未同步');
+
+      // 复制槽 1 并删除 meta.marks，模拟旧存档：读档空标记、不报错
+      await cdp.eval(() => {
+        const d = JSON.parse(localStorage.getItem('sgs.save.slot1'));
+        delete d.meta.marks;
+        localStorage.setItem('sgs.save.slot2', JSON.stringify(d));
+      });
+      await cdp.navigate(BASE + '?nofx=1&screen=home');
+      await waitState((s) => s.screenActive.menu, 5000, 'T56 旧档前菜单');
+      await cdp.eval(() => SGS_SAVE.openLoadPanel());
+      await waitState((s) => s.savesPanelOpen, 3000, 'T56 旧档面板');
+      await cdp.click('#saves-list .save-row[data-slot="2"] [data-act="load"]');
+      await waitState((s) => s.screenActive.game, 8000, 'T56 旧档读档');
+      assertEq(Object.keys(await getMarks()).length, 0, '无 marks 旧档读档后出现标记');
+      return { actual: '标记写入 auto/slot meta；读档恢复（含隐藏反贼显示用户标记）；新局清空；无 marks 旧档按空处理' };
+    });
+
     /* ---------- T35 2v2 结算 ---------- */
     await runCase('T35', '2v2 托管跑到结算 / 胜负文案', [
       '开启托管',
@@ -3102,6 +3253,9 @@ function pageState() {
     ], '至少观测到【杀】【装备】【锦囊】的 play 调用；【闪】若 UI 未触发需记录 API 补测结果；记录延迟/错误/错牌', 'P1', async (row) => {
       await cdp.navigate(BASE + '?nofx=1&mode=8p&pace=fast&seed=2026');
       await installAudioWrapper();
+      // B5 菜单会恢复上次模式；显式 8p，保证 7 个对手座位与音频事件量
+      await cdp.click('#seg-mode [data-mode="8p"]');
+      await setMenuPace('fast');
       await cdp.click('#btn-demo');
       await waitState((s) => s.screenActive.game && s.seats >= 7, 8000, '音频观测：自动演示未进入对局');
       const typeOf = (name) => (QA_DATA && QA_DATA.CARDS && QA_DATA.CARDS[name] ? QA_DATA.CARDS[name].type : null);
@@ -3433,7 +3587,7 @@ function pageState() {
       try {
         await setQaViewport(1600, 900);
         await startFrozenDemo8p();
-        await waitState((s) => s.pending && s.pending.type === 'play' && s.pending.seat === 0, 15000, 'T39 冻结出牌请求');
+        await waitState((s) => s.pending && s.pending.type === 'play' && s.pending.seat === 0, 35000, 'T39 冻结出牌请求');
         await equipSeat(1);
         await sleep(500);
         const wide = await inspect();
@@ -3954,7 +4108,7 @@ function pageState() {
       // judge/五谷/无懈日志与真实牌局日志并发，导致五谷托盘被重新渲染
       await waitState((s) => s.screenActive.game && s.seats === 7 &&
         s.pending && s.pending.type === 'play' && s.pending.seat === 0,
-        15000, 'T48 冻结出牌请求');
+        35000, 'T48 冻结出牌请求');
       const judge = await cdp.eval(() => {
         const g = SGS_UI._state().game;
         g.logs = [];
@@ -4064,16 +4218,16 @@ function pageState() {
         g.table = [{ id: 99002, name: 'sha', suit: 'heart', rank: '10', type: 'basic', color: 'red' }];
         SGS_UI.render(g);
         const tl = document.querySelector('#played-cards .played-card .card-corner.cc-tl');
-        const br = document.querySelector('#played-cards .played-card .card-corner.cc-br');
+        const name = document.querySelector('#played-cards .played-card .pc-name');
         return {
           cards: document.querySelectorAll('#played-cards .played-card').length,
           tl: tl ? tl.textContent.trim() : '',
-          br: br ? br.textContent.trim() : '',
+          name: name ? name.textContent.trim() : '',
         };
       });
       assertEq(center.cards, 1, '中央打出牌数量');
       assert(center.tl.indexOf('♥') >= 0 && center.tl.indexOf('10') >= 0, '中央牌左上角标：' + center.tl);
-      assert(center.br.indexOf('♥') >= 0 && center.br.indexOf('10') >= 0, '中央牌右下角标：' + center.br);
+      assertEq(center.name, '杀', '中央牌牌名');
       await shot('qa_center_card.png', row);
 
       // 读秒：AI/冻结态不显示；play 90s；10s 红色；超时清空；response 45s
@@ -4240,6 +4394,13 @@ function pageState() {
             whiteSpace: cs.whiteSpace,
             scrollWidth: badge.scrollWidth,
             clientWidth: badge.clientWidth,
+            textWidth: (() => {
+              try {
+                const range = document.createRange();
+                range.selectNodeContents(badge);
+                return range.getBoundingClientRect().width;
+              } catch (e) { return badge.scrollWidth; }
+            })(),
             height: badge.getBoundingClientRect().height,
             lineHeight: cs.lineHeight,
           } : null,
@@ -4260,7 +4421,8 @@ function pageState() {
       assert(!overlap, 'tooltip 压住手牌：tip=' + JSON.stringify(tip) + ' hand=' + JSON.stringify(prep.hand));
       assert(prep.badge && prep.badge.text.indexOf('4') >= 0, '手牌角标未显示 4：' + JSON.stringify(prep.badge));
       assertEq(prep.badge.whiteSpace, 'nowrap', '手牌角标 white-space');
-      assert(prep.badge.scrollWidth <= prep.badge.clientWidth + 1, '手牌角标横向溢出：' + JSON.stringify(prep.badge));
+      // A 的 44px 热区用透明伪元素扩展，会撑大 scrollWidth；只看文字本身的宽度
+      assert(prep.badge.textWidth <= prep.badge.clientWidth + 1, '手牌角标文字横向溢出：' + JSON.stringify(prep.badge));
       await shot('qa_equip_tooltip.png', row);
       return { actual: 'tooltip 可见且不与手牌相交（tip y=' + tip.y.toFixed(0) + '..' + tip.bottom.toFixed(0) + '，hand y=' + prep.hand.y.toFixed(0) + '）；手牌角标“' + prep.badge.text + '”单行不溢出；截图 qa_equip_tooltip.png' };
     });

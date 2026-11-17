@@ -123,6 +123,8 @@
       turn: Math.max(1, Number(snap && snap.turnCount) || 0),
       general: me && me.general ? me.general.name : '—',
       time: time || Date.now(),
+      // 身份标记是玩家私有笔记：只进信封 meta，不写 players
+      marks: (UI && typeof UI.getSeatMarks === 'function') ? UI.getSeatMarks() : {},
     };
   }
 
@@ -410,6 +412,9 @@
       UI.toast('存档损坏，无法继续', true);
       UI.showScreen('menu');
       return;
+    }
+    if (save.meta && save.meta.marks && UI.applySeatMarks) {
+      try { UI.applySeatMarks(save.meta.marks); } catch (e) { /* 标记恢复失败不影响读档 */ }
     }
     UI.render(game);
     // 手动档读入后，自动档从这一局继续滚动；同时让 lastSnapshot 立即可用
