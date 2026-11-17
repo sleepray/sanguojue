@@ -291,7 +291,7 @@ const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',')
     const g = game([{ name: '吕蒙', skills: ['keji'] }, { name: '甲', skills: [] }]);
     const p = g.players[0];
     p.hand = [C('sha', 'spade', 7), C('sha', 'club', 8), C('sha', 'heart', 9), C('sha', 'diamond', 10), C('sha', 'spade', 11), C('sha', 'club', 12)];
-    g.handler = async (pl, req) => { if (req.type === 'response') return { cardId: req.options[0].cardId }; return 'no'; };
+    g.handler = async (pl, req) => { if (req.type === 'response' && req.options && req.options.length) return { cardId: req.options[0].cardId }; return 'no'; };
     await g.askForSha(p, { reason: 'test' });
     const slashCount = p.slashCount;
     let kejiAsked = false;
@@ -475,7 +475,7 @@ const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',')
     p.hand = [C('sha', 'spade', 7), C('shan', 'heart', 2)];
     q.hand = [C('shan', 'diamond', 2)];
     g.handler = async (pl, req) => {
-      if (pl.seat === 1 && req.type === 'response') return { cardId: req.options[0].cardId };
+      if (pl.seat === 1 && req.type === 'response' && req.options && req.options.length) return { cardId: req.options[0].cardId };
       if (pl.seat === 0 && req.type === 'chooseOption' && /贯石斧/.test(req.reason || '')) return 'yes';
       if (pl.seat === 0 && req.type === 'chooseCards') return req.cards.slice(0, 2).map((c) => c.id);
       return null;
@@ -491,7 +491,7 @@ const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',')
     p.hand = [C('sha', 'club', 8)];
     q.hand = [C('shan', 'heart', 2)];
     g.handler = async (pl, req) => {
-      if (pl.seat === 1 && req.type === 'response') return { cardId: req.options[0].cardId };
+      if (pl.seat === 1 && req.type === 'response' && req.options && req.options.length) return { cardId: req.options[0].cardId };
       if (pl.seat === 0 && req.type === 'chooseOption' && /青龙/.test(req.reason || '')) return 'yes';
       return null;
     };
@@ -692,7 +692,7 @@ const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',')
     g.players[0].hand = [C('wuxie', 'spade', 11)];
     g.players[1].hand = [C('wuxie', 'club', 12)];
     let n = 0;
-    g.handler = async (pl, req) => { if (req.need === 'wuxie') { n++; return { cardId: req.options[0].cardId }; } return null; };
+    g.handler = async (pl, req) => { if (req.need === 'wuxie' && req.options && req.options.length) { n++; return { cardId: req.options[0].cardId }; } return null; };
     const vc = { id: -40, name: 'guohe', type: 'trick', suit: 'spade', color: 'black', cards: [] };
     const res = await g.isNullified(vc, g.players[0], g.players[1]);
     t('T56', '无懈链反抵消', n === 2 && res === false, '两张无懈应互相抵消。实际询问次数=' + n + '，结果=' + res);
@@ -704,7 +704,7 @@ const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',')
     killer.equips.weapon = C('qinglong', 'spade', 5);
     killer.hand = [C('sha', 'spade', 7)];
     g.handler = async (pl, req) => {
-      if (pl.seat === 1 && req.type === 'response') return { cardId: req.options[0].cardId };
+      if (pl.seat === 1 && req.type === 'response' && req.options && req.options.length) return { cardId: req.options[0].cardId };
       return null;
     };
     await g.resolveCollateral(p, { id: -41, name: 'jiedao', type: 'trick', color: 'club', cards: [] }, [killer, victim]);
@@ -803,8 +803,8 @@ const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',')
     r.hand = [C('wuxie', 'club', 12)];
     g.handler = async (pl, req) => {
       if (req.need === 'wuxie') {
-        if (pl.seat === 1 && !req.negated) return { cardId: req.options[0].cardId };
-        if (pl.seat === 2 && req.negated) return { cardId: req.options[0].cardId };
+        if (pl.seat === 1 && !req.negated && req.options && req.options.length) return { cardId: req.options[0].cardId };
+        if (pl.seat === 2 && req.negated && req.options && req.options.length) return { cardId: req.options[0].cardId };
       }
       return null;
     };
@@ -828,7 +828,7 @@ const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',')
       if (req.need === 'wuxie' && pl.seat === 1 && !req.negated) {
         asked = true;
         pending = g.pendingRequest ? g.pendingRequest.type + '/' + g.pendingRequest.need : 'null';
-        return { cardId: req.options[0].cardId };
+        return req.options && req.options.length ? { cardId: req.options[0].cardId } : null;
       }
       return null;
     };
@@ -864,8 +864,8 @@ const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',')
     g.deck = [C('sha', 'spade', 2), C('sha', 'club', 3)];
     g.handler = async (pl, req) => {
       if (req.need === 'wuxie') {
-        if (pl.seat === 1 && !req.negated) return { cardId: req.options[0].cardId };
-        if (pl.seat === 2 && req.negated) return { cardId: req.options[0].cardId };
+        if (pl.seat === 1 && !req.negated && req.options && req.options.length) return { cardId: req.options[0].cardId };
+        if (pl.seat === 2 && req.negated && req.options && req.options.length) return { cardId: req.options[0].cardId };
       }
       return null;
     };
@@ -2336,7 +2336,7 @@ const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',')
     g.deck = [C('shan', 'diamond', 3)];
     let asks = 0;
     g.handler = async (pl, req) => {
-      if (req.type === 'response') return { cardId: req.options[0].cardId };
+      if (req.type === 'response' && req.options && req.options.length) return { cardId: req.options[0].cardId };
       if (req.type === 'chooseOption' && /激将/.test(req.reason || '')) { asks++; return 'yes'; }
       return null;
     };
@@ -4028,6 +4028,168 @@ const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',')
     const json = JSON.stringify(g.snapshot());
     const bytes = Buffer.byteLength(json, 'utf8');
     t('T260', '8 人局快照大小记录', bytes > 0 && bytes < 512 * 1024, '单档=' + bytes + ' 字节（' + (bytes / 1024).toFixed(1) + ' KB）');
+  }
+
+  // T261 AI 视野 Proxy 回归（每个模式少量；完整 50 局用 node tools/ai_vision_check.js）
+  {
+    let vr = null, err = null;
+    try {
+      const vision = require(path.join(__dirname, 'ai_vision_check.js'));
+      vr = await vision.runVisionAudit({ games: 2, modes: ['8p', '5p', '3v3', 'ddz', '1v1'] });
+    } catch (e) { err = e; }
+    t('T261', 'AI 视野 Proxy 回归', !err && vr && vr.violations.length === 0 && vr.errors.length === 0,
+      err ? ('异常：' + err.message) : ('games=' + vr.games + ' 违规=' + vr.violations.length + ' 错误=' + vr.errors.length));
+  }
+
+  // T262 公开行为推断：连续两次对主公出杀，忠臣视角 enemy / 反贼视角 friend
+  {
+    const g = game([
+      { name: '观察忠', role: 'loyalist', hp: 4 },
+      { name: '行为人', role: 'rebel', hp: 4 },
+      { name: '主公', role: 'lord', hp: 4 },
+      { name: '观察反', role: 'rebel', hp: 4 },
+    ], { mode: '8p' });
+    g.lordSeat = 2;
+    g.recent = [
+      { kind: 'use', seat: 1, card: 'sha', targets: [2] },
+      { kind: 'use', seat: 1, card: 'sha', targets: [2] },
+    ];
+    const loyal = new SGS.AI(g, 0, { speed: 0 });
+    const rebel = new SGS.AI(g, 3, { speed: 0 });
+    loyal.scanPublicEvents(); rebel.scanPublicEvents();
+    const lr = loyal.relation(g.players[1]);
+    const rr = rebel.relation(g.players[1]);
+    t('T262', '公开行为推断：攻主公→忠敌反友', lr === 'enemy' && rr === 'friend',
+      '忠臣视角=' + lr + '，反贼视角=' + rr + '（行为人真实身份=' + g.players[1].role + '，未被读取）');
+  }
+
+  // T263 公开行为推断：援助主公 / 救主公 → 忠臣视角 friend、反贼视角 enemy
+  {
+    const g = game([
+      { name: '观察忠', role: 'loyalist', hp: 4 },
+      { name: '行为人', role: 'rebel', hp: 4 },
+      { name: '主公', role: 'lord', hp: 4 },
+      { name: '观察反', role: 'rebel', hp: 4 },
+    ], { mode: '8p' });
+    g.lordSeat = 2;
+    g.recent = [
+      { kind: 'use', seat: 1, card: 'tao', targets: [2] },
+      { kind: 'use', seat: 1, card: 'tao', targets: [2] },
+    ];
+    const loyal = new SGS.AI(g, 0, { speed: 0 });
+    const rebel = new SGS.AI(g, 3, { speed: 0 });
+    loyal.scanPublicEvents(); rebel.scanPublicEvents();
+    const lr = loyal.relation(g.players[1]);
+    const rr = rebel.relation(g.players[1]);
+    const g2 = game([
+      { name: '观察忠2', role: 'loyalist', hp: 4 },
+      { name: '救人者', role: 'rebel', hp: 4 },
+      { name: '主公2', role: 'lord', hp: 4 },
+      { name: '观察反2', role: 'rebel', hp: 4 },
+    ], { mode: '8p' });
+    g2.lordSeat = 2;
+    g2.recent = [{ kind: 'rescue', seat: 1, dyingSeat: 2, phase: 'save' }];
+    const l2 = new SGS.AI(g2, 0, { speed: 0 }); l2.scanPublicEvents();
+    t('T263', '公开行为推断：援助/救主→忠友反敌', lr === 'friend' && rr === 'enemy' && l2.relation(g2.players[1]) === 'friend',
+      '桃援助：忠=' + lr + '/反=' + rr + '；救主：忠=' + l2.relation(g2.players[1]));
+  }
+
+  // T264 AI 打牌逻辑：不伤友、不帮敌、不救敌、无懈方向、空城/帷幕、结束出牌
+  {
+    const g = game([
+      { name: 'AI', role: 'loyalist', hp: 4, skills: [] },
+      { name: '友', role: 'loyalist', hp: 2, skills: [] },
+      { name: '敌', role: 'rebel', hp: 2, skills: [] },
+      { name: '主', role: 'lord', hp: 3, skills: [] },
+    ], { mode: '8p' });
+    g.lordSeat = 3;
+    g.players[1].revealed = true;
+    g.players[2].revealed = true;
+    const ai = new SGS.AI(g, 0, { speed: 0 });
+    const friend = g.players[1], enemy = g.players[2], lord = g.players[3];
+    const sha = C('sha', 'spade', 7);
+    g.players[0].hand = [sha, C('tao', 'heart', 2), C('wuxie', 'spade', 3)];
+    const ctx = { card: sha, color: 'black', nature: 'normal', a: {} };
+    const vf = ai.targetValue(friend, 'sha', ctx);
+    const ve = ai.targetValue(enemy, 'sha', ctx);
+    const killTargets = (() => {
+      g.players[0].hand = [C('sha', 'spade', 7)];
+      return ai.chooseTargets({ type: 'chooseTargets', player: g.players[0], candidates: [0, 1, 2], min: 1, max: 1, reason: '杀的目标' });
+    })();
+    const healTargets = ai.chooseTargets({ type: 'chooseTargets', player: g.players[0], candidates: [0, 1, 2], min: 1, max: 1, reason: '回复' });
+    g.players[0].hand = [C('tao', 'heart', 2), C('tao', 'diamond', 2), C('wuxie', 'spade', 3)];
+    const taoId = g.players[0].hand[0].id;
+    const saveEnemy = ai.choosePeachResponse({ dyingSeat: 2, options: [{ cardId: taoId }] });
+    const saveLord = ai.choosePeachResponse({ dyingSeat: 3, options: [{ cardId: taoId }] });
+    const saveFriend = ai.choosePeachResponse({ dyingSeat: 1, options: [{ cardId: taoId }] });
+    const wuxieId = g.players[0].hand[2].id;
+    const wxFriend = ai.chooseWuxie({ card: { name: 'juedou' }, targetSeat: 1, negated: false, options: [{ cardId: wuxieId }] });
+    const wxEnemy = ai.chooseWuxie({ card: { name: 'juedou' }, targetSeat: 2, negated: false, options: [{ cardId: wuxieId }] });
+    const wxEnemyCounter = ai.chooseWuxie({ card: { name: 'juedou' }, targetSeat: 2, negated: true, options: [{ cardId: wuxieId }] });
+    // 空城：诸葛亮空手时【杀】不再指定
+    g.players[2].skills = ['kongcheng']; g.players[2].hand = [];
+    const vKong = ai.targetValue(g.players[2], 'sha', ctx);
+    // 帷幕：黑锦囊 AOE 对贾诩无效
+    g.players[2].skills = ['weimu'];
+    const weimuImmune = ai.aoeImmune(g.players[2], 'nanman', 'black');
+    const emptyPlay = await ai.choosePlay({ type: 'play', player: g.players[0], actions: [] });
+    const ok = vf <= 0 && ve > vf && killTargets.length === 1 && killTargets[0] === 2 &&
+      healTargets.length === 1 && healTargets[0] !== 2 &&
+      saveEnemy === null && !!saveLord && !!saveFriend &&
+      !!wxFriend && wxEnemy === null && !!wxEnemyCounter &&
+      vKong === -100 && weimuImmune === true && emptyPlay && emptyPlay.kind === 'end';
+    t('T264', 'AI 不伤友/不帮敌/救主/无懈方向/空城帷幕/结束', ok,
+      '杀目标=' + JSON.stringify(killTargets) + ' 回复目标=' + JSON.stringify(healTargets) +
+      ' 救敌=' + (saveEnemy === null ? '拒绝' : '救') + ' 救主=' + (!!saveLord) + ' 救友=' + (!!saveFriend) +
+      ' 无懈友=' + (!!wxFriend) + ' 无懈敌=' + (!!wxEnemy) + ' 反无懈=' + (!!wxEnemyCounter) +
+      ' 空城=' + vKong + ' 帷幕=' + weimuImmune + ' 空动作=' + (emptyPlay && emptyPlay.kind));
+  }
+
+  // T265 推断随行为调整 + 内奸均势目标
+  {
+    const g = game([
+      { name: '观察忠', role: 'loyalist', hp: 4 },
+      { name: '行为人', role: 'rebel', hp: 4 },
+      { name: '主公', role: 'lord', hp: 4 },
+      { name: '观察反', role: 'rebel', hp: 4 },
+    ], { mode: '8p' });
+    g.lordSeat = 2;
+    g.recent = [
+      { kind: 'use', seat: 1, card: 'sha', targets: [2] },
+      { kind: 'use', seat: 1, card: 'sha', targets: [2] },
+      { kind: 'rescue', seat: 1, dyingSeat: 2, phase: 'save' },
+      { kind: 'rescue', seat: 1, dyingSeat: 2, phase: 'save' },
+      { kind: 'rescue', seat: 1, dyingSeat: 2, phase: 'save' },
+    ];
+    const loyal = new SGS.AI(g, 0, { speed: 0 });
+    loyal.scanPublicEvents();
+    const adjusted = loyal.relation(g.players[1]);
+    // 内奸：反贼仍在时保主公，反贼清空后与主公为敌
+    const rg = game([
+      { name: '内奸', role: 'renegade', hp: 4 },
+      { name: '反贼', role: 'rebel', hp: 4 },
+      { name: '主公', role: 'lord', hp: 4 },
+    ], { mode: '5p' });
+    rg.lordSeat = 2;
+    rg.players[1].revealed = true; // 反贼身份已公开，内奸才能按均势判断
+    const renegade = new SGS.AI(rg, 0, { speed: 0 });
+    const lordFriend = renegade.relation(rg.players[2]);
+    rg.players[1].alive = false;
+    const lordEnemy = renegade.relation(rg.players[2]);
+    t('T265', '推断随行为调整 / 内奸均势', adjusted === 'friend' && lordFriend === 'friend' && lordEnemy === 'enemy',
+      '攻击2次+救主3次后忠臣视角=' + adjusted + '；内奸：反贼存活时对主公=' + lordFriend + '，反贼清空后=' + lordEnemy);
+  }
+
+  // T266 无懈询问不按手牌预先跳过（避免“谁没被问/谁停顿”泄露有无无懈）
+  {
+    const g = game([{ name: '甲', skills: [] }, { name: '乙', skills: [] }, { name: '丙', skills: [] }]);
+    g.handler = async () => null;
+    const vc = { id: -70, name: 'guohe', type: 'trick', suit: 'spade', color: 'black', cards: [] };
+    await g.isNullified(vc, g.players[0], g.players[1]);
+    const asks = g._asks.filter((r) => r && r.need === 'wuxie');
+    const seats = Array.from(new Set(asks.map((r) => r.player && r.player.seat))).sort();
+    t('T266', '无懈对所有 AI 走询问', seats.length === 3 && asks.every((r) => Array.isArray(r.options)),
+      '询问座位=' + JSON.stringify(seats) + '，询问次数=' + asks.length + '（三人均无无懈仍应各问一次）');
   }
 
   // 汇总（SKIP 不计入失败，单独统计）

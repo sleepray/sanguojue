@@ -58,6 +58,7 @@
 
     async decide(req) {
       await this.delay(req.type === 'play' ? 1 : 0.55);
+      this.scanPublicEvents();
       switch (req.type) {
         case 'chooseGeneral': return this.chooseGeneral(req);
         case 'play': return this.choosePlay(req);
@@ -76,37 +77,141 @@
 
     // ---------------- 身份关系 ----------------
     lordSeat() { return this.game.lordSeat; }
+    isLord(q) { return !!q && q.seat === this.game.lordSeat; }
+    // 只返回公开身份：自己、1v1/团队/斗地主、主公、已 revealed；否则 null。
+    // 严禁为了“判断是否公开”而读取未公开的 role。
+    knownRole(q) {
+      if (!q) return null;
+      if (q.seat === this.seat) return this.p.role;
+      if (this.game.mode === '1v1' || this.game.teamMode || this.game.ddzMode) return q.role;
+      if (q.seat === this.game.lordSeat) return 'lord';
+      if (q.revealed) return q.role;
+      return null;
+    }
+    revelationCounts() {
+      const me = this.p;
+      const revealedRebels = this.alive.filter((q) => q.seat !== me.seat && q.revealed && q.role === 'rebel').length;
+      const revealedLoyal = this.alive.filter((q) => q.seat !== me.seat && q.revealed && q.role === 'loyalist').length;
+      return {
+        rebels: revealedRebels + (me.role === 'rebel' ? 1 : 0),
+        loyal: revealedLoyal + (me.role === 'loyalist' ? 1 : 0),
+        lordAlive: !!(this.game.lord && this.game.lord.alive),
+      };
+    }
+    // 基于公开阵营的“目标对我是友/敌”：+1 友、-1 敌、0 中立；仅用已知身份。
+    campViewOf(knownRole) {
+      if (!knownRole) return 0;
+      const me = this.p;
+      if (me.role === 'lord' || me.role === 'loyalist') {
+        if (knownRole === 'rebel') return -1;
+        if (knownRole === 'lord' || knownRole === 'loyalist') return 1;
+        return 0;
+      }
+      if (me.role === 'rebel') {
+        if (knownRole === 'lord' || knownRole === 'loyalist') return -1;
+        if (knownRole === 'rebel') return 1;
+        return 0;
+      }
+      // 内奸：反贼在时保主公；均势时按人数判断
+      const c = this.revelationCounts();
+      if (knownRole === 'lord') return c.rebels > 0 ? 1 : -1;
+      if (knownRole === 'rebel') return c.rebels >= (c.loyal + (c.lordAlive ? 1 : 0)) ? -1 : 0;
+      if (knownRole === 'loyalist') return c.rebels === 0 ? -1 : 0;
+      return 0;
+    }
+    inferThreshold() { return this.p.role === 'renegade' ? 3 : 2; }
+    inferred(seat) {
+      const sc = (this.infer && this.infer.scores[seat]) || 0;
+      const t = this.inferThreshold();
+      if (sc >= t) return 'friend';
+      if (sc <= -t) return 'enemy';
+      return 'neutral';
+    }
+    noteInference(seat, delta) {
+      if (seat == null || seat === this.seat || !delta) return;
+      if (!this.infer) this.infer = { scores: {}, tail: null };
+      const cur = this.infer.scores[seat] || 0;
+      this.infer.scores[seat] = Math.max(-6, Math.min(6, cur + delta));
+    }
+    // 只扫描公开事件（recent），每个 AI 私有保存；不写回玩家数据。
+    scanPublicEvents() {
+      if (!this.infer) this.infer = { scores: {}, tail: null };
+      const rec = this.game.recent || [];
+      let start = 0;
+      if (this.infer.tail) {
+        const idx = rec.lastIndexOf(this.infer.tail);
+        if (idx >= 0) start = idx + 1;
+        else { this.infer.scores = {}; start = 0; } // recent 窗口已滚掉旧事件，避免重复累计
+      }
+      for (let i = start; i < rec.length; i++) this.observePublicEvent(rec[i]);
+      this.infer.tail = rec.length ? rec[rec.length - 1] : null;
+    }
+    observePublicEvent(ev) {
+      if (!ev) return;
+      const me = this.p;
+      const harmful = ['sha', 'huosha', 'leisha', 'juedou', 'guohe', 'shunshou', 'huogong', 'jiedao', 'nanman', 'wanjian', 'lebu', 'bingliang', 'shandian'];
+      const helpful = ['tao', 'wuzhong', 'taoyuan', 'wugu', 'wuxie'];
+      const evaluate = (actor, target, sign) => {
+        if (actor == null || target == null || actor === target || actor === this.seat) return;
+        if (target === this.seat) { this.noteInference(actor, -sign * 3); return; }
+        const known = this.knownRole(this.game.players[target]);
+        if (target === this.game.lordSeat) {
+          // 对主公敌意/援助：按自己阵营放大（sign=+1 伤害、-1 援助）
+          this.noteInference(actor, -sign * 2.5 * this.campViewOf('lord'));
+          return;
+        }
+        const view = this.campViewOf(known);
+        if (view) this.noteInference(actor, -sign * view * 1.2);
+      };
+      if (ev.kind === 'use' && Array.isArray(ev.targets)) {
+        const isHarm = harmful.indexOf(ev.card) >= 0;
+        const isHelp = helpful.indexOf(ev.card) >= 0;
+        if (!isHarm && !isHelp) return;
+        for (const t of ev.targets) evaluate(ev.seat, t, isHarm ? 1 : -1);
+        return;
+      }
+      if (ev.kind === 'rescue' && ev.phase === 'save') {
+        // 谁救了谁：救主公/救自己/救阵营朋友是忠臣信号
+        const actor = ev.seat, dying = ev.dyingSeat;
+        if (actor == null || dying == null || actor === this.seat) return;
+        if (dying === this.seat) { this.noteInference(actor, 3); return; }
+        if (dying === this.game.lordSeat) { this.noteInference(actor, 3 * this.campViewOf('lord')); return; }
+        const known = this.knownRole(this.game.players[dying]);
+        const view = this.campViewOf(known);
+        if (view) this.noteInference(actor, view * 1.5);
+      }
+    }
     relation(other) {
       if (!other) return 'neutral';
       const me = this.p;
       if (other.seat === me.seat) return 'self';
-      // 1v1 只有两名玩家，对手身份公开；不读隐藏身份字段
       if (this.game.mode === '1v1') return 'enemy';
-      // 团队/斗地主身份公开；身份局只认公开身份（主公/已揭示）
-      if (this.game.teamMode || this.game.ddzMode) return me.role === other.role ? 'friend' : 'enemy';
-      // 身份局只认公开身份：主公、已揭示；反贼也不互认
-      let known = other.role === 'lord' || !!other.revealed;
-      if (!known) return 'neutral';
-      const aliveRebels = this.alive.filter((q) => q.role === 'rebel' && (q.revealed || q === me)).length;
-      const aliveLoyal = this.alive.filter((q) => q.role === 'loyalist' && q.revealed).length;
+      if (this.game.teamMode || this.game.ddzMode) {
+        const a = this.knownRole(me), b = this.knownRole(other);
+        return a && b && a === b ? 'friend' : 'enemy';
+      }
+      const known = this.knownRole(other);
+      if (!known) return this.inferred(other.seat);
+      const counts = this.revelationCounts();
+      const aliveRebels = counts.rebels;
+      const lordCamp = counts.loyal + (counts.lordAlive ? 1 : 0);
       if (me.role === 'lord' || me.role === 'loyalist') {
-        if (other.role === 'lord' || (other.revealed && other.role === 'loyalist')) return 'friend';
-        if (other.revealed && other.role === 'rebel') return 'enemy';
+        if (known === 'lord' || known === 'loyalist') return 'friend';
+        if (known === 'rebel') return 'enemy';
         return 'neutral';
       }
       if (me.role === 'rebel') {
-        if (other.role === 'lord' || (other.revealed && other.role === 'loyalist')) return 'enemy';
-        if (other.revealed && other.role === 'rebel') return 'friend';
+        if (known === 'lord' || known === 'loyalist') return 'enemy';
+        if (known === 'rebel') return 'friend';
         return 'neutral';
       }
       // 内奸：只知道主公与已揭示角色；不按真实人数透视
-      const lordCamp = aliveLoyal + (this.game.lord && this.game.lord.alive ? 1 : 0);
-      if (other.role === 'lord') return aliveRebels > 0 ? 'friend' : 'enemy';
-      if (other.revealed && other.role === 'loyalist') {
+      if (known === 'lord') return aliveRebels > 0 ? 'friend' : 'enemy';
+      if (known === 'loyalist') {
         if (aliveRebels === 0) return 'enemy';
         return lordCamp > aliveRebels ? 'enemy' : 'neutral';
       }
-      if (other.revealed && other.role === 'rebel') {
+      if (known === 'rebel') {
         if (aliveRebels >= lordCamp) return 'enemy';
         return 'neutral';
       }
@@ -122,7 +227,7 @@
       let t = GENERAL_THREAT[q.general ? q.general.name : ''] || 0;
       if (q.hp >= 3) t += 0.5;
       if (q.hand.length >= 4) t += 0.5;
-      if (q.role === 'lord') t += 1;
+      if (q.seat === this.game.lordSeat) t += 1;
       return t;
     }
 
@@ -137,7 +242,7 @@
       s += (other.maxHp - other.hp) * 2;
       s += Math.max(0, 4 - other.hp) * 5;
       if (other.hand.length === 0) s += 12;
-      if (other.role === 'lord') s += 10;
+      if (other.seat === this.game.lordSeat) s += 10;
       if (other.hp <= 1) s += 8;
       s += this.threatOf(other) * 1.5;
       return s;
@@ -146,6 +251,13 @@
       if (!q) return 0;
       const rel = this.relation(q);
       return (q.maxHp - q.hp) * 10 + (rel === 'friend' || rel === 'self' ? 8 : 0) - (rel === 'enemy' ? 30 : 0);
+    }
+    // 公开总牌数：手牌数量 + 装备 + 判定；不触碰他人手牌内容
+    publicCardCount(q) {
+      if (!q) return 0;
+      return (q.hand ? q.hand.length : 0) +
+        Object.values(q.equips || {}).filter(Boolean).length +
+        (q.judges ? q.judges.length : 0);
     }
     rankTargets(cands, valueFn) {
       const p = this.p;
@@ -289,7 +401,7 @@
         else if (q.hand.length === 1) v += 1.5;
         if (q.hp <= 1) v += 9;
         v += (q.maxHp - q.hp) * 0.8;
-        v += q.role === 'lord' ? 4 : 0;
+        v += q.seat === this.game.lordSeat ? 4 : 0;
         if (p.skills.includes('wushuang')) v += 3;
         if (p.drank) { v += 3; if (q.hp <= 2) v += 5; }
         if (armor && armor.name === 'bagua') v -= 2;
@@ -336,13 +448,13 @@
       if (as === 'lebu') {
         if (!enemy) return -100;
         let v = 9 + this.threatOf(q) + (q.hand.length ? 1 : 0);
-        if (q.role === 'lord') v += 4;
+        if (q.seat === this.game.lordSeat) v += 4;
         if (q.hp <= 1) v -= 3; // 快死的人不用乐
         return v;
       }
       if (as === 'bingliang') {
         if (!enemy) return -100;
-        return 7 + this.threatOf(q) + (q.hand.length >= 3 ? 2 : 0) + (q.role === 'lord' ? 3 : 0);
+        return 7 + this.threatOf(q) + (q.hand.length >= 3 ? 2 : 0) + (q.seat === this.game.lordSeat ? 3 : 0);
       }
       if (as === 'tiesuo') {
         if (!enemy || q.chained) return -100;
@@ -401,7 +513,7 @@
           dodge = Math.max(dodge, 0.5);
         }
         const hit = 1 - dodge;
-        if (rel === 'enemy') { enemies++; s += (6 + (q.hp <= 1 ? 6 : 0) + (q.role === 'lord' ? 2 : 0)) * hit; }
+        if (rel === 'enemy') { enemies++; s += (6 + (q.hp <= 1 ? 6 : 0) + (q.seat === this.game.lordSeat ? 2 : 0)) * hit; }
         else if (rel === 'friend') s -= (9 + (q.hp <= 1 ? 12 : 0) + (q.seat === this.lordSeat() ? 8 : 0)) * hit;
       }
       if (!enemies) return 0;
@@ -668,7 +780,7 @@
             if (!eqVals.length || Math.min(...eqVals) > 6) return 0;
           }
           if (!enemies.some((q) => q.hand.length)) return 0;
-          return 7 + (enemies.some((q) => q.hp <= 1 || q.role === 'lord') ? 1 : 0);
+          return 7 + (enemies.some((q) => q.hp <= 1 || q.seat === this.game.lordSeat) ? 1 : 0);
         }
         case 'j_guose': {
           const diamonds = hand.filter((c) => this.cardSuit(c) === 'diamond');
@@ -967,7 +1079,7 @@
           return f.length ? [f[0].seat] : [];
         }
         case 'jixi': {
-          const e = this.rankTargets(cands.filter((q) => this.isEnemy(q) && this.game.allCardsOf(q).length), (q) => this.scoreTarget(q));
+          const e = this.rankTargets(cands.filter((q) => this.isEnemy(q) && this.publicCardCount(q)), (q) => this.scoreTarget(q));
           return e.length ? [e[0].q.seat] : [];
         }
         case 'zhiba': {
@@ -1046,8 +1158,8 @@
       }).length;
       // 内奸：反贼还在时保主公
       if (p.role === 'renegade') {
-        const rebels = g.alivePlayers.filter((q) => q.role === 'rebel' && q.revealed).length;
-        if (dying.role === 'lord' && rebels > 0) return this.pickResponseCard(opts);
+        const rebels = g.alivePlayers.filter((q) => q.revealed && q.role === 'rebel').length;
+        if (dying.seat === this.game.lordSeat && rebels > 0) return this.pickResponseCard(opts);
         return null;
       }
       if (rel === 'enemy') return null;

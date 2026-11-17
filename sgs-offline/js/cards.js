@@ -509,7 +509,8 @@
       while (depth++ < 10) {
         let played = null;
         for (const q of this.alivePlayers) {
-          if (!this.canPlayWuxie(q)) continue;
+          // 不按“手上是否有无懈”预先跳过：所有 AI 都走同一询问流程，
+          // 避免通过“谁没有立刻被问/思考停顿”推断手牌。人类只在有可选项时弹窗。
           const r = await this.askWuxie(q, card, target, negated);
           if (r) { played = { q, r }; break; }
         }
@@ -522,7 +523,7 @@
         negated = !negated;
         const wt = target ? `（目标：${this.nameOf(target)}）` : '';
         this.log(`${this.nameOf(played.q)} 使用【无懈可击】${negated ? '抵消' : '反抵消'}了 ${this.cardText(card)}${wt}`, 'wuxie');
-        this.recent.push({ kind: 'use', seat: played.q.seat, card: 'wuxie', targets: [], gender: played.q.gender });
+        this.recent.push({ kind: 'use', seat: played.q.seat, card: 'wuxie', targets: target ? [target.seat] : [], gender: played.q.gender });
         if (this.recent.length > 200) this.recent.shift();
         this.emit();
         await this.pause(160);
@@ -541,7 +542,7 @@
         if (c.name === 'wuxie') opts.push({ cardId: c.id, as: 'wuxie', skill: null });
         else if (q.skills.includes('kanpo') && c.color === 'black') opts.push({ cardId: c.id, as: 'wuxie', skill: 'kanpo' });
       }
-      if (!opts.length) return null;
+      if (!opts.length && q.isHuman) return null;
       const res = await this.ask(q, {
         type: 'response', player: q, need: 'wuxie', options: opts,
         reason: `${this.cardText(card)} 对 ${this.nameOf(target)} ${negated ? '已被抵消' : '即将生效'}，是否使用【无懈可击】？`,
