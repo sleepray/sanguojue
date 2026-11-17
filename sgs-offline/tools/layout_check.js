@@ -33,7 +33,7 @@ const VIEWPORTS = [
 const MOBILE_LANDSCAPE = [792, 915, 997, 720];
 const FULL_MODES = ['8p', '3v3'];
 const MINI_MODES = ['1v1', '5p'];
-const FULL_SCENES = ['play1', 'play5', 'play10', 'play15', 'target', 'wugu', 'rescue', 'pindian', 'hidden', 'judge', 'intro', 'skilldesc', 'log', 'settings', 'pause'];
+const FULL_SCENES = ['play1', 'play5', 'play10', 'play15', 'target', 'response', 'discard', 'wugu', 'rescue', 'pindian', 'hidden', 'judge', 'intro', 'skilldesc', 'log', 'settings', 'pause'];
 const MINI_SCENES = ['play5', 'target'];
 const SELECTOR_TEXT = '.seat-name,.seat-role,.seat-hand,.seat-hp,.seat-distance,.tb-item,.tb-btn,.bar-title,.bar-sub,.skill-btn,.equip-slot,.gc-name,.gc-skill,.gc-skill-descs,.gc-pack,.modal-title,.modal-reason,.modal-body,.modal-foot,.option-btn,.rp-name,.rp-info,.rp-role,.result-title,.result-sub,.log-line,.wugu-card,.judge-card,.judge-meta,.pindian-card,.rescue-banner,.hand-reveal,#skill-banner,.select-title,.select-meta,.menu-label';
 const SELECTOR_INTERACTIVE = 'button,.btn,.tb-btn,.skill-btn,.equip-slot,.hand-card,.seat,.gc-skill,.role-mark-btn';
@@ -56,7 +56,7 @@ const onlyScene = A.scene && A.scene !== 'all' ? String(A.scene).split(',') : nu
 
 function ensureDirs() {
   fs.mkdirSync(OUT, { recursive: true });
-  if (full) {
+  if (full && !A['no-rotate']) {
     if (fs.existsSync(LATEST)) {
       if (fs.existsSync(PREV)) fs.rmSync(PREV, { recursive: true, force: true });
       fs.renameSync(LATEST, PREV);
@@ -125,12 +125,13 @@ async function main() {
     for (const vp of onlyVp.filter(v => [792, 915, 997].indexOf(v.width) >= 0)) {
       await page.setViewport({ width: vp.width, height: vp.height, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
       for (const mode of ['1v1', '5p', '8p']) {
-        await page.goto(BASE + '?nofx=1&demo=1&freeze=play&seed=20261116&speed=0&mode=' + mode, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        await page.goto(BASE + '?demo=1&freeze=play&seed=20261116&speed=0&mode=' + mode + ((A.anim === 'off' || A['no-anim']) ? '&nofx=1' : ''), { waitUntil: 'domcontentloaded', timeout: 20000 });
         await page.waitForFunction(() => {
           const s = window.SGS_UI && SGS_UI._state && SGS_UI._state();
           return !!(s && s.game && s.game.players && s.game.players.length);
         }, { timeout: 15000 });
         await sleep(1300);
+        await waitForIdle(page, 5000);
         const f = path.join(LATEST, `${prefix}_${mode}_${vp.id}.jpg`);
         try {
           await page.screenshot({ path: f, type: 'jpeg', quality: 70, fullPage: false });
@@ -160,7 +161,7 @@ async function main() {
     const modes = FULL_MODES.concat(MINI_MODES);
     for (const mode of modes) {
       const scenes = FULL_MODES.includes(mode)
-        ? (mode === '8p' ? FULL_SCENES.concat(['seatmax_top', 'seatmax_side', 'seatmax_human']) : FULL_SCENES)
+        ? (mode === '8p' ? FULL_SCENES.concat(['central4', 'seatmax_top', 'seatmax_side', 'seatmax_human']) : FULL_SCENES)
         : MINI_SCENES;
       for (const scene of scenes) {
         if (onlyScene && !onlyScene.includes(scene)) continue;
@@ -185,6 +186,7 @@ async function main() {
             one = { issues: [{ level: 'P1', type: '场景执行失败', selector: '', measure: e.message, rect: null }] };
           }
         }
+        if (one.idle && !one.idle.idle) report.notes.push({ viewport: vp.id, mode, scene, note: 'waitForIdle timeout residue=' + one.idle.residue.join(',') });
         vpres.scenes.push({ mode, scene, count: one.issues.length, p0: one.issues.filter(x => x.level === 'P0').length, p1: one.issues.filter(x => x.level === 'P1').length, p2: one.issues.filter(x => x.level === 'P2').length });
         one.issues.forEach(i => { i.viewport = vp.id; i.mode = mode; i.scene = scene; report.issues.push(i); });
         if (!vpShot && !A['no-shot']) {
@@ -261,7 +263,8 @@ async function main() {
 }
 
 async function runScene(page, vp, mode, scene, whitelist) {
-  const url = BASE + '?nofx=1&demo=1&freeze=play&seed=20261116&speed=0&mode=' + mode;
+  const animOff = A.anim === 'off' || A['no-anim'];
+  const url = BASE + '?demo=1&freeze=play&seed=20261116&speed=0&mode=' + mode + (animOff ? '&nofx=1' : '');
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
   await page.waitForFunction(() => {
     const s = window.SGS_UI && SGS_UI._state && SGS_UI._state();
@@ -281,6 +284,7 @@ async function runScene(page, vp, mode, scene, whitelist) {
     await sleep(250);
   }
   await sleep(150);
+  if (animOff) await page.evaluate(() => document.body.classList.add('reduce-motion'));
   await page.evaluate(async (o) => {
     const scene = o.scene;
     const g = SGS_UI._state().game;
@@ -380,6 +384,17 @@ async function runScene(page, vp, mode, scene, whitelist) {
       const cand = (a.targetCandidates || [])[0];
       const seatEl = cand != null ? document.querySelector('.seat[data-seat="' + cand + '"]') : null;
       if (seatEl) seatEl.click();
+    } else if (scene === 'response') {
+      SGS_UI.preview('response');
+    } else if (scene === 'discard') {
+      SGS_UI.preview('chooseCards');
+    } else if (scene === 'central4') {
+      const pc = document.querySelector('#played-cards');
+      const img = document.querySelector('.hand-card img');
+      const src = img ? img.getAttribute('src') : '';
+      if (pc) pc.innerHTML = ['杀', '闪', '桃', '无懈可击'].map(function (n, i) {
+        return '<div class="played-card"><img src="' + src + '" alt=""><span class="pc-name">' + n + '</span><span class="pc-suit">♠</span><span class="pc-rank">' + (i + 7) + '</span></div>';
+      }).join('');
     } else if (scene === 'wugu') {
       g.log('【五谷丰登】亮出：【桃】♥3、【杀】♠7、【闪】♦9、【无懈可击】♣4、【决斗】♥K', 'info'); g.emit();
     } else if (scene === 'rescue') {
@@ -420,12 +435,42 @@ async function runScene(page, vp, mode, scene, whitelist) {
   }, { scene, mode });
 
   await sleep(scene === 'pause' ? 900 : 350);
-  // 动画残留检查前等待 2s；不作用于交互场景的即时检查
-  if (scene === 'play5' || scene === 'target' || scene === 'wugu' || scene === 'judge') await sleep(2100);
+  const idle = await waitForIdle(page, 5000);
+  await sleep(80);
   const found = await page.evaluate(auditPage, { whitelist, keySel: SELECTOR_KEY, textSel: SELECTOR_TEXT, clickSel: SELECTOR_INTERACTIVE, overlaySel: OVERLAY_SEL, scene, mobile: MOBILE_LANDSCAPE.indexOf(vp.width) >= 0, mobileLandscape: MOBILE_LANDSCAPE.indexOf(vp.width) >= 0, vp: { width: vp.width, height: vp.height } });
+  found.idle = idle;
   return found;
 }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+const IDLE_SELECTORS = [
+  '.flow-card', '.flow-float', '.flow-trail', '.fx-float', '.fx-ring', '.fx-card',
+  '.toast', '.reveal-box.is-on', '.judge-overlay.is-on', '.pindian-overlay.is-on',
+  '.rescue-banner.is-on', '.hand-reveal.is-on', '.chain-arc', '.chain-line',
+  '.skill-line', '.phase-banner.is-on', '.seat-hit', '.portrait-frame.is-hit',
+  '.wugu-card.is-gone'
+];
+async function waitForIdle(page, timeoutMs) {
+  const end = Date.now() + (timeoutMs || 5000);
+  let residue = [];
+  while (Date.now() < end) {
+    residue = await page.evaluate((sels) => {
+      const out = [];
+      sels.forEach(sel => {
+        document.querySelectorAll(sel).forEach(el => {
+          const r = el.getBoundingClientRect(), c = getComputedStyle(el);
+          if (r.width > 1 && r.height > 1 && c.display !== 'none' && c.visibility !== 'hidden' && Number(c.opacity) > 0.01) {
+            if (out.indexOf(sel) < 0) out.push(sel);
+          }
+        });
+      });
+      return out;
+    }, IDLE_SELECTORS).catch(() => []);
+    if (!residue.length) return { idle: true, waitedMs: 5000 - Math.max(0, end - Date.now()), residue: [] };
+    await sleep(100);
+  }
+  return { idle: false, residue };
+}
 
 /* 页面内审计，必须在页面上下文执行；不要引用 Node。 */
 function auditPage(opts) {
@@ -443,6 +488,15 @@ function auditPage(opts) {
     return s.display !== 'none' && s.visibility !== 'hidden' && Number(s.opacity) > 0.01 && r.width > 1 && r.height > 1;
   }
   function rect(e) { const r = e.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; }
+  function contentRect(e) {
+    const r = rect(e), c = getComputedStyle(e);
+    const bl = parseFloat(c.borderLeftWidth) || 0, bt = parseFloat(c.borderTopWidth) || 0;
+    const br = parseFloat(c.borderRightWidth) || 0, bb = parseFloat(c.borderBottomWidth) || 0;
+    const pl = parseFloat(c.paddingLeft) || 0, pt = parseFloat(c.paddingTop) || 0;
+    const pr = parseFloat(c.paddingRight) || 0, pb = parseFloat(c.paddingBottom) || 0;
+    return { left: r.left + bl + pl, top: r.top + bt + pt, right: r.right - br - pr, bottom: r.bottom - bb - pb,
+      width: Math.max(0, r.width - bl - br - pl - pr), height: Math.max(0, r.height - bt - bb - pt - pb) };
+  }
   function pathOf(el) {
     if (!el || el.nodeType !== 1) return '';
     if (el.id) return '#' + el.id;
@@ -602,11 +656,11 @@ function auditPage(opts) {
       if (sr.left < 0 || sr.right > vw) add('P1', '关键元素横向越界', pathOf(seat), `left=${Math.round(sr.left)} right=${Math.round(sr.right)} vw=${vw}`);
       const name = seat.querySelector('.seat-name');
       if (name && visible(name)) {
-        const nr = rect(name), fs = effectiveFont(name);
+        const nr = contentRect(name), fs = effectiveFont(name);
         if (fs < 12) add('P1', '座位名字号<12', pathOf(name), `effective=${fs.toFixed(2)}px computed=${getComputedStyle(name).fontSize}`);
         const others = Array.from(seat.querySelectorAll('.seat-hand,.seat-hp,.seat-role,.seat-equip-list,.seat-distance,.seat-mid,.seat-badges')).filter(visible);
         others.forEach(o => {
-          const or = rect(o);
+          const or = contentRect(o);
           if (nr.left < or.right - 1 && nr.right > or.left + 1 && nr.top < or.bottom - 1 && nr.bottom > or.top + 1) {
             add('P1', '座位名被同座位元素覆盖', pathOf(name), '覆盖者=' + pathOf(o));
           }
@@ -629,34 +683,101 @@ function auditPage(opts) {
       if (fs && fs < 12) add('P1', '字号<12', pathOf(e), `font=${fs}px`);
     });
   }
-  // 1d) 真实选目标 action-bar：确认/取消中心+四角命中、右边界、与技能列不重叠
-  if (opts.scene === 'target') {
+  const fullOverlayOpen = Array.from(document.querySelectorAll('#resume-overlay.is-on,.modal-mask,.settings-panel.is-open,.log-panel.is-open')).some(visible);
+  // 1d) 所有动作栏状态：按钮中心+四角可点、右边界、不与技能列/手牌/座位/中央牌重叠（仅顶层 game；弹窗/暂停下动作栏本就被遮罩）
+  if (context === 'game' && !fullOverlayOpen && (opts.mobileLandscape || vw >= 1100)) {
     const ab = document.querySelector('.action-bar');
-    const buttons = ab ? Array.from(ab.querySelectorAll('[data-act="play-confirm"],[data-act="play-cancel"]')).filter(visible) : [];
-    if (!buttons.length) add('P1', 'target action-bar缺失', '.action-bar [data-act]', '未找到 play-confirm/play-cancel');
+    const buttons = ab ? Array.from(ab.querySelectorAll('[data-act]')).filter(visible) : [];
+    if (opts.scene === 'target') {
+      const names = buttons.map(b => b.dataset.act);
+      if (names.indexOf('play-confirm') < 0 || names.indexOf('play-cancel') < 0) add('P1', 'target action-bar缺失', '.action-bar [data-act]', '未找到 play-confirm/play-cancel');
+    }
     buttons.forEach(btn => {
       const r = rect(btn), name = btn.dataset.act;
-      if (r.left < 0 || r.right > vw) add('P1', 'confirm/cancel越界', pathOf(btn), `left=${Math.round(r.left)} right=${Math.round(r.right)} vw=${vw}`);
+      if (r.left < 0 || r.right > vw || r.top < 0 || r.bottom > vh) add('P1', '动作按钮越界', pathOf(btn), `${name} ${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.right)},${Math.round(r.bottom)} vp=${vw}x${vh}`);
       const pts = [[r.left + r.width / 2, r.top + r.height / 2], [r.left + 2, r.top + 2], [r.right - 2, r.top + 2], [r.left + 2, r.bottom - 2], [r.right - 2, r.bottom - 2]];
       pts.forEach((pt, i) => {
         const top = document.elementFromPoint(Math.max(0, Math.min(vw - 1, pt[0])), Math.max(0, Math.min(vh - 1, pt[1])));
         if (!top) return;
         const pass = top === btn || btn.contains(top);
-        if (!pass) add('P1', 'confirm/cancel被遮挡', pathOf(btn), `${name} pt${i} top=${pathOf(top)} z=${getComputedStyle(top).zIndex}`);
+        if (!pass) add('P1', '动作按钮被遮挡', pathOf(btn), `${name} pt${i} top=${pathOf(top)} z=${getComputedStyle(top).zIndex}`);
       });
-      const skills = Array.from(document.querySelectorAll('.me-skills-block,.skill-list,.human-right')).filter(visible);
-      skills.forEach(sk => {
+      const blockers = Array.from(document.querySelectorAll('.me-skills-block,.skill-list,.human-right,.hand,.hand-wrap,.seat,.played-cards,.seat-attach,.seat-equip-bar,.seat-external-equips')).filter(visible);
+      blockers.forEach(sk => {
         const sr = rect(sk);
         if (r.left < sr.right - 1 && r.right > sr.left + 1 && r.top < sr.bottom - 1 && r.bottom > sr.top + 1) {
-          add('P1', 'confirm与技能列重叠', pathOf(btn), pathOf(sk) + ` overlapX=${Math.round(Math.min(r.right, sr.right) - Math.max(r.left, sr.left))}`);
+          add('P1', '动作按钮与其它区域重叠', pathOf(btn), `${name} ∩ ${pathOf(sk)}`);
         }
+      });
+    });
+  }
+  // 1e) 中央 2–4 张出牌：不压座位/外挂栏/动作栏/pick-bar；牌名与点数不重叠
+  if (opts.scene === 'central4' && !fullOverlayOpen && (opts.mobileLandscape || vw >= 1100)) {
+    const played = Array.from(document.querySelectorAll('.played-cards .played-card')).filter(visible);
+    const pc = document.querySelector('.played-cards');
+    if (pc && played.length) {
+      const pr = rect(pc);
+      if (pr.left < 0 || pr.right > vw) add('P1', '中央出牌区越界', '.played-cards', `left=${Math.round(pr.left)} right=${Math.round(pr.right)}`);
+      ['.seat', '.seat-attach', '.seat-equip-bar', '.seat-external-equips', '.action-bar', '.pick-bar'].forEach(sel => {
+        Array.from(document.querySelectorAll(sel)).filter(visible).forEach(e => { if (intersects(pr, rect(e))) add('P1', '中央出牌区压住区域', '.played-cards', pathOf(e)); });
+      });
+      played.forEach(card => {
+        const nm = card.querySelector('.pc-name'), su = card.querySelector('.pc-suit'), rk = card.querySelector('.pc-rank');
+        if (nm && su && intersects(rect(nm), rect(su))) add('P1', '中央牌名/点数重叠', pathOf(nm), 'pc-suit');
+        if (nm && rk && intersects(rect(nm), rect(rk))) add('P1', '中央牌名/点数重叠', pathOf(nm), 'pc-rank');
+      });
+    }
+  }
+  // 1f) 15 手牌：每张露出宽度≥36（792 等手机横屏）
+  if (opts.scene === 'play15' && opts.mobileLandscape) {
+    const cards = Array.from(document.querySelectorAll('.hand-card')).filter(visible).map(e => ({ e, r: rect(e) })).sort((a, b) => a.r.left - b.r.left);
+    for (let i = 0; i < cards.length; i++) {
+      const exposed = i + 1 < cards.length ? cards[i + 1].r.left - cards[i].r.left : cards[i].r.width;
+      if (exposed > 0 && exposed < 36) add('P1', '15手牌露出<36', pathOf(cards[i].e), `exposed=${Math.round(exposed)}px`);
+    }
+  }
+  // 1g) 身份/判定/手牌数角标：不重叠、热区≥32（手机横屏）
+  if (opts.mobileLandscape) {
+    // 口径对齐 v6：只有身份牌/身份按钮要求独立热区≥32；手牌数/势力/判定点击座位即可。
+    const roles = Array.from(document.querySelectorAll('.seat-role,.seat-role-btn')).filter(visible);
+    roles.forEach(b => {
+      const r = rect(b);
+      if (r.width < 32 || r.height < 32) add('P1', '身份热区<32', pathOf(b), `${Math.round(r.width)}x${Math.round(r.height)}`);
+    });
+    const badges = Array.from(document.querySelectorAll('.seat-role,.seat-hand,.seat-jds .jd-dot,.seat-jds .judge-chip,.judge-list .jd-mini,.seat-judges .jd-mini,.seat-judge-icon,.seat-judge,.seat-badge')).filter(visible);
+    for (let i = 0; i < badges.length; i++) for (let j = i + 1; j < badges.length; j++) {
+      if (badges[i].closest('.seat') === badges[j].closest('.seat') && intersects(contentRect(badges[i]), contentRect(badges[j]))) add('P1', '身份/判定/手牌角标重叠', pathOf(badges[i]), pathOf(badges[j]));
+    }
+  }
+  // 1h) 外挂装备栏：仅手机横屏/平板 v6；不越界，不压相邻座位/相邻栏/中央牌/动作栏/pick-bar，不盖名字/头像，牌名不截断
+  if (!fullOverlayOpen && (opts.mobileLandscape || vw >= 1100)) {
+    const rails = Array.from(document.querySelectorAll('.seat-equip-list,.seat-rail,.seat-attach,.seat-equip-bar')).filter(visible);
+    const railEls = rails.map(e => ({ e, r: rect(e), seat: e.closest('.seat') })).filter(x => x.r.width > 2 && x.r.height > 2);
+    railEls.forEach(x => {
+      const r = x.r;
+      if (r.left < 0 || r.right > vw) add('P1', '外挂栏越界', pathOf(x.e), `left=${Math.round(r.left)} right=${Math.round(r.right)} vw=${vw}`);
+      const name = x.seat && x.seat.querySelector('.seat-name');
+      if (name && visible(name) && intersects(r, rect(name))) add('P1', '外挂栏压座位名', pathOf(x.e), pathOf(name));
+      const art = x.seat && x.seat.querySelector('.seat-art');
+      if (art && visible(art) && intersects(r, rect(art))) add('P1', '外挂栏压头像', pathOf(x.e), pathOf(art));
+      railEls.forEach(y => { if (x !== y && x.seat !== y.seat && intersects(r, y.r)) add('P1', '外挂栏互相重叠', pathOf(x.e), pathOf(y.e)); });
+      Array.from(document.querySelectorAll('.seat')).filter(e => e !== x.seat && visible(e)).forEach(seat => {
+        if (intersects(r, rect(seat))) add('P1', '外挂栏压相邻座位', pathOf(x.e), pathOf(seat));
+      });
+      ['.played-cards', '.action-bar', '.pick-bar'].forEach(sel => {
+        Array.from(document.querySelectorAll(sel)).filter(visible).forEach(e => { if (intersects(r, rect(e))) add('P1', '外挂栏压关键区域', pathOf(x.e), pathOf(e)); });
+      });
+      const typeOnly = x.seat && (x.seat.classList.contains('rail-short') || x.seat.classList.contains('rail-type-only'));
+      x.e.querySelectorAll('.eq-name,.eq-label').forEach(t => {
+        if (!visible(t) || typeOnly) return;
+        if (t.scrollWidth > t.clientWidth + 1) add('P1', '外挂栏牌名截断', pathOf(t), `${t.scrollWidth}/${t.clientWidth}`, { text: t.innerText });
       });
     });
   }
   // 2) 外框重叠
   function boxes(sel) { return Array.from(document.querySelectorAll(sel)).filter(visible).map(e => ({ e, r: rect(e) })); }
   const seats = context === 'overlay' || context === 'modal' || context === 'drawer' ? [] : boxes('.seat');
-  const centers = context === 'overlay' || context === 'modal' || context === 'drawer' ? [] : boxes('.table-center,.played-cards,.phase-orbit');
+  const centers = context === 'overlay' || context === 'modal' || context === 'drawer' ? [] : boxes('.played-cards,.phase-orbit');
   seats.forEach(s => centers.forEach(c => { if (intersects(s.r, c.r)) add('P1', '外框重叠', pathOf(s.e), 'seat∩' + pathOf(c.e) + ' area'); }));
   const hand = context === 'game' ? boxes('.hand,.hand-wrap') : [];
   const bars = context === 'game' ? boxes('.action-bar,.tb-right,.pick-bar') : [];

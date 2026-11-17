@@ -68,6 +68,34 @@ function skip(name, detail) { record('SKIP', name, detail); }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+const IDLE_SELECTORS = [
+  '.flow-card', '.flow-float', '.flow-trail', '.fx-float', '.fx-ring', '.fx-card',
+  '.toast', '.reveal-box.is-on', '.judge-overlay.is-on', '.pindian-overlay.is-on',
+  '.rescue-banner.is-on', '.hand-reveal.is-on', '.chain-arc', '.chain-line',
+  '.skill-line', '.phase-banner.is-on', '.seat-hit', '.portrait-frame.is-hit',
+  '.wugu-card.is-gone'
+];
+async function waitForIdle(page, timeoutMs) {
+  const end = Date.now() + (timeoutMs || 5000);
+  while (Date.now() < end) {
+    const residue = await page.evaluate((sels) => {
+      const out = [];
+      sels.forEach(sel => document.querySelectorAll(sel).forEach(el => {
+        const r = el.getBoundingClientRect(), c = getComputedStyle(el);
+        if (r.width > 1 && r.height > 1 && c.display !== 'none' && c.visibility !== 'hidden' && Number(c.opacity) > 0.01 && out.indexOf(sel) < 0) out.push(sel);
+      }));
+      return out;
+    }, IDLE_SELECTORS).catch(() => []);
+    if (!residue.length) return { idle: true, residue: [] };
+    await sleep(100);
+  }
+  return { idle: false, residue: await page.evaluate((sels) => {
+    const out = [];
+    sels.forEach(sel => { if (document.querySelector(sel)) out.push(sel); });
+    return out;
+  }, IDLE_SELECTORS).catch(() => ['<evaluate failed>']) };
+}
+
 async function waitFor(page, fn, timeoutMs, intervalMs) {
   const end = Date.now() + (timeoutMs || 8000);
   while (Date.now() < end) {
@@ -80,6 +108,7 @@ async function waitFor(page, fn, timeoutMs, intervalMs) {
 async function open(page, url) {
   await page.goto(args.baseUrl.replace(/\/?$/, '/') + url, { waitUntil: 'load', timeout: 60000 });
   await sleep(900);
+  await waitForIdle(page, 5000);
 }
 
 async function openGame(page) {
