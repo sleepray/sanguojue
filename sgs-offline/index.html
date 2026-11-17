@@ -10,6 +10,8 @@
 <meta name="theme-color" content="#0a0d10">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="css/ui-107.css">
+<link rel="stylesheet" href="css/save-107.css">
+<link rel="stylesheet" href="css/b4-hud.css">
 </head>
 <body>
 <div id="app">
@@ -102,7 +104,11 @@
         <div class="menu-actions">
           <button id="btn-start" class="btn btn-primary btn-lg">开始游戏</button>
           <button id="btn-demo" class="btn btn-outline btn-lg">自动演示</button>
-          <button id="btn-continue" class="btn btn-outline btn-lg is-hidden">继续游戏</button>
+          <div id="continue-wrap" class="menu-save-col is-hidden">
+            <button id="btn-continue" class="btn btn-outline btn-lg">继续游戏</button>
+            <span id="continue-meta" class="continue-meta"></span>
+          </div>
+          <button id="btn-saves" class="btn btn-outline btn-lg is-hidden">读取存档</button>
         </div>
         <p class="menu-note" id="menu-note">已选 5 个武将包 · 57 名武将 · 8 人局每人 5 张候选</p>
       </div>
@@ -192,6 +198,8 @@
         <div class="played-cards" id="played-cards"></div>
       </div>
 
+      <div class="action-bar" id="action-bar"></div>
+
       <div class="fx-layer" id="fx-layer" aria-hidden="true"></div>
     </div>
 
@@ -210,9 +218,9 @@
       </div>
 
       <div class="human-mid">
-        <div class="action-bar" id="action-bar"></div>
         <div class="pick-bar" id="pick-bar"></div>
         <div class="hand-wrap">
+          <div class="action-progress" id="action-progress"></div>
           <div class="hand-timer" id="hand-timer" aria-live="polite"></div>
           <div class="hand" id="hand"></div>
           <div class="card-chooser" id="card-chooser"></div>

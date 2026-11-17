@@ -23,7 +23,7 @@
   const SLOTS = ['weapon', 'armor', 'offhorse', 'defhorse'];
   const SLOT_CN = { weapon: '武器', armor: '防具', offhorse: '-1 马', defhorse: '+1 马' };
   const SLOT_GLYPH = { weapon: '武', armor: '防', offhorse: '−', defhorse: '+' };
-  const JUDGE_SHORT = { lebu: '乐', bingliang: '兵', shandian: '电' };
+  const JUDGE_SHORT = { lebu: '乐', bingliang: '兵', shandian: '电', '乐不思蜀': '乐', '兵粮寸断': '兵', '闪电': '电' };
 
   // 对手座位坐标（百分比，围绕上方与左右两侧）
   const POS_8 = [[12, 74], [11, 31], [30, 26], [50, 26], [70, 26], [89, 31], [88, 74]];
@@ -72,6 +72,9 @@
   let lastFatalHTML = '';
   let resultFor = null;
   let seatMarks = {};
+  let seatEqSeen = {};
+  let seatEqFlash = {};
+  let seatFlashTimer = 0;
   let hoverSeat = null;
   let tablePick = null;
   let confirmOpen = false;
@@ -83,6 +86,7 @@
   let countdownReq = null;
   let countdownPaused = false;
   let countdownRemainMs = 0;
+  let countdownTotalSecs = 0;
   let pindianTimer = 0;
   let effectsGame = null;
   let tooltipEl = null;
@@ -100,6 +104,8 @@
   let logOpen = false;
   let settingsOpen = false;
   let moreOpen = false;
+  let skillsExpanded = false;
+  let meJudgeHome = null;
   let toastSeq = 0;
   let lastAnswer = null;
   let lastPhaseShown = null;
@@ -488,6 +494,7 @@
     els.tbPrompt = q('tb-prompt');
     els.tbCount = q('tb-count');
     els.handTimer = q('hand-timer');
+    els.actionProgress = q('action-progress');
     els.btnPause = q('btn-pause');
     els.btnLog = q('btn-log');
     els.btnLogClose = q('btn-log-close');
@@ -559,6 +566,7 @@
     els.meSkills = q('me-skills');
     els.meEquips = q('me-equips');
     els.meJudges = q('me-judges');
+    meJudgeHome = els.meJudges ? els.meJudges.parentElement : null;
     els.meMarks = q('me-marks');
     els.actionBar = q('action-bar');
     els.pickBar = q('pick-bar');
@@ -581,8 +589,17 @@
     document.body.appendChild(tooltipEl);
 
     bindEvents();
+    placeActionBar();
     loadSettings();
     showScreen('menu');
+  }
+
+  function placeActionBar() {
+    if (!els.actionBar) return;
+    const host = global.innerWidth > 1100 ? document.querySelector('.human-mid') : document.querySelector('.table');
+    if (!host || els.actionBar.parentElement === host) return;
+    if (host.classList.contains('human-mid')) host.insertBefore(els.actionBar, host.firstChild);
+    else host.appendChild(els.actionBar);
   }
 
   function loadSettings() {
@@ -617,6 +634,10 @@
     els.hand.addEventListener('pointercancel', onHandPressEnd);
     els.hand.addEventListener('pointerleave', onHandPressEnd);
     els.hand.addEventListener('contextmenu', onHandContextMenu);
+    if (els.hand.parentElement) els.hand.parentElement.addEventListener('scroll', function () {
+      handScroll = els.hand.parentElement.scrollLeft || 0;
+      updateHandClip();
+    }, { passive: true });
     els.seats.addEventListener('click', onSeatsClick);
     els.seats.addEventListener('click', onSeatClickCapture, true);
     els.seats.addEventListener('pointerdown', onSeatPointerDown);
@@ -711,6 +732,7 @@
       closeChooser();
     }, true);
     window.addEventListener('resize', function () {
+      placeActionBar();
       // 横竖屏切换时座位坐标/尺寸需要重算；重建座位后保持原事件绑定
       seatGame = null;
       if (game && screen === 'game') {
@@ -811,6 +833,8 @@
     resultFor = null;
     clearCountdown();
     seatMarks = {};
+    seatEqSeen = {};
+    seatEqFlash = {};
     effectsGame = null;
     seatGame = null;
     seatEls.clear();
@@ -885,6 +909,7 @@
       els.handTimer.textContent = '';
       els.handTimer.classList.remove('is-on', 'is-warn');
     }
+    if (els.actionProgress) { els.actionProgress.style.width = '0%'; els.actionProgress.classList.remove('is-warn'); }
     if (els.orbitTimer) {
       els.orbitTimer.textContent = '';
       els.orbitTimer.classList.remove('is-on', 'is-warn');
@@ -894,6 +919,19 @@
   function setCountdownDisplay(left) {
     const warn = left <= 10;
     const label = '剩余 ' + left + 's';
+    if (els.actionProgress) {
+      const pct = countdownTotalSecs ? Math.max(0, Math.min(100, (left / countdownTotalSecs) * 100)) : 0;
+      els.actionProgress.style.width = pct.toFixed(1) + '%';
+      els.actionProgress.classList.toggle('is-warn', warn);
+    }
+    if (els.actionBar) {
+      const main = els.actionBar.querySelector('.bar-btn.is-primary') || els.actionBar.querySelector('.bar-btn.is-danger');
+      if (main) {
+        const base = main.dataset.base || main.textContent.replace(/\s+\d+s$/, '');
+        main.dataset.base = base;
+        main.textContent = base + ' ' + left + 's';
+      }
+    }
     if (els.tbCount) {
       els.tbCount.textContent = label;
       els.tbCount.classList.toggle('is-warn', warn);
@@ -978,6 +1016,7 @@
     countdownReq = req;
     countdownPaused = false;
     countdownRemainMs = secs * 1000;
+    countdownTotalSecs = secs;
     countdownEnd = Date.now() + countdownRemainMs;
     runCountdown(req);
   }
@@ -1229,11 +1268,11 @@
       let label = '';
       if (ev.kind === 'draw') label = '+' + (ev.count || 1) + ' 牌';
       else if (ev.kind === 'discard') label = '-' + (ev.count || 1) + ' 牌';
-      else if (ev.kind === 'equip') label = '装备 ' + (ev.cardLabel || '');
+      else if (ev.kind === 'equip') label = '';
       else if (ev.kind === 'swap') label = '交换手牌';
       else if (ev.cardLabel) label = '获得 ' + ev.cardLabel;
       else label = '+' + (ev.count || 1) + ' 牌' + (ev.label ? ' · ' + ev.label : '');
-      flowFloatAt(ev.to, label, ev.kind === 'draw' ? 'is-draw' : (ev.kind === 'discard' ? 'is-discard' : (ev.kind === 'gain' ? 'is-gain' : 'is-give')), !!wuguSource);
+      if (label) flowFloatAt(ev.to, label, ev.kind === 'draw' ? 'is-draw' : (ev.kind === 'discard' ? 'is-discard' : (ev.kind === 'gain' ? 'is-gain' : 'is-give')), !!wuguSource);
     } else if (ev.from != null) {
       flowFloatAt(ev.from, '-' + (ev.count || 1) + ' 牌', 'is-discard');
     }
@@ -1808,6 +1847,12 @@
       if (roleEl) {
         roleEl.title = (game && game.mode === 'ddz') ? '身份公开' : ((game && game.teamMode) ? '队伍身份' : '点击标记身份（仅自己可见）');
         roleEl.addEventListener('click', function (e) {
+          // 选目标/出牌指定目标流程中，点击座位（含身份牌）用于选目标，不弹标记菜单
+          const targetingNow = !!(pending && pending.req && (
+            pending.req.type === 'chooseTargets' ||
+            (pending.req.type === 'play' && sel.action && actionHasTargets(sel.action))
+          ));
+          if (targetingNow) return;
           e.stopPropagation();
           if (!game || game.mode === '1v1' || game.mode === 'ddz' || game.teamMode || game.over) return;
           const order = ['', 'loyalist', 'rebel', 'renegade'];
@@ -2095,6 +2140,44 @@
     return { text: '无法指定该角色为目标' };
   }
 
+  // v6：外挂装备栏按“放不放得下”逐列降级，完整牌名 → 两字简称 → 仅类型色块
+  function fitSeatRails() {
+    if (!els.seats) return;
+    const seats = Array.prototype.slice.call(els.seats.querySelectorAll('.seat'));
+    if (!seats.length) return;
+    seats.forEach(function (s) { s.classList.remove('rail-short', 'rail-type-only'); });
+    void els.seats.offsetWidth;
+    const rect = function (el) { const b = el.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom }; };
+    const rails = seats.map(function (s) {
+      return { s: s, el: s.querySelector('.seat-equip-list') };
+    }).filter(function (x) { return x.el && x.el.children.length; });
+    for (let pass = 0; pass < 3; pass++) {
+      const seatRects = seats.map(rect);
+      const railRects = rails.map(function (x) { return rect(x.el); });
+      let changed = false;
+      rails.forEach(function (x, i) {
+        const rr = railRects[i];
+        let bad = rr.l < 2 || rr.r > global.innerWidth - 2;
+        seats.forEach(function (s, j) {
+          if (s === x.s) return;
+          const sr = seatRects[j];
+          if (rr.l < sr.r && rr.r > sr.l && rr.t < sr.b && rr.b > sr.t) bad = true;
+        });
+        rails.forEach(function (y, j) {
+          if (j === i) return;
+          const or = railRects[j];
+          if (rr.l < or.r && rr.r > or.l && rr.t < or.b && rr.b > or.t) bad = true;
+        });
+        if (bad) {
+          if (!x.s.classList.contains('rail-short')) { x.s.classList.add('rail-short'); changed = true; }
+          else if (!x.s.classList.contains('rail-type-only')) { x.s.classList.add('rail-type-only'); changed = true; }
+        }
+      });
+      if (!changed) break;
+      void els.seats.offsetWidth;
+    }
+  }
+
   function renderSeats(g) {
     if (!g.players || !g.players.length) return;
     ensureSeats(g);
@@ -2164,16 +2247,37 @@
         ref.kd.style.background = color;
       }
 
+      const eqSig = SLOTS.map(function (slot) { const c = p.equips && p.equips[slot]; return c ? c.id : '-'; }).join(',');
+      const prevSig = seatEqSeen[p.seat];
+      const fresh = {};
+      if (prevSig && prevSig !== eqSig) {
+        SLOTS.forEach(function (slot, i) {
+          if (prevSig.split(',')[i] !== eqSig.split(',')[i] && p.equips && p.equips[slot]) fresh[slot] = Date.now();
+        });
+      }
+      seatEqSeen[p.seat] = eqSig;
+      Object.keys(fresh).forEach(function (slot) { seatEqFlash[p.seat + ':' + slot] = fresh[slot]; });
       const eqHTML = SLOTS.map(function (slot) {
         const c = p.equips && p.equips[slot];
         if (!c) return '';
         const su = suitOf(c);
-        return '<span class="eq-bar" data-tip="' + esc(cardDef(c.name).name + '（' + SLOT_CN[slot] + '）：' + cardDef(c.name).desc) + '">' +
+        const fl = seatEqFlash[p.seat + ':' + slot];
+        const isNew = fl && Date.now() - fl < 1300;
+        if (fl && !isNew) delete seatEqFlash[p.seat + ':' + slot];
+        return '<span class="eq-bar' + (isNew ? ' is-new' : '') + '" data-slot="' + slot + '" data-short="' + esc(cardDef(c.name).name.slice(0, 2)) + '" data-tip="' + esc(cardDef(c.name).name + '（' + SLOT_CN[slot] + '）：' + cardDef(c.name).desc) + '">' +
+          '<i class="eq-type">' + SLOT_GLYPH[slot] + '</i>' +
           '<img class="eq-ico" src="' + cardImgOf(c) + '" alt="">' +
           '<b class="eq-sr" style="color:' + suitColor(c) + '">' + (su ? su.cn : '') + rankCn(c.rank) + '</b>' +
           '<em class="eq-name">' + esc(cardDef(c.name).name) + '</em></span>';
       }).join('');
       setHTML(ref.eqs, eqHTML);
+      if (eqHTML.indexOf('is-new') >= 0 && !seatFlashTimer) {
+        seatFlashTimer = setTimeout(function () {
+          seatFlashTimer = 0;
+          if (!els.seats) return;
+          Array.prototype.forEach.call(els.seats.querySelectorAll('.eq-bar.is-new'), function (b) { b.classList.remove('is-new'); });
+        }, 1300);
+      }
 
       const jdHTML = (p.judges || []).map(function (c) {
         const def = cardDef(c.name);
@@ -2218,6 +2322,7 @@
         '\n长按/右键查看技能';
       root.setAttribute('data-tip', tip);
     });
+    fitSeatRails();
     drawAim();
   }
 
@@ -2238,6 +2343,12 @@
     els.meTitle.textContent = gen ? ((gen.title || '') + (me.secondGeneral ? ' · 副将 ' + me.secondGeneral.name : '')) : '';
     els.meKingdom.textContent = gen ? gen.kingdom : '';
     els.meKingdom.style.background = kingdomColor(gen && gen.kingdom);
+    // 手机横屏：自己的判定移到头像右上角；平板恢复到右侧面板
+    if (els.meJudges && els.mePortrait && meJudgeHome) {
+      const mobile = global.innerWidth <= 1100;
+      const host = mobile ? els.mePortrait : meJudgeHome;
+      if (els.meJudges.parentElement !== host) host.appendChild(els.meJudges);
+    }
 
     const roleTxt = g.mode === '1v1' ? '' : roleLabelFor(g, me);
     if (els.meRole.textContent !== roleTxt) els.meRole.textContent = roleTxt;
@@ -2273,19 +2384,26 @@
     if (pending && pending.req && pending.req.type === 'play') {
       (pending.req.actions || []).forEach(function (a) { if (a.kind === 'skill') playTmpl[a.skill] = a; });
     }
-    const skillSig = skills.join(',') + '|' + Object.keys(playTmpl).join(',') + '|' + me.alive + '|' + (pending && pending.req ? pending.req.type : '') + '|' + g.phase;
+    const skillSig = skills.join(',') + '|' + Object.keys(playTmpl).join(',') + '|' + me.alive + '|' + (pending && pending.req ? pending.req.type : '') + '|' + g.phase + '|' + skillsExpanded;
     if (skillSig !== last.skillSig) {
       last.skillSig = skillSig;
       if (!skills.length) {
         setHTML(els.meSkills, '<span class="judge-empty">无</span>');
       } else {
-        els.meSkills.innerHTML = skills.map(function (id) {
+        const shown = skillsExpanded ? skills : (skills.length > 3 ? skills.slice(0, 2) : skills);
+        els.meSkills.innerHTML = shown.map(function (id) {
+          const meta = (typeof SKILLS !== 'undefined' && SKILLS[id]) || {};
           const ready = !!playTmpl[id] && me.alive;
+          const active = !!meta.active;
           const desc = skillDesc(id);
           const tip = skillName(id) + (desc ? '：' + desc : '');
-          return '<button class="skill-btn' + (ready ? ' is-ready' : ' is-passive') + '" data-skill="' + esc(id) + '" data-tip="' + esc(tip) + '">' +
-            '<span class="sk-dot"></span>' + esc(skillName(id)) + '</button>';
-        }).join('');
+          return '<div class="skill-row' + (active ? ' is-active' : ' is-passive') + (ready ? ' is-ready' : '') +
+            '" data-skill="' + esc(id) + '" data-tip="' + esc(tip) + '" role="button" tabindex="0">' +
+            '<span class="sk-name">' + esc(skillName(id)) + '</span>' +
+            '<span class="sk-info" data-info="1" title="查看说明">ⓘ</span></div>';
+        }).join('') + (skills.length > 3 && !skillsExpanded
+          ? '<div class="skill-more" data-more-skills="1">更多技能（' + (skills.length - 3) + '）</div>'
+          : '');
       }
     }
 
@@ -2297,11 +2415,14 @@
         const c = me.equips && me.equips[slot];
         if (c) {
           const def = cardDef(c.name);
+          const su = suitOf(c);
           const tip = def.name + '（' + SLOT_CN[slot] + '）\n' + (def.desc || '');
-          return '<div class="equip-slot is-filled" data-slot="' + slot + '" data-tip="' + esc(tip) + '">' +
-            cardImgTag(c) +
-            '<span class="eq-name">' + esc(def.name) + '</span>' +
-            '<span class="eq-short">' + esc(def.name.slice(0, 2)) + '</span></div>';
+          const ready = !!playTmpl.zhangba && c.name === '丈八蛇矛' && me.alive;
+          return '<div class="equip-slot is-filled' + (ready ? ' is-ready' : '') + '" data-slot="' + slot + '" data-tip="' + esc(tip) + '">' +
+            '<i class="eq-type">' + SLOT_GLYPH[slot] + '</i>' +
+            '<span class="eq-short">' + esc(def.name.slice(0, 2)) + '</span>' +
+            (slot === 'weapon' && def.range ? '<span class="eq-range">' + def.range + '</span>' : '') +
+            '<b class="eq-sr" style="color:' + suitColor(c) + '">' + (su ? su.cn : '') + rankCn(c.rank) + '</b></div>';
         }
         return '<div class="equip-slot is-empty" data-slot="' + slot + '" data-tip="' + SLOT_CN[slot] + '：空"><span class="eq-glyph">' + SLOT_GLYPH[slot] + '</span><span class="eq-label">' + SLOT_CN[slot] + '</span></div>';
       }).join('');
@@ -2316,8 +2437,8 @@
       } else {
         els.meJudges.innerHTML = me.judges.map(function (c) {
           const def = cardDef(c.name);
-          return '<div class="judge-chip" data-tip="' + esc(cardTip(c)) + '">' +
-            cardImgTag(c) + esc(def.name) + '</div>';
+          const ch = JUDGE_SHORT[c.name] || def.name.slice(0, 1);
+          return '<div class="judge-chip" data-tip="' + esc(cardTip(c)) + '">' + esc(ch) + '</div>';
         }).join('');
       }
     }
@@ -2420,11 +2541,25 @@
   }
 
   let layoutRaf = 0;
+  let handScroll = 0;
   function scheduleLayout() {
     if (layoutRaf) return;
     layoutRaf = global.requestAnimationFrame(function () {
       layoutRaf = 0;
       if (screen === 'game') layoutHand();
+    });
+  }
+
+  function updateHandClip() {
+    if (!els.hand) return;
+    const wrap = els.hand.parentElement;
+    if (!wrap) return;
+    const cw = els.hand.children.length ? els.hand.children[0].offsetWidth : 0;
+    const sl = wrap.scrollLeft || 0;
+    Array.prototype.forEach.call(els.hand.children, function (el) {
+      const x = parseFloat(el.style.getPropertyValue('--x')) || 0;
+      const left = x - sl;
+      el.style.visibility = (left + cw <= 0 || left >= wrap.clientWidth || left + cw > wrap.clientWidth) ? 'hidden' : '';
     });
   }
 
@@ -2435,12 +2570,27 @@
     const n = cards.length;
     if (!wrap || !n) return;
     if (wrap.clientWidth < 60) return;
+    if (wrap.scrollLeft > 0) handScroll = wrap.scrollLeft;
     const cw = cards[0].offsetWidth || 104;
     const avail = Math.max(cw + 8, wrap.clientWidth - 24);
-    const gap = n > 1 ? Math.max(-cw, Math.min(2, (avail - cw * n) / (n - 1))) : 0;
+    let gap = n > 1 ? Math.max(-cw, Math.min(2, (avail - cw * n) / (n - 1))) : 0;
+    // v6：15 张时每张至少露出 36px，放不下则手牌区横向滚动
+    const minStep = Math.min(cw, 36);
+    if (n > 1 && cw + gap < minStep) gap = minStep - cw;
     const step = cw + gap;
     const total = cw + step * (n - 1);
-    const start = Math.max(2, (avail - total) / 2) + 10;
+    const overflow = total > avail;
+    wrap.classList.toggle('is-scroll', overflow);
+    if (!overflow) handScroll = 0;
+    if (overflow) {
+      // 手牌容器本身止于手牌区右边界，溢出牌由横向滚动承载，避免压住右侧技能列
+      els.hand.style.width = wrap.clientWidth + 'px';
+      els.hand.style.right = 'auto';
+    } else {
+      els.hand.style.width = '';
+      els.hand.style.right = '0';
+    }
+    const start = overflow ? 10 : Math.max(2, (avail - total) / 2) + 10;
     const mid = (n - 1) / 2;
     cards.forEach(function (el, i) {
       const off = i - mid;
@@ -2450,7 +2600,13 @@
       el.style.setProperty('--rot', rot.toFixed(2) + 'deg');
       el.style.setProperty('--y', y.toFixed(1) + 'px');
       el.style.zIndex = String(10 + i);
+      const left = start + step * i - (overflow ? handScroll : 0);
+      el.style.visibility = (left + cw <= 0 || left >= wrap.clientWidth || left + cw > wrap.clientWidth) ? 'hidden' : '';
     });
+    if (overflow && wrap.scrollLeft !== handScroll) wrap.scrollLeft = handScroll;
+    updateHandClip();
+    global.setTimeout(updateHandClip, 60);
+    global.setTimeout(updateHandClip, 260);
   }
 
   /* ---------- 操作条 ---------- */
@@ -2840,14 +2996,24 @@
   }
 
   function onSkillClick(e) {
-    const btn = e.target.closest ? e.target.closest('[data-skill]') : null;
-    if (!btn) return;
-    const id = btn.dataset.skill;
+    if (e.target.closest && e.target.closest('[data-more-skills]')) {
+      skillsExpanded = !skillsExpanded;
+      if (game) render(game);
+      return;
+    }
+    const row = e.target.closest ? e.target.closest('[data-skill]') : null;
+    if (!row) return;
+    const id = row.dataset.skill;
+    const tip = row.getAttribute('data-tip') || skillName(id);
+    if (e.target.closest && e.target.closest('[data-info]')) {
+      showTip(tip, row);
+      return;
+    }
     const req = pending && pending.req;
-    if (!req || req.type !== 'play') { toast('现在不是你的出牌阶段'); return; }
-    const t = (req.actions || []).find(function (a) { return a.kind === 'skill' && a.skill === id; });
-    if (!t) { toast('【' + skillName(id) + '】现在无法发动'); return; }
+    const t = req && req.type === 'play' ? (req.actions || []).find(function (a) { return a.kind === 'skill' && a.skill === id; }) : null;
+    if (!t) { showTip(tip, row); return; }
     selectPlayAction(t);
+    showTip(tip, row);
   }
 
   function onEquipClick(e) {
@@ -2855,7 +3021,12 @@
     if (!slot) return;
     const me = game && game.players[humanSeat];
     const card = me && me.equips && me.equips[slot.dataset.slot];
-    if (card) toast(cardDef(card.name).name + '：' + cardDef(card.name).desc);
+    const tip = slot.getAttribute('data-tip') || (card ? cardDef(card.name).name + '：' + cardDef(card.name).desc : '');
+    if (card && card.name === '丈八蛇矛' && pending && pending.req && pending.req.type === 'play') {
+      const t = (pending.req.actions || []).find(function (a) { return a.kind === 'skill' && a.skill === 'zhangba'; });
+      if (t) selectPlayAction(t);
+    }
+    if (tip) showTip(tip, slot);
   }
 
   function onSeatsClick(e) {
