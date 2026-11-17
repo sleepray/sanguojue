@@ -20,7 +20,7 @@
     chooseHiddenCard: '选择手牌',
     distribute: '分配手牌',
   };
-  const SLOTS = ['weapon', 'armor', 'offhorse', 'defhorse'];
+  const SLOTS = ['weapon', 'armor', 'defhorse', 'offhorse'];
   const SLOT_CN = { weapon: '武器', armor: '防具', offhorse: '-1 马', defhorse: '+1 马' };
   const SLOT_GLYPH = { weapon: '武', armor: '防', offhorse: '−', defhorse: '+' };
   const JUDGE_SHORT = { lebu: '乐', bingliang: '兵', shandian: '电', '乐不思蜀': '乐', '兵粮寸断': '兵', '闪电': '电' };
@@ -150,13 +150,13 @@
   function cardImg(name) { const d = cardDef(name); return d && d.noArt ? '' : ('assets/cards/' + d.pinyin + '.png'); }
   function cardImgOf(c) { return cardImg(c && c.name); }
   function cardImgTag(c) { const src = cardImgOf(c); return src ? '<img src="' + src + '" alt="" onerror="this.onerror=null;this.style.display=&quot;none&quot;">' : '<span class="card-noimg"></span>'; }
-  function cardCornersHTML(c) {
+  function cardCornersHTML(c, topOnly) {
     const s = suitOf(c);
     if (!s) return '';
     const rank = rankCn(c.rank);
     const color = s.color === 'red' ? '#b3261e' : '#1b1b1b';
     return '<span class="card-corner cc-tl" style="color:' + color + '">' + s.cn + '<b>' + esc(rank) + '</b></span>' +
-      '<span class="card-corner cc-br" style="color:' + color + '">' + s.cn + '<b>' + esc(rank) + '</b></span>';
+      (topOnly ? '' : '<span class="card-corner cc-br" style="color:' + color + '">' + s.cn + '<b>' + esc(rank) + '</b></span>');
   }
   function seatImg(id) { return 'assets/seat/' + String(id).padStart(3, '0') + '.png'; }
   function bigImg(id) { return 'assets/big/' + String(id).padStart(3, '0') + '.png'; }
@@ -340,8 +340,10 @@
     const equipChips = equipped.length ? equipped.map(function (slot) {
       const c = p.equips[slot];
       const su = suitOf(c);
-      return '<span class="gi-chip"><b>' + esc(SLOT_CN[slot]) + '</b> ' + esc(cardDef(c.name).name) +
-        (su ? '<em style="color:' + (su.color === 'red' ? '#ff8270' : '#e9e1cf') + '">' + su.cn + rankCn(c.rank) + '</em>' : '') + '</span>';
+      const def = cardDef(c.name);
+      return '<span class="gi-chip"><b>' + esc(SLOT_CN[slot]) + '</b> ' + esc(def.name) +
+        (su ? '<em style="color:' + (su.color === 'red' ? '#ff8270' : '#e9e1cf') + '">' + su.cn + rankCn(c.rank) + '</em>' : '') +
+        (def.type === 'equip' && def.range ? '<i class="gi-range">攻击范围 ' + def.range + '</i>' : '') + '</span>';
     }).join('') : '<span class="gi-chip is-empty">无</span>';
     const judgeChips = (p.judges || []).length
       ? p.judges.map(function (c) { return '<span class="gi-chip">' + esc(cardDef(c.name).name) + '</span>'; }).join('')
@@ -2204,6 +2206,7 @@
 
       root.style.setProperty('--k', color);
       root.classList.toggle('seat-dead', !p.alive);
+      root.classList.toggle('seat-dying', !!(p.alive && p.hp <= 0));
       root.classList.toggle('is-chained', !!p.chained);
       root.classList.toggle('seat-active', !g.over && g.currentSeat === p.seat && p.alive);
       const groupWaiting = g.groupWaiting || [];
@@ -2240,7 +2243,7 @@
         ref.hand.title = '手牌 ' + handCount;
       }
       setHTML(ref.hp, beadsHTML(Math.max(0, p.hp), p.maxHp, ''));
-      setHTML(ref.name, esc(displayName(p)) + '<span class="seat-hpnum">' + Math.max(0, p.hp) + '/' + p.maxHp + '</span>');
+      setHTML(ref.name, esc(displayName(p)) + '<span class="seat-hpnum">♥ ' + Math.max(0, p.hp) + '/' + p.maxHp + '</span>');
       root.classList.toggle('is-hp-num', p.maxHp > 5);
       if (ref.kd.textContent !== (p.kingdom || (gen && gen.kingdom) || '')) {
         ref.kd.textContent = p.kingdom || (gen && gen.kingdom) || '';
@@ -2281,7 +2284,7 @@
 
       const jdHTML = (p.judges || []).map(function (c) {
         const def = cardDef(c.name);
-        return '<i class="jd-dot" data-tip="' + esc(cardTip(c)) + '">' + (JUDGE_SHORT[c.name] || def.name.slice(0, 1)) + '</i>';
+        return '<i class="jd-dot" data-tip="' + esc(cardTip(c)) + '" data-ch="' + esc(JUDGE_SHORT[c.name] || def.name.slice(0, 1)) + '"></i>';
       }).join('');
       setHTML(ref.jds, jdHTML);
 
@@ -2355,7 +2358,7 @@
     const meLordLike = me.role === 'lord' || (g.mode === 'ddz' && me.role === 'landlord');
     els.meRole.className = 'pf-role' + roleClassOf(g, me) + (meLordLike ? ' is-lord' : '') + (!me.alive ? ' is-dead' : '');
 
-    setHTML(els.meHp, beadsHTML(Math.max(0, me.hp), me.maxHp, '') + '<span class="hp-num">' + Math.max(0, me.hp) + ' / ' + me.maxHp + '</span>');
+    setHTML(els.meHp, beadsHTML(Math.max(0, me.hp), me.maxHp, '') + '<span class="hp-num">♥ ' + Math.max(0, me.hp) + ' / ' + me.maxHp + '</span>');
     els.meHp.classList.toggle('is-hp-num', me.maxHp > 5);
 
     const st = [];
@@ -2416,12 +2419,11 @@
         if (c) {
           const def = cardDef(c.name);
           const su = suitOf(c);
-          const tip = def.name + '（' + SLOT_CN[slot] + '）\n' + (def.desc || '');
+          const tip = cardTip(c);
           const ready = !!playTmpl.zhangba && c.name === '丈八蛇矛' && me.alive;
           return '<div class="equip-slot is-filled' + (ready ? ' is-ready' : '') + '" data-slot="' + slot + '" data-tip="' + esc(tip) + '">' +
             '<i class="eq-type">' + SLOT_GLYPH[slot] + '</i>' +
             '<span class="eq-short">' + esc(def.name.slice(0, 2)) + '</span>' +
-            (slot === 'weapon' && def.range ? '<span class="eq-range">' + def.range + '</span>' : '') +
             '<b class="eq-sr" style="color:' + suitColor(c) + '">' + (su ? su.cn : '') + rankCn(c.rank) + '</b></div>';
         }
         return '<div class="equip-slot is-empty" data-slot="' + slot + '" data-tip="' + SLOT_CN[slot] + '：空"><span class="eq-glyph">' + SLOT_GLYPH[slot] + '</span><span class="eq-label">' + SLOT_CN[slot] + '</span></div>';
@@ -3127,12 +3129,18 @@
       if (!table.length) {
         els.played.innerHTML = '';
       } else {
-        els.played.innerHTML = table.slice(-3).map(function (c) {
+        const recentUse = (g.recent || []).slice().reverse().find(function (e) { return e.kind === 'use'; });
+        const srcSeat = recentUse && recentUse.seat != null ? recentUse.seat : g.currentSeat;
+        const srcName = srcSeat != null && g.players[srcSeat] ? displayName(g.players[srcSeat]) : '';
+        const shown = table.slice(-4);
+        els.played.classList.toggle('is-stacked', table.length > 4);
+        els.played.innerHTML = shown.map(function (c) {
           const def = cardDef(c.name);
           const tag = c.skill ? skillName(c.skill) : (c.virtual ? '转化' : '');
-          return '<div class="played-card" data-tip="' + esc(cardTip(c)) + '">' +
+          return '<div class="played-card' + (def.name.length >= 4 ? ' is-four' : '') + '" data-tip="' + esc(cardTip(c)) + '">' +
+            (srcName ? '<span class="pc-src">' + esc(srcName) + '</span>' : '') +
             cardImgTag(c) +
-            cardCornersHTML(c) +
+            cardCornersHTML(c, true) +
             (tag ? '<span class="pc-tag">' + esc(tag) + '</span>' : '') +
             '<span class="pc-name">' + esc(def.name) + '</span></div>';
         }).join('');
@@ -4235,12 +4243,42 @@
     try { game.surrender(humanSeat); } catch (e) { console.error(e); }
   }
 
+  // 身份标记（玩家私有笔记）：只随存档信封 meta 持久化，不写玩家数据、不进 AI 视野。
+  // 读档时丢弃主公/已揭示/已死/非法座位，以及 1v1/斗地主/团队模式的标记。
+  function getSeatMarks() {
+    const out = {};
+    Object.keys(seatMarks).forEach(function (k) {
+      const seat = Number(k);
+      if (Number.isInteger(seat) && seat >= 0) out[seat] = seatMarks[seat];
+    });
+    return out;
+  }
+  function applySeatMarks(marks) {
+    seatMarks = {};
+    if (marks && typeof marks === 'object' && game && game.players) {
+      Object.keys(marks).forEach(function (k) {
+        const seat = Number(k);
+        if (!Number.isInteger(seat) || seat < 0 || !game.players[seat]) return;
+        const p = game.players[seat];
+        if (!p.alive) return;
+        if (game.mode === '1v1' || game.ddzMode || game.teamMode) return;
+        if (p.role === 'lord' || p.revealed) return;
+        const v = marks[k];
+        if (v !== 'loyalist' && v !== 'rebel' && v !== 'renegade') return;
+        seatMarks[seat] = v;
+      });
+    }
+    if (game) render(game);
+  }
+
   /* ============================================================
      对外接口
      ============================================================ */
   global.SGS_UI = {
     init: init,
     bindGame: bindGame,
+    getSeatMarks: getSeatMarks,
+    applySeatMarks: applySeatMarks,
     request: request,
     freeze: freeze,
     render: render,

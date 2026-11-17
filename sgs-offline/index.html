@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="css/ui-107.css">
 <link rel="stylesheet" href="css/save-107.css">
 <link rel="stylesheet" href="css/b4-hud.css">
+<link rel="stylesheet" href="css/b5-menu.css">
 </head>
 <body>
 <div id="app">
@@ -23,102 +24,96 @@
       <i class="mountain"></i><i class="moon"></i>
     </div>
 
-    <div class="menu-frame">
-      <header class="menu-head">
+    <div class="menu-frame b5-menu">
+      <header class="menu-head b5-head">
         <div class="logo-mark">殺</div>
         <h1 class="logo">三国杀<span class="logo-sub">单机版</span></h1>
-        <p class="logo-desc" id="logo-sub">身份局 · 标准与军争牌堆 · 57 名武将</p>
+        <p class="logo-desc" id="logo-sub">身份局 · 标准牌堆 · 57 名武将</p>
       </header>
 
-      <div class="menu-panel">
-        <div class="menu-row" data-row="mode">
-          <div class="menu-label">模式<span>MODE</span></div>
-          <div class="seg" id="seg-mode" role="group" aria-label="模式">
-            <button class="seg-btn is-on" data-mode="8p">八人身份局<em>8 人</em></button>
-            <button class="seg-btn" data-mode="5p">五人身份局<em>5 人</em></button>
-            <button class="seg-btn" data-mode="1v1">单挑<em>1 v 1</em></button>
+      <div class="b5-left">
+        <div class="b5-group">
+          <div class="b5-label">模式</div>
+          <div class="seg b5-modes" id="seg-mode" role="group" aria-label="模式">
+            <button class="seg-btn is-on" data-mode="5p">五人身份局<em>5 人</em></button>
+            <button class="seg-btn" data-mode="1v1">单挑<em>1v1</em></button>
+            <button class="seg-btn" data-mode="8p">八人身份局<em>8 人</em></button>
             <button class="seg-btn" data-mode="2v2">2v2<em>4 人</em></button>
             <button class="seg-btn" data-mode="3v3">3v3<em>6 人</em></button>
-            <button class="seg-btn" data-mode="ddz">斗地主 3 人<em>地主 1v2</em></button>
+            <button class="seg-btn" data-mode="ddz">斗地主<em>地主 1v2</em></button>
           </div>
         </div>
 
-        <div class="menu-row" data-row="packs">
-          <div class="menu-label">武将包<span>GENERALS</span></div>
-          <div class="chips" id="seg-packs" role="group" aria-label="武将包">
+        <div class="b5-group">
+          <div class="b5-label">武将包</div>
+          <div class="chips b5-packs" id="seg-packs" role="group" aria-label="武将包">
             <button class="chip is-on" data-pack="标准">标准</button>
             <button class="chip is-on" data-pack="风">风</button>
             <button class="chip is-on" data-pack="火">火</button>
             <button class="chip is-on" data-pack="林">林</button>
             <button class="chip is-on" data-pack="山">山</button>
+            <label class="b5-extra-chip" for="toggle-extras">
+              <input type="checkbox" id="toggle-extras">
+              <span>变体扩展</span>
+            </label>
+          </div>
+          <div class="b5-extra-note"><b id="extras-title">变体扩展（默认关闭）</b><em id="extras-status">开启后加入 30 名变体武将</em></div>
+        </div>
+
+        <div class="b5-group is-hidden" id="row-duel-pool" data-row="duel-pool">
+          <div class="b5-label">单挑将池</div>
+          <div class="seg seg-sm b5-duel" id="seg-duel-pool" role="group" aria-label="单挑将池">
+            <button class="seg-btn is-on" data-duel="classic">经典</button>
+            <button class="seg-btn" data-duel="all">全武将</button>
+            <button class="seg-btn" data-duel="new1v1">新1V1</button>
           </div>
         </div>
 
-        <div class="menu-row" data-row="extras">
-          <div class="menu-label">扩展包<span>EXTRAS</span></div>
-          <label class="switch extras-switch" for="toggle-extras">
-            <input type="checkbox" id="toggle-extras">
-            <span class="switch-track" aria-hidden="true"></span>
-            <span class="extras-copy">
-              <b id="extras-title">变体扩展（默认关闭）</b>
-              <em id="extras-status">开启后加入 30 名变体武将</em>
-            </span>
-          </label>
-        </div>
-
-        <div class="menu-row is-hidden" data-row="duel-pool" id="row-duel-pool">
-          <div class="menu-label">单挑将池<span>1V1 POOL</span></div>
-          <div class="seg seg-sm" id="seg-duel-pool" role="group" aria-label="单挑将池">
-            <button class="seg-btn is-on" data-duel="classic">经典<em>原版交集 19 将</em></button>
-            <button class="seg-btn" data-duel="all">全武将<em>当前 57 将</em></button>
-            <button class="seg-btn" data-duel="new1v1">新1V1<em>46/50 将（近似）</em></button>
+        <div class="b5-group" id="row-deck" data-row="deck">
+          <div class="b5-label">牌堆</div>
+          <div class="seg seg-sm b5-deck" id="seg-deck" role="group" aria-label="牌堆">
+            <button class="seg-btn is-on" data-deck="standard">标准 · 108 张</button>
+            <button class="seg-btn" data-deck="full">标准 + 军争 · 160 张</button>
           </div>
         </div>
 
-        <div class="menu-row" data-row="deck" id="row-deck">
-          <div class="menu-label">牌堆<span>DECK</span></div>
-          <div class="seg seg-sm" id="seg-deck" role="group" aria-label="牌堆">
-            <button class="seg-btn is-on" data-deck="full">标准 + 军争<em>160 张</em></button>
-            <button class="seg-btn" data-deck="standard">标准<em>108 张</em></button>
+        <details class="b5-adv">
+          <summary><span class="b5-adv-text">节奏 标准 · AI 普通</span><span class="b5-adv-open">展开 ›</span></summary>
+          <div class="b5-adv-body">
+            <div class="b5-label">节奏</div>
+            <div class="seg seg-sm" id="seg-pace" role="group" aria-label="节奏">
+              <button class="seg-btn" data-pace="slow">慢</button>
+              <button class="seg-btn is-on" data-pace="normal">标准</button>
+              <button class="seg-btn" data-pace="fast">快</button>
+            </div>
+            <div class="b5-label">AI 难度</div>
+            <div class="seg seg-sm" id="seg-ai" role="group" aria-label="AI 难度">
+              <button class="seg-btn" data-ai="easy">简单</button>
+              <button class="seg-btn is-on" data-ai="normal">普通</button>
+              <button class="seg-btn" data-ai="hard">困难</button>
+            </div>
           </div>
-        </div>
+        </details>
 
-        <div class="menu-row" data-row="pace">
-          <div class="menu-label">节奏<span>PACE</span></div>
-          <div class="seg seg-sm" id="seg-pace" role="group" aria-label="节奏">
-            <button class="seg-btn" data-pace="slow">慢<em>2200ms</em></button>
-            <button class="seg-btn is-on" data-pace="normal">标准<em>1500ms</em></button>
-            <button class="seg-btn" data-pace="fast">快<em>850ms</em></button>
-          </div>
-        </div>
-
-        <div class="menu-row" data-row="ai">
-          <div class="menu-label">AI 难度<span>DIFFICULTY</span></div>
-          <div class="seg seg-sm" id="seg-ai" role="group" aria-label="AI 难度">
-            <button class="seg-btn" data-ai="easy">简单<em>保留实力</em></button>
-            <button class="seg-btn is-on" data-ai="normal">普通<em>标准</em></button>
-            <button class="seg-btn" data-ai="hard">困难<em>更激进</em></button>
-          </div>
-        </div>
-
-        <div class="menu-actions">
-          <button id="btn-start" class="btn btn-primary btn-lg">开始游戏</button>
-          <button id="btn-demo" class="btn btn-outline btn-lg">自动演示</button>
-          <div id="continue-wrap" class="menu-save-col is-hidden">
-            <button id="btn-continue" class="btn btn-outline btn-lg">继续游戏</button>
-            <span id="continue-meta" class="continue-meta"></span>
-          </div>
-          <button id="btn-saves" class="btn btn-outline btn-lg is-hidden">读取存档</button>
-        </div>
-        <p class="menu-note" id="menu-note">已选 5 个武将包 · 57 名武将 · 8 人局每人 5 张候选</p>
+        <p class="menu-note b5-note" id="menu-note"></p>
       </div>
 
-      <ul class="menu-tips">
-        <li>人类玩家固定为 1 号位（下方），其余座位由 AI 托管。</li>
-        <li>单挑为 1v1 练习场：无身份，军争牌堆减 52 张（108 张），1 号位首轮少摸一张。</li>
-        <li>斗地主为地主 1v2：地主阵亡则农民胜，两个农民阵亡则地主胜。</li>
-        <li>仅供个人离线游玩，素材来自自备安装包。</li>
-      </ul>
+      <aside class="b5-actions">
+        <button id="btn-start" class="btn b5-start">
+          <span class="b5-btn-main">开始游戏</span>
+          <span class="b5-btn-sub" id="start-summary">五人身份局 · 5 包 · 108 张</span>
+        </button>
+        <div id="continue-wrap" class="b5-continue is-hidden">
+          <button id="btn-continue" class="btn b5-continue-btn">
+            <span class="b5-btn-main">继续游戏</span>
+            <span id="continue-meta" class="b5-btn-sub"></span>
+          </button>
+        </div>
+        <div class="b5-small">
+          <button id="btn-saves" class="btn b5-small-btn is-hidden">读取存档</button>
+          <button id="btn-demo" class="btn b5-small-btn">自动演示</button>
+        </div>
+      </aside>
     </div>
   </section>
 
@@ -423,5 +418,66 @@
 <script src="js/audio.js" onerror="void 0"></script>
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>
+<script>
+(function () {
+  var KEY = 'sgs.menu.b5';
+  var $ = function (s) { return document.querySelector(s); };
+  var $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
+  function current() {
+    var mode = $('#seg-mode .is-on'), deck = $('#seg-deck .is-on');
+    return {
+      mode: mode ? mode.dataset.mode : '5p',
+      deck: deck ? deck.dataset.deck : 'standard',
+      packs: $$('#seg-packs .chip.is-on').map(function (b) { return b.dataset.pack; }),
+      pace: ($('#seg-pace .is-on') || {}).dataset ? $('#seg-pace .is-on').dataset.pace : 'normal',
+      ai: ($('#seg-ai .is-on') || {}).dataset ? $('#seg-ai .is-on').dataset.ai : 'normal',
+      duel: ($('#seg-duel-pool .is-on') || {}).dataset ? $('#seg-duel-pool .is-on').dataset.duel : 'classic',
+      extras: !!($('#toggle-extras') && $('#toggle-extras').checked)
+    };
+  }
+  function summary() {
+    var c = current();
+    var modeName = { '5p': '五人身份局', '8p': '八人身份局', '1v1': '单挑', '2v2': '2v2', '3v3': '3v3', ddz: '斗地主' }[c.mode] || '五人身份局';
+    var packs = c.packs.length + (c.extras ? 1 : 0);
+    var deck = c.mode === '1v1' || c.mode === 'ddz' ? (c.mode === 'ddz' ? '160 张' : '108 张') : (c.deck === 'standard' ? '108 张' : '160 张');
+    var st = $('#start-summary');
+    if (st) st.textContent = modeName + ' · ' + packs + ' 包 · ' + deck;
+    var adv = $('.b5-adv-text');
+    if (adv) adv.textContent = '节奏 ' + ({ slow: '慢', normal: '标准', fast: '快' }[c.pace] || '标准') + ' · AI ' + ({ easy: '简单', normal: '普通', hard: '困难' }[c.ai] || '普通');
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(current())); } catch (e) {} }
+  function applySaved() {
+    var raw = null;
+    try { raw = localStorage.getItem(KEY); } catch (e) {}
+    if (!raw) return false;
+    var c; try { c = JSON.parse(raw); } catch (e) { return false; }
+    if (!c) return false;
+    var mb = $('#seg-mode [data-mode="' + c.mode + '"]'); if (mb && !mb.classList.contains('is-on')) mb.click();
+    var db = $('#seg-deck [data-deck="' + c.deck + '"]'); if (db && !db.classList.contains('is-on')) db.click();
+    $$('#seg-packs .chip').forEach(function (b) { var want = (c.packs || []).indexOf(b.dataset.pack) >= 0; if (want !== b.classList.contains('is-on')) b.click(); });
+    var ex = $('#toggle-extras'); if (ex && !!c.extras !== !!ex.checked) ex.click();
+    var pb = $('#seg-pace [data-pace="' + c.pace + '"]'); if (pb && !pb.classList.contains('is-on')) pb.click();
+    var ab = $('#seg-ai [data-ai="' + c.ai + '"]'); if (ab && !ab.classList.contains('is-on')) ab.click();
+    var ub = $('#seg-duel-pool [data-duel="' + c.duel + '"]'); if (ub && !ub.classList.contains('is-on')) ub.click();
+    return true;
+  }
+  function boot() {
+    if (!applySaved()) {
+      var m = $('#seg-mode [data-mode="5p"]'); if (m && !m.classList.contains('is-on')) m.click();
+      var d = $('#seg-deck [data-deck="standard"]'); if (d && !d.classList.contains('is-on')) d.click();
+    }
+    summary();
+  }
+  if (document.readyState === 'complete') boot(); else window.addEventListener('load', boot);
+  document.addEventListener('click', function (e) {
+    if (e.target.closest && e.target.closest('#seg-mode,#seg-deck,#seg-packs,#seg-pace,#seg-ai,#seg-duel-pool')) {
+      setTimeout(function () { save(); summary(); }, 0);
+    }
+  });
+  document.addEventListener('change', function (e) {
+    if (e.target && e.target.id === 'toggle-extras') setTimeout(function () { save(); summary(); }, 0);
+  });
+})();
+</script>
 </body>
 </html>
