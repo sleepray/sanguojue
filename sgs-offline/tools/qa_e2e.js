@@ -433,8 +433,18 @@ function pageState() {
     teamMode: !!(g && g.teamMode),
     meRole: (q('#me-role') || {}).textContent || '',
     meRoleClass: (q('#me-role') || {}).className || '',
-    saveRaw: (() => { try { return localStorage.getItem('sgs.save.v1'); } catch (e) { return null; } })(),
+    saveRaw: (() => { try { return localStorage.getItem('sgs.save.auto'); } catch (e) { return null; } })(),
+    saveSlots: (() => {
+      try {
+        return [1, 2, 3].map((n) => localStorage.getItem('sgs.save.slot' + n));
+      } catch (e) { return [null, null, null]; }
+    })(),
+    legacySaveRaw: (() => { try { return localStorage.getItem('sgs.save.v1'); } catch (e) { return null; } })(),
     continueVisible: !!(q('#btn-continue') && !q('#btn-continue').classList.contains('is-hidden')),
+    continueMeta: (q('#continue-meta') || {}).textContent || '',
+    savesBtnVisible: !!(q('#btn-saves') && !q('#btn-saves').classList.contains('is-hidden')),
+    savesPanelOpen: !!(q('#saves-panel') && q('#saves-panel').classList.contains('is-open')),
+    autosaveText: (q('#autosave-toast') || {}).textContent || '',
     sel: st && st.sel ? {
       action: st.sel.action ? {
         kind: st.sel.action.kind,
@@ -571,6 +581,13 @@ function pageState() {
 
   async function state() {
     return await cdp.eval(pageState);
+  }
+
+  async function setQaViewport(width, height) {
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: width, height: height, deviceScaleFactor: 1, mobile: false,
+    });
+    await sleep(260);
   }
 
   async function markActual(row, text) {
@@ -2632,66 +2649,399 @@ function pageState() {
     });
 
     /* ---------- T34 2v2 存档 / 刷新读档 ---------- */
-    await runCase('T34', '2v2 自动存档 / 手动保存 / 刷新继续 / 一致性', [
-      '等待人类回合自动存档',
-      '展开「更多」菜单 → 点击“保存”并校验 localStorage 时间',
-      '刷新页面，检查“继续游戏”',
-      '点击继续，校验模式/人数/回合/手牌/座位角色',
-      '读档后执行一次出牌/结束出牌，确认可继续操作',
-    ], '自动存档存在；手动保存成功；刷新后继续按钮可见；读档后模式/人数/角色一致，手牌包含存档手牌，回合不倒退；可继续操作', 'P0', async (row) => {
+    await runCase('T34', '2v2 自动存档 / 3 槽保存 / 刷新继续 / 一致性', [
+      '等待自动存档写入 auto 并观测「已自动保存」',
+      '「更多 → 保存」保存槽位 1，再次点击确认覆盖',
+      '结束出牌推进一回合后保存槽位 2，确认槽位 1 不受影响',
+      '刷新主菜单：继续游戏显示模式·回合·时间，点击继续读自动档',
+      '读取槽位 2，确认自动档从该局继续滚动',
+      '删除槽位 1（二次确认），槽位 2 保留',
+    ], 'auto 存在且含 rngState/模式/回合；槽位 1 保存与覆盖确认生效；槽位 1/2 互不影响；主菜单继续按钮与元信息正确；读档后模式/人数/手牌一致、回合不重复累加；删除槽位 1 后槽位 2 仍在', 'P0', async (row) => {
       const pre = await state();
       if (!(pre.screenActive.game && pre.mode === '2v2' && !pre.over)) await startTeamGame('2v2');
-      const readSave = () => cdp.eval(() => {
-        try { return JSON.parse(localStorage.getItem('sgs.save.v1')); } catch (e) { return null; }
+      const readAuto = () => cdp.eval(() => {
+        try { const raw = localStorage.getItem('sgs.save.auto'); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
       });
-      let saved = null;
+      const readSlot = (n) => cdp.eval((slot) => {
+        try { const raw = localStorage.getItem('sgs.save.slot' + slot); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+      }, n);
+      let auto = null;
       const t0 = Date.now();
       while (Date.now() - t0 < 90000) {
-        saved = await readSave();
-        if (saved && saved.snapshot) break;
+        auto = await readAuto();
+        if (auto && auto.snapshot) break;
         await sleep(200);
       }
-      assert(saved && saved.snapshot, '人类回合开始后未自动写入 sgs.save.v1');
-      assertEq(saved.snapshot.mode, '2v2', '存档模式');
-      assertEq((saved.snapshot.players || []).length, 4, '存档人数');
-      const savedHand = ((saved.snapshot.players[0] || {}).hand || []).map((c) => c.id);
-      const savedRoles = (saved.snapshot.players || []).map((p) => p.role);
-      const savedTurn = saved.snapshot.turnCount || 0;
+      assert(auto && auto.snapshot, '2v2 未自动写入 sgs.save.auto');
+      assertEq(auto.v, 2, '自动档版本');
+      assertEq(auto.mode, '2v2', '自动档模式');
+      assertEq((auto.snapshot.players || []).length, 4, '自动档人数');
+      assert(typeof auto.snapshot.rngState === 'number', '自动档缺少 rngState：' + auto.snapshot.rngState);
+      const savedTurn = auto.snapshot.turnCount || 0;
+      const toastSeen = await cdp.waitExpr('!!document.querySelector("#autosave-toast.is-on")', 6000).catch(() => false);
+      assert(toastSeen, '未观测到顶栏「已自动保存」提示');
+      row.notes.push('自动档 turn=' + savedTurn + ' 字节=' + (auto.snapshot ? auto.snapshot.players.length : 0) + ' 人');
 
-      const beforeSave = await state();
+      await clearPendingSafely(8000);
       await clickMenu('#btn-save');
-      await sleep(250);
-      const saved2 = await readSave();
-      assert(saved2 && saved2.time >= saved.time, '手动保存未更新 localStorage');
-      const toasts = await cdp.eval(() => [].map.call(document.querySelectorAll('#toast-root .toast'), (el) => el.textContent));
-      assert(toasts.some((t) => t.indexOf('已保存') >= 0), '手动保存未出现“已保存” toast：' + toasts.join('|'));
+      await waitState((s) => s.savesPanelOpen, 3000, '保存面板未打开');
+      const p1 = await cdp.eval(() => ({
+        title: document.querySelector('#saves-title').textContent,
+        rows: document.querySelectorAll('#saves-list .save-row').length,
+      }));
+      assertEq(p1.title, '保存进度', '保存面板标题');
+      assertEq(p1.rows, 3, '保存面板槽位数');
+      await cdp.click('#saves-list .save-row[data-slot="1"] [data-act="save"]');
+      await cdp.waitExpr('!!localStorage.getItem("sgs.save.slot1")', 3000);
+      const slot1a = await readSlot(1);
+      assert(slot1a && slot1a.snapshot, '槽位 1 保存失败');
+      assertEq(slot1a.snapshot.mode, '2v2', '槽位 1 模式');
+      assertEq((slot1a.snapshot.players || []).length, 4, '槽位 1 人数');
+      assert(typeof slot1a.snapshot.rngState === 'number', '槽位 1 缺少 rngState');
+      await cdp.click('#saves-list .save-row[data-slot="1"] [data-act="save"]');
+      const armed = await cdp.eval(() => document.querySelector('#saves-list .save-row[data-slot="1"] [data-act="save"]').textContent.trim());
+      assertEq(armed, '确认覆盖', '覆盖槽位 1 未进入二次确认');
+      await cdp.click('#saves-list .save-row[data-slot="1"] [data-act="save"]');
+      await sleep(200);
+      const slot1b = await readSlot(1);
+      assert(slot1b && slot1b.time >= slot1a.time, '覆盖保存未更新时间');
+      await cdp.click('#saves-close');
+      await waitState((s) => !s.savesPanelOpen, 2000, '保存面板未关闭');
 
+      // 推进一回合后保存槽位 2，槽位 1 不应被改动
+      if ((await state()).pending && (await state()).pending.type === 'play') {
+        await cdp.click('[data-act="play-end"]', 0, { wait: 60 });
+      }
+      await sleep(600);
+      const discard = await cdp.eval(() => {
+        const st = SGS_UI._state();
+        const req = st.pending && st.pending.req;
+        return req && req.type === 'chooseCards' ? Math.max(0, req.min || 0) : 0;
+      });
+      for (let i = 0; i < discard; i++) await cdp.click('#hand .hand-card', i, { wait: 30 });
+      if (discard > 0) await cdp.click('[data-act="pick-confirm"]', 0, { wait: 60 });
+      await sleep(1600);
+      await clearPendingSafely(8000);
+      await clickMenu('#btn-save');
+      await waitState((s) => s.savesPanelOpen, 3000, '第二次保存面板未打开');
+      await cdp.click('#saves-list .save-row[data-slot="2"] [data-act="save"]');
+      await cdp.waitExpr('!!localStorage.getItem("sgs.save.slot2")', 3000);
+      const slot2 = await readSlot(2);
+      const slot1c = await readSlot(1);
+      assert(slot2 && slot2.snapshot, '槽位 2 保存失败');
+      assertEq(slot2.snapshot.mode, '2v2', '槽位 2 模式');
+      assertEq(slot1c.time, slot1b.time, '保存槽位 2 影响了槽位 1');
+      await cdp.click('#saves-close');
+
+      // 自动档是每个回合滚动覆盖的：刷新前重新读当前 auto，不能用开局第一份手牌
+      const autoNow = await readAuto();
+      assert(autoNow && autoNow.snapshot, '刷新前自动档丢失');
+      const contHand = ((autoNow.snapshot.players[0] || {}).hand || []).map((c) => c.id);
+      const contRoles = (autoNow.snapshot.players || []).map((p) => p.role);
+      const contTurn = autoNow.snapshot.turnCount || 0;
       await cdp.navigate(BASE + '?nofx=1&screen=home');
       const menu = await waitState((s) => s.screenActive.menu, 5000, '刷新后主菜单');
-      assert(menu.continueVisible, '刷新后“继续游戏”按钮不可见');
+      assert(menu.continueVisible, '刷新后「继续游戏」不可见');
+      assert(menu.savesBtnVisible, '刷新后「读取存档」不可见');
+      assert(/2v2/.test(menu.continueMeta) && /第\s*\d+\s*回合/.test(menu.continueMeta), '继续按钮元信息异常：' + menu.continueMeta);
       await shot('qa_continue.png', row);
       await cdp.click('#btn-continue');
       const after = await waitState((s) => s.screenActive.game, 8000, '读档后对局');
       assertEq(after.mode, '2v2', '读档模式');
       assertEq(after.alive.length, 4, '读档人数');
       assertEq(after.seats, 3, '读档对手座位数');
-      assertEq(after.alive.map((p) => p.role).join(','), savedRoles.join(','), '读档座位角色');
-      const afterIds = new Set(after.hand.map((c) => c.id));
-      assert(savedHand.every((id) => afterIds.has(id)), '读档手牌未包含存档手牌：saved=' + savedHand.join(',') + ' after=' + after.hand.map((c) => c.id).join(','));
-      assert(after.turn >= savedTurn, '读档回合倒退：saved=' + savedTurn + ' after=' + after.turn);
+      assertEq(after.alive.map((p) => p.role).join(','), contRoles.join(','), '读档座位角色');
+      const afterIds = after.hand.map((c) => c.id);
+      assert(contHand.every((id) => afterIds.indexOf(id) >= 0), '读档手牌缺少当前自动档手牌：saved=' + contHand.join(',') + ' after=' + afterIds.join(','));
+      assert(after.turn >= contTurn && after.turn <= contTurn + 1, '读档回合重复累加：saved=' + contTurn + ' after=' + after.turn);
       await shot('qa_save_loaded.png', row);
+      let auto2 = await readAuto();
+      assert(auto2 && auto2.snapshot && auto2.snapshot.mode === '2v2', '读档后自动档未继续滚动');
 
-      const turn0 = after.turn, seat0 = after.currentSeat;
-      if (after.pending && after.pending.type === 'play') {
-        await cdp.click('[data-act="play-end"]').catch(() => {});
-      } else if (after.pending) {
-        await pumpPending('读档后继续').catch(() => {});
+      // 从主菜单读取槽位 2，自动档应跟随该局
+      await cdp.navigate(BASE + '?nofx=1&screen=home');
+      await waitState((s) => s.screenActive.menu, 5000, '读取槽位前主菜单');
+      await cdp.click('#btn-saves');
+      await waitState((s) => s.savesPanelOpen, 3000, '读档面板未打开');
+      const panel = await cdp.eval(() => ({
+        rows: document.querySelectorAll('#saves-list .save-row').length,
+        texts: [].map.call(document.querySelectorAll('#saves-list .save-row'), (r) => r.innerText.replace(/\s+/g, ' ').trim()),
+      }));
+      assertEq(panel.rows, 4, '读取面板应含自动档+3 槽');
+      assert(panel.texts[0].indexOf('自动存档') >= 0 && panel.texts[1].indexOf('槽位 1') >= 0, '读取面板槽位顺序异常：' + panel.texts.join(' | '));
+      await cdp.click('#saves-list .save-row[data-slot="2"] [data-act="load"]');
+      const loaded = await waitState((s) => s.screenActive.game, 8000, '读取槽位 2 后未进入对局');
+      assertEq(loaded.mode, '2v2', '槽位 2 读档模式');
+      assertEq(loaded.alive.length, 4, '槽位 2 读档人数');
+      const slot2Turn = slot2.snapshot.turnCount || 0;
+      assert(loaded.turn >= slot2Turn && loaded.turn <= slot2Turn + 1, '槽位 2 读档回合重复累加：saved=' + slot2Turn + ' after=' + loaded.turn);
+      await sleep(700);
+      auto2 = await readAuto();
+      assert(auto2 && auto2.snapshot && auto2.snapshot.mode === '2v2', '读取手动槽后自动档未接管');
+
+      // 删除槽位 1（二次确认），槽位 2 保留
+      await cdp.navigate(BASE + '?nofx=1&screen=home');
+      await waitState((s) => s.screenActive.menu, 5000, '删除前主菜单');
+      await cdp.click('#btn-saves');
+      await waitState((s) => s.savesPanelOpen, 3000, '删除面板未打开');
+      await cdp.click('#saves-list .save-row[data-slot="1"] [data-act="delete"]');
+      const delArmed = await cdp.eval(() => document.querySelector('#saves-list .save-row[data-slot="1"] [data-act="delete"]').textContent.trim());
+      assertEq(delArmed, '确认删除', '删除槽位 1 未进入二次确认');
+      await cdp.click('#saves-list .save-row[data-slot="1"] [data-act="delete"]');
+      await sleep(250);
+      const del1 = await cdp.eval(() => localStorage.getItem('sgs.save.slot1'));
+      const keep2 = await cdp.eval(() => localStorage.getItem('sgs.save.slot2'));
+      assert(del1 === null, '槽位 1 删除后仍存在');
+      assert(!!keep2, '删除槽位 1 误删槽位 2');
+      await cdp.click('#saves-close');
+      return { actual: 'auto turn=' + contTurn + ' 含 rngState；槽位 1/2 保存与覆盖确认正常；继续按钮「' + menu.continueMeta + '」；读档 2v2/4 人/回合 ' + loaded.turn + '；删除槽 1 后槽 2 保留' };
+    });
+
+    /* ---------- T53 1v1 读档一致性 / duelFirstDraw / 结束清自动档 ---------- */
+    await runCase('T53', '1v1 读档一致性 / duelFirstDraw / 结束清自动档', [
+      '开 1v1 并等自动档写入',
+      '保存槽位 3，结束出牌推进后读回槽位 3',
+      '校验 duelFirstDraw 与回合不重复累加',
+      '开启托管打到结算，校验自动档清除、槽位 3 保留',
+    ], '1v1 自动档含 rngState 且 p0.duelFirstDraw=true；读槽位 3 后仍为 true、回合不重复；结算后 sgs.save.auto 清除而 slot3 保留', 'P1', async (row) => {
+      const readAuto = () => cdp.eval(() => { try { const r = localStorage.getItem('sgs.save.auto'); return r ? JSON.parse(r) : null; } catch (e) { return null; } });
+      const readSlot = (n) => cdp.eval((slot) => { try { const r = localStorage.getItem('sgs.save.slot' + slot); return r ? JSON.parse(r) : null; } catch (e) { return null; } }, n);
+      await resetMenu();
+      await cdp.click('#seg-mode [data-mode="1v1"]');
+      await cdp.click('#seg-pace [data-pace="fast"]');
+      await cdp.click('#btn-start');
+      await waitState((s) => s.screenActive.select, 5000, 'T53 1v1 选将页');
+      await cdp.click('#general-row .general-card', 0);
+      await cdp.click('#btn-general-confirm');
+      await waitState((s) => s.screenActive.game && s.seats === 1, 10000, 'T53 1v1 牌桌');
+      let auto = null;
+      const t0 = Date.now();
+      while (Date.now() - t0 < 20000) { auto = await readAuto(); if (auto && auto.snapshot) break; await sleep(200); }
+      assert(auto && auto.snapshot, '1v1 未写入自动档');
+      assertEq(auto.snapshot.mode, '1v1', '1v1 自动档模式');
+      assert(typeof auto.snapshot.rngState === 'number', '1v1 自动档缺少 rngState');
+      // 自动档是在“回合开始”写的；1 号位首轮摸牌 -1 发生在该回合的摸牌阶段，
+      // 因此要推进到下一回合开始，自动档才会带上 duelFirstDraw。
+      const tDuel = Date.now();
+      while (Date.now() - tDuel < 25000 && !(auto && auto.snapshot && auto.snapshot.players[0].duelFirstDraw === true)) {
+        const stDuel = await state();
+        if (stDuel.over || stDuel.screenActive.result) break;
+        if (stDuel.pending) {
+          if (stDuel.pending.type === 'play') {
+            await cdp.click('[data-act="play-end"]', 0, { wait: 50 }).catch(() => {});
+          } else if (stDuel.pending.type === 'chooseCards') {
+            // 弃牌阶段走手牌点选 + 动作栏确认（无 modal）
+            const need = Math.max(0, stDuel.pending.min || 0);
+            for (let i = 0; i < need; i++) await cdp.click('#hand .hand-card', i, { wait: 30 }).catch(() => {});
+            if (need > 0) await cdp.click('[data-act="pick-confirm"]', 0, { wait: 50 }).catch(() => {});
+          } else {
+            await pumpPending('T53 推进到下一回合').catch(() => {});
+          }
+        }
+        await sleep(250);
+        auto = await readAuto();
       }
-      await sleep(900);
-      const op = await state();
-      assert(op.turn > turn0 || op.currentSeat !== seat0 || op.over ||
-        (op.pending && op.pending.type !== 'play'), '读档后无法继续操作（回合/座位/请求均未变化）');
-      return { actual: '自动存档 turn=' + savedTurn + ' 手牌=' + savedHand.length + '；刷新后继续按钮可见；读档 2v2/4 人/3 座位/角色一致；操作后 turn=' + op.turn };
+      assert(auto && auto.snapshot && auto.snapshot.players[0].duelFirstDraw === true, '1v1 自动档未记录 p0.duelFirstDraw=true');
+      await clickMenu('#btn-save');
+      await waitState((s) => s.savesPanelOpen, 3000, '1v1 保存面板未打开');
+      await cdp.click('#saves-list .save-row[data-slot="3"] [data-act="save"]');
+      await cdp.waitExpr('!!localStorage.getItem("sgs.save.slot3")', 3000);
+      const slot3 = await readSlot(3);
+      const slot3Turn = slot3.snapshot.turnCount || 0;
+      await cdp.click('#saves-close');
+      if ((await state()).pending && (await state()).pending.type === 'play') {
+        await cdp.click('[data-act="play-end"]').catch(() => {});
+      }
+      await sleep(1200);
+      await cdp.eval(() => SGS_SAVE.openLoadPanel());
+      await waitState((s) => s.savesPanelOpen, 3000, '1v1 读档面板未打开');
+      await cdp.click('#saves-list .save-row[data-slot="3"] [data-act="load"]');
+      const loaded = await waitState((s) => s.screenActive.game && s.mode === '1v1', 8000, '1v1 读取槽位 3 失败');
+      assert(loaded.turn >= slot3Turn && loaded.turn <= slot3Turn + 1, '1v1 读档回合重复累加：saved=' + slot3Turn + ' after=' + loaded.turn);
+      const duelAfter = await cdp.eval(() => SGS_UI._state().game.players[0].duelFirstDraw === true);
+      assert(duelAfter, '读档后 p0.duelFirstDraw 丢失');
+      await clearPendingSafely(8000);
+      await clickMenu('#btn-trust');
+      await waitState((s) => s.screenActive.result, 240000, '1v1 托管未到结算');
+      const autoEnd = await readAuto();
+      const slotEnd = await readSlot(3);
+      assert(autoEnd === null, '1v1 结算后自动档未清除');
+      assert(slotEnd && slotEnd.snapshot, '1v1 结算后槽位 3 被误删');
+      return { actual: '1v1 auto 含 rngState、duelFirstDraw=true；读槽 3 回合 ' + slot3Turn + '→' + loaded.turn + ' 且标记保留；结算后 auto 清除、slot3 保留' };
+    });
+
+    /* ---------- T54 演示 / 新游戏 / 投降 对存档的边界 ---------- */
+    await runCase('T54', '演示不读写存档 / 新游戏只覆盖自动 / 投降清自动留手动', [
+      '记录手动槽位 3 与自动档',
+      '启动自动演示并等数个 AI 回合，校验 auto 与槽位 3 完全不变',
+      '回主菜单开新 1v1，校验旧自动档被新局覆盖',
+      '投降判负后校验自动档清除、槽位 3 保留',
+    ], '演示期间 auto 原始字符串不变、slot3 不变；新游戏只覆盖 auto；投降后 auto 为 null 而 slot3 仍在', 'P1', async (row) => {
+      const rawAuto = () => cdp.eval(() => localStorage.getItem('sgs.save.auto'));
+      const rawSlot = (n) => cdp.eval((slot) => localStorage.getItem('sgs.save.slot' + slot), n);
+      const slot3Before = await rawSlot(3);
+      if (!slot3Before) return { skip: 'T53 未留下手动槽位 3，跳过边界验证' };
+      const autoBefore = await rawAuto();
+      await resetMenu();
+      await cdp.click('#btn-demo');
+      await waitState((s) => s.screenActive.game && s.seats >= 7, 10000, '演示未进入对局');
+      await sleep(3000);
+      const autoDuringDemo = await rawAuto();
+      assert(autoDuringDemo === autoBefore, '演示改写了自动档：before=' + (autoBefore && autoBefore.length) + ' during=' + (autoDuringDemo && autoDuringDemo.length));
+      assertEq(await rawSlot(3), slot3Before, '演示改写了手动槽位 3');
+
+      await resetMenu();
+      await cdp.click('#seg-mode [data-mode="1v1"]');
+      await cdp.click('#seg-pace [data-pace="fast"]');
+      await cdp.click('#btn-start');
+      await waitState((s) => s.screenActive.select, 5000, 'T54 1v1 选将页');
+      await cdp.click('#general-row .general-card', 0);
+      await cdp.click('#btn-general-confirm');
+      await waitState((s) => s.screenActive.game && s.seats === 1, 10000, 'T54 1v1 牌桌');
+      let auto1v1 = null;
+      const tAuto = Date.now();
+      while (Date.now() - tAuto < 10000) {
+        auto1v1 = await cdp.eval(() => { try { return JSON.parse(localStorage.getItem('sgs.save.auto')); } catch (e) { return null; } });
+        if (auto1v1 && auto1v1.snapshot && auto1v1.snapshot.mode === '1v1') break;
+        await sleep(200);
+      }
+      assert(auto1v1 && auto1v1.snapshot && auto1v1.snapshot.mode === '1v1', '新 1v1 未只覆盖自动档');
+      assertEq(await rawSlot(3), slot3Before, '开新游戏误删手动槽位');
+      await clickMenu('#btn-surrender');
+      await waitState((s) => s.modalCount > 0, 3000, '投降确认框未出现');
+      await cdp.click('[data-c="1"]');
+      await waitState((s) => s.screenActive.result, 10000, '投降后未到结算');
+      assert((await rawAuto()) === null, '投降判负后自动档未清除');
+      assertEq(await rawSlot(3), slot3Before, '投降判负误删手动槽位');
+
+      // 退出判负同样只清自动档
+      await cdp.click('#btn-home');
+      await waitState((s) => s.screenActive.menu, 5000, 'T54 投降后回主菜单');
+      await cdp.click('#seg-mode [data-mode="1v1"]');
+      await cdp.click('#seg-pace [data-pace="fast"]');
+      await cdp.click('#btn-start');
+      await waitState((s) => s.screenActive.select, 5000, 'T54 再次 1v1 选将页');
+      await cdp.click('#general-row .general-card', 0);
+      await cdp.click('#btn-general-confirm');
+      await waitState((s) => s.screenActive.game && s.seats === 1, 10000, 'T54 再次 1v1 牌桌');
+      let autoQuit = null;
+      const tQuit = Date.now();
+      while (Date.now() - tQuit < 10000) {
+        autoQuit = await cdp.eval(() => localStorage.getItem('sgs.save.auto'));
+        if (autoQuit) break;
+        await sleep(200);
+      }
+      assert(!!autoQuit, '退出判负前未写入自动档');
+      await clickMenu('#btn-quit');
+      await waitState((s) => s.modalCount > 0, 3000, '退出确认框未出现');
+      await cdp.click('[data-c="1"]');
+      await waitState((s) => s.screenActive.menu, 5000, '退出判负后未回主菜单');
+      assert((await rawAuto()) === null, '退出判负后自动档未清除');
+      assertEq(await rawSlot(3), slot3Before, '退出判负误删手动槽位');
+      return { actual: '演示 3s 内 auto/slot3 不变；新 1v1 覆盖 auto 且槽 3 保留；投降/退出判负后 auto=null、槽 3 保留' };
+    });
+
+    /* ---------- T55 存档异常：v1 迁移 / 损坏 / 写失败 / 暂停读档 ---------- */
+    await runCase('T55', '存档异常：v1 迁移 / 损坏 / 缺字段 / 写失败 / 暂停读档', [
+      '用不含 rngState 的 1.0.6 结构写 sgs.save.v1，刷新后校验迁移为 auto 并可继续',
+      '写入损坏 JSON 与缺字段 auto，刷新后提示「存档损坏」且回到主菜单',
+      '写入损坏槽位 1，打开读取面板应清除并提示',
+      '暂停状态下读档，校验牌桌与倒计时正常',
+      '替换 localStorage.setItem 抛错，校验手动保存明确提示失败',
+    ], 'v1 迁移为 auto 且旧键清除；损坏/缺字段不白屏并提示「存档损坏」；暂停读档后倒计时正常；写失败返回 ok=false 且提示保存失败', 'P1', async (row) => {
+      const home = async (label) => {
+        await cdp.navigate(BASE + '?nofx=1&screen=home');
+        return await waitState((s) => s.screenActive.menu, 6000, label || '回主菜单');
+      };
+      const readAuto = () => cdp.eval(() => { try { const r = localStorage.getItem('sgs.save.auto'); return r ? JSON.parse(r) : null; } catch (e) { return null; } });
+      await cdp.navigate(BASE + '?nofx=1&screen=game&seed=2026');
+      await waitState((s) => s.screenActive.game && s.seats === 7, 10000, 'T55 取快照');
+      const fixture = await cdp.eval(() => SGS_UI._state().game.snapshot());
+      const legacySnap = JSON.parse(JSON.stringify(fixture));
+      delete legacySnap.rngState; // 1.0.6 快照没有 rngState
+      legacySnap.turnCount = 5;
+      legacySnap.currentSeat = 2;
+      legacySnap.players[2].revealed = true;
+      await cdp.eval((snap) => {
+        localStorage.removeItem('sgs.save.auto');
+        localStorage.setItem('sgs.save.v1', JSON.stringify({ v: 1, time: Date.now() - 1000, mode: '8p', snapshot: snap }));
+      }, legacySnap);
+      const menu1 = await home('v1 迁移后主菜单');
+      await sleep(500);
+      const autoMigrated = await readAuto();
+      const legacyLeft = await cdp.eval(() => localStorage.getItem('sgs.save.v1'));
+      assert(autoMigrated && autoMigrated.snapshot && autoMigrated.snapshot.mode === '8p', 'v1 未迁移为 auto');
+      assert(autoMigrated.v === 2, '迁移后的 auto 版本不是 2');
+      assert(legacyLeft === null, 'v1 迁移后旧键未清除');
+      assert(menu1.continueVisible, 'v1 迁移后继续游戏不可见');
+      assert(menu1.continueMeta.indexOf('八人身份局') >= 0, '迁移后继续信息异常：' + menu1.continueMeta);
+      await cdp.click('#btn-continue');
+      const g1 = await waitState((s) => s.screenActive.game, 8000, '迁移档读取失败');
+      assertEq(g1.mode, '8p', '迁移档模式');
+      assert(g1.turn >= 5 && g1.turn <= 6, '迁移档回合异常：' + g1.turn);
+      const revealed = await cdp.eval(() => {
+        const p = SGS_UI._state().game.players[2];
+        const roleEl = document.querySelector('#seats .seat[data-seat="2"] .seat-role');
+        return { flag: p.revealed === true, text: roleEl ? roleEl.textContent.trim() : '' };
+      });
+      assert(revealed.flag && revealed.text !== '?', 'revealed 身份读档后不可见：' + JSON.stringify(revealed));
+      row.notes.push('1.0.6 无 rngState 存档迁移读取通过，回合=' + g1.turn);
+
+      await cdp.eval(() => { localStorage.setItem('sgs.save.auto', '{broken'); });
+      await home('损坏 auto 后主菜单');
+      await sleep(500);
+      assert((await cdp.eval(() => localStorage.getItem('sgs.save.auto'))) === null, '损坏 auto 未清除');
+      assert(!(await state()).continueVisible, '损坏 auto 后继续按钮仍可见');
+      const corruptToast = await cdp.waitExpr('!!Array.prototype.find.call(document.querySelectorAll("#toast-root .toast"), function (t) { return t.textContent.indexOf("存档损坏") >= 0; })', 3000).catch(() => false);
+      assert(corruptToast, '损坏 auto 未提示「存档损坏」');
+
+      await cdp.eval(() => { localStorage.setItem('sgs.save.auto', '{"v":2,"snapshot":{"mode":"8p"}}'); });
+      await home('缺字段 auto 后主菜单');
+      await sleep(400);
+      assert((await cdp.eval(() => localStorage.getItem('sgs.save.auto'))) === null, '缺字段 auto 未清除');
+
+      await cdp.eval(() => { localStorage.setItem('sgs.save.slot1', '{"v":2,"snapshot":{"players":[]}}'); });
+      await home('损坏槽位后主菜单');
+      await cdp.eval(() => SGS_SAVE.openLoadPanel());
+      await waitState((s) => s.savesPanelOpen, 3000, '损坏槽位后面板未打开');
+      await sleep(300);
+      assert((await cdp.eval(() => localStorage.getItem('sgs.save.slot1'))) === null, '损坏槽位 1 未清除');
+      await cdp.click('#saves-close');
+
+      // 暂停状态下读档：写入一份有效 auto，再在暂停标记下继续
+      const pauseSnap = JSON.parse(JSON.stringify(fixture));
+      pauseSnap.currentSeat = 0;
+      pauseSnap.turnCount = 3;
+      pauseSnap.over = false;
+      await cdp.eval((snap) => {
+        localStorage.setItem('sgs.save.auto', JSON.stringify({ v: 2, kind: 'auto', time: Date.now(), mode: '8p', meta: { mode: '8p', turn: 3, general: snap.players[0].general.name, time: Date.now() }, snapshot: snap }));
+      }, pauseSnap);
+      await home('暂停读档前主菜单');
+      await cdp.eval(() => { if (window.SGS_APP_PAUSE) window.SGS_APP_PAUSE(true, { keepAudio: true }); });
+      await cdp.click('#btn-continue');
+      await waitState((s) => s.screenActive.game, 8000, '暂停状态读档失败');
+      let pausedLoad = await state();
+      const tPause = Date.now();
+      while (Date.now() - tPause < 10000) {
+        pausedLoad = await state();
+        if (/^\d+s$/.test(String(pausedLoad.countdown || '').trim()) || (pausedLoad.pending && pausedLoad.pending.type === 'play')) break;
+        await sleep(200);
+      }
+      assert(/^\d+s$/.test(String(pausedLoad.countdown || '').trim()) || (pausedLoad.pending && pausedLoad.pending.type === 'play'), '暂停读档后倒计时/请求异常：' + JSON.stringify({ countdown: pausedLoad.countdown, pending: pausedLoad.pending && pausedLoad.pending.type }));
+      await cdp.eval(() => { if (window.SGS_APP_PAUSE) window.SGS_APP_PAUSE(false, {}); });
+
+      // 写失败：替换 setItem 抛错，手动保存必须返回失败并提示
+      const fail = await cdp.eval(() => {
+        const orig = Storage.prototype.setItem;
+        Storage.prototype.setItem = function () { throw new Error('QuotaExceededError'); };
+        let res = null;
+        try { res = SGS_SAVE.saveSlot(1); } finally { Storage.prototype.setItem = orig; }
+        return { ok: res && res.ok, bytes: res && res.bytes };
+      });
+      assert(fail.ok === false, '写失败时手动保存仍返回成功');
+      const failToast = await cdp.waitExpr('!!Array.prototype.find.call(document.querySelectorAll("#toast-root .toast"), function (t) { return t.textContent.indexOf("保存失败") >= 0; })', 3000).catch(() => false);
+      assert(failToast, '写失败未提示保存失败');
+      return { actual: 'v1→auto 迁移通过（回合 ' + g1.turn + '，revealed 可见）；损坏/缺字段 auto 清除并提示；损坏槽位清除；暂停读档倒计时=' + pausedLoad.countdown + '；写失败 ok=false 且有提示' };
     });
 
     /* ---------- T35 2v2 结算 ---------- */
@@ -2951,57 +3301,158 @@ function pageState() {
     });
 
     /* ---------- T39 装备横条：142px 单列 / 4 件 / 名称可读 ---------- */
-    await runCase('T39', '装备横条：142px 单列 4 件不溢出、名称可读', [
-      '8p 对局中给 1 号位设置武器/防具/进攻马/防御马',
-      '读取 .seat-equip-list/.eq-bar/.eq-ico/.eq-name 尺寸',
-      '裁剪座位区域截图',
-    ], '座位下方单列 142px、4 条 .eq-bar（单条 30px）、20px 图标、花色点数与装备名可见，不溢出座位；截图 qa_equip_strip.png', 'P1', async (row) => {
-      await startFrozenDemo8p();
-      const snap = await cdp.eval(() => {
+    await runCase('T39', '装备外挂栏（v6）：4 行/降级/不越界/方向镜像', [
+      '1600×900 冻结局给座位 1 四件装备（青龙/八卦/赤兔/的卢）',
+      '读取外挂栏容器、方向类、4 行高度/类型/牌名/降级与越界/遮挡',
+      '检查「结束出牌」中心+四角 elementFromPoint 均为按钮',
+      '切 792×323 重复检查行高 14、宽度自适应、牌名不截断',
+    ], '外挂栏非零可见；行数=4 且 ≤4；每行有类型标识和完整名/两字简称/仅类型降级，不能只剩省略号；行高 17（792 下 14）；不越出视口、不压本人武将牌/名字/相邻座位/中央区/动作栏；方向类与位置一致；宽≥1101 时 #me-equips .equip-slot 仍为 4 槽', 'P1', async (row) => {
+      const equipSeat = (seat) => cdp.eval((s) => {
         const g = SGS_UI._state().game;
-        const seat = 1;
-        g.players[seat].equips = {
-          weapon: { id: 'qa_eq_w', name: 'zhugeliannu', suit: 'club', rank: 1 },
-          armor: { id: 'qa_eq_a', name: 'bagua', suit: 'spade', rank: 2 },
-          offhorse: { id: 'qa_eq_o', name: 'chitu', suit: 'heart', rank: 5 },
-          defhorse: { id: 'qa_eq_d', name: 'dilu', suit: 'club', rank: 5 },
+        const mk = (name, suit, rank, id) => ({ id, name, suit, rank });
+        g.players[s].equips = {
+          weapon: mk('qinglong', 'spade', 5, 'qa_q_' + s),
+          armor: mk('bagua', 'club', 2, 'qa_b_' + s),
+          offhorse: mk('chitu', 'heart', 5, 'qa_o_' + s),
+          defhorse: mk('dilu', 'club', 5, 'qa_d_' + s),
         };
         SGS_UI.render(g);
-        const seatEl = document.querySelector('#seats .seat[data-seat="1"]');
-        const list = seatEl.querySelector('.seat-equip-list');
-        const r = (el) => { const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, right: b.right, bottom: b.bottom }; };
-        const bars = Array.prototype.slice.call(list.querySelectorAll('.eq-bar'));
+      }, seat);
+      const inspect = () => cdp.eval(() => {
+        const seat = document.querySelector('#seats .seat[data-seat="1"]');
+        const bar = seat && seat.querySelector('.seat-equip-list');
+        const rect = (el) => {
+          if (!el) return null;
+          const r = el.getBoundingClientRect();
+          return { x: r.x, y: r.y, w: r.width, h: r.height, left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+        };
+        const area = (a, b) => {
+          if (!a || !b) return 0;
+          const w = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+          const h = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+          return w * h;
+        };
+        const rows = bar ? Array.prototype.map.call(bar.querySelectorAll('.eq-bar'), (r) => {
+          const nameEl = r.querySelector('.eq-name');
+          const typeEl = r.querySelector('.eq-type');
+          const nameCs = nameEl ? getComputedStyle(nameEl) : null;
+          const typeCs = typeEl ? getComputedStyle(typeEl) : null;
+          const after = getComputedStyle(r, '::after');
+          const nameVisible = !!(nameEl && nameCs.display !== 'none' && nameEl.getBoundingClientRect().width > 0);
+          return {
+            h: r.getBoundingClientRect().height,
+            w: r.getBoundingClientRect().width,
+            typeText: typeEl ? typeEl.textContent.trim() : '',
+            typeW: typeEl ? typeEl.getBoundingClientRect().width : 0,
+            typeH: typeEl ? typeEl.getBoundingClientRect().height : 0,
+            typeFont: typeCs ? typeCs.fontSize : '',
+            nameText: nameEl ? nameEl.textContent.trim() : '',
+            nameVisible: nameVisible,
+            nameFont: nameCs ? nameCs.fontSize : '',
+            nameClipped: !!(nameEl && nameVisible && nameEl.scrollWidth > nameEl.clientWidth + 1),
+            after: after && after.content && after.content !== 'none' ? after.content : '',
+            dataShort: r.getAttribute('data-short') || '',
+          };
+        }) : [];
+        const ownArt = seat ? seat.querySelector('.seat-art') : null;
+        const ownName = seat ? seat.querySelector('.seat-name') : null;
+        const others = Array.prototype.filter.call(document.querySelectorAll('#seats .seat'), (x) => x !== seat);
+        const otherRects = [];
+        others.forEach((x) => {
+          const a = x.querySelector('.seat-art');
+          if (a) otherRects.push({ name: 'seat' + x.dataset.seat + '-art', rect: rect(a) });
+          const r = x.querySelector('.seat-equip-list');
+          if (r && rect(r).w > 0) otherRects.push({ name: 'seat' + x.dataset.seat + '-rail', rect: rect(r) });
+        });
+        const center = document.querySelector('#table-center');
+        const played = Array.prototype.map.call(document.querySelectorAll('#table-center .played-card'), (x) => ({ el: x, rect: rect(x) })).filter((x) => x.rect.w > 0 && x.rect.h > 0);
+        const action = document.querySelector('#action-bar');
+        const pick = document.querySelector('#pick-bar');
+        const visible = (el) => !!(el && rect(el).w > 0 && rect(el).h > 0);
+        const barRect = rect(bar);
+        const overlaps = otherRects.filter((x) => area(barRect, x.rect) > 4).map((x) => x.name);
+        const btn = document.querySelector('[data-act="play-end"]');
+        const br = btn ? rect(btn) : null;
+        const hitPts = br ? [[0.5, 0.5], [0.08, 0.08], [0.92, 0.08], [0.08, 0.92], [0.92, 0.92]].map((p) => {
+          const el = document.elementFromPoint(br.left + br.w * p[0], br.top + br.h * p[1]);
+          return !!(el && (el === btn || btn.contains(el)) && el.classList && el.classList.contains('bar-btn'));
+        }) : [];
+        const mePanel = document.querySelector('#me-equips');
+        const slots = mePanel ? mePanel.querySelectorAll('.equip-slot') : [];
         return {
-          seat: r(seatEl), list: r(list),
-          listWidth: getComputedStyle(list).width,
-          listHeight: getComputedStyle(list).height,
-          count: bars.length,
-          bars: bars.map((b) => {
-            const name = b.querySelector('.eq-name');
-            const ico = b.querySelector('.eq-ico');
-            return {
-              rect: r(b), icon: r(ico),
-              name: name ? name.textContent : '',
-              nameScroll: name ? name.scrollWidth : 0,
-              nameClient: name ? name.clientWidth : 0,
-              text: (b.innerText || '').replace(/\s+/g, ' ').trim(),
-            };
-          }),
+          vp: { w: innerWidth, h: innerHeight },
+          seatClass: seat ? seat.className : '',
+          seatRect: rect(seat),
+          bar: barRect,
+          rows: rows,
+          railShort: !!(seat && seat.classList.contains('rail-short')),
+          railTypeOnly: !!(seat && seat.classList.contains('rail-type-only')),
+          overlapOwnArt: area(barRect, rect(ownArt)) > 4,
+          overlapOwnName: area(barRect, rect(ownName)) > 4,
+          overlaps: overlaps,
+          overlapPlayed: played.some((x) => area(barRect, x.rect) > 4),
+          overlapAction: visible(action) && area(barRect, rect(action)) > 4,
+          overlapPick: visible(pick) && area(barRect, rect(pick)) > 4,
+          actionHit: hitPts,
+          mePanel: { visible: visible(mePanel), slots: slots.length, slotW: slots.length ? rect(slots[0]).w : 0 },
         };
       });
-      assertEq(snap.count, 4, '装备条数量');
-      assert(snap.list.w >= 90 && snap.list.w <= 143, '装备列表宽度应在 90–142px（响应式），实际 ' + snap.list.w);
-      assert(snap.list.y >= snap.seat.y - 1 && snap.list.bottom <= snap.seat.bottom + 1, '装备列表溢出座位：' + JSON.stringify({ seat: snap.seat, list: snap.list }));
-      for (const b of snap.bars) {
-        assert(b.rect.x >= snap.list.x - 1 && b.rect.right <= snap.list.right + 1, '装备条横向溢出：' + JSON.stringify(b.rect));
-        assert(b.rect.y >= snap.list.y - 1 && b.rect.bottom <= snap.list.bottom + 1, '装备条纵向溢出：' + JSON.stringify(b.rect));
-        assert(b.icon.w >= 14 && b.icon.w <= 20.5 && Math.abs(b.icon.w - b.icon.h) <= 0.5, '装备图标尺寸异常：' + JSON.stringify(b.icon));
-        assert(b.name && b.nameScroll <= b.nameClient + 1, '装备名被截断：' + b.name + ' scroll=' + b.nameScroll + ' client=' + b.nameClient);
+      const assertView = (d, label, expectH, expectTotal, wide) => {
+        assert(d.bar && d.bar.w > 0 && d.bar.h > 0, label + '：外挂栏不可见');
+        assert(d.bar.left >= -1 && d.bar.top >= -1 && d.bar.right <= d.vp.w + 1 && d.bar.bottom <= d.vp.h + 1,
+          label + '：外挂栏越出视口 ' + JSON.stringify(d.bar) + ' / ' + JSON.stringify(d.vp));
+        assertEq(d.rows.length, 4, label + '：装备行数');
+        assert(d.rows.length <= 4, label + '：装备行数超过 4');
+        d.rows.forEach((r, i) => {
+          assert(r.typeText, label + '：第 ' + (i + 1) + ' 行缺少类型标识');
+          assert(Math.abs(r.h - expectH) <= 2, label + '：第 ' + (i + 1) + ' 行行高 ' + r.h + '，期望 ' + expectH);
+          assert(r.typeW >= 10 && r.typeW <= 16, label + '：第 ' + (i + 1) + ' 行类型色块 ' + r.typeW);
+          assert(r.w >= 15 && r.w <= 95, label + '：第 ' + (i + 1) + ' 行宽度 ' + r.w);
+          const hasLabel = (r.nameVisible && r.nameText) || r.after || d.railTypeOnly;
+          assert(hasLabel, label + '：第 ' + (i + 1) + ' 行没有完整名/简称/类型降级');
+          assert(!r.nameClipped, label + '：第 ' + (i + 1) + ' 行牌名被省略号截断：' + r.nameText);
+          if (r.nameVisible) assert(parseFloat(r.nameFont) >= 11.5, label + '：第 ' + (i + 1) + ' 行牌名字号 ' + r.nameFont);
+        });
+        assert(Math.abs(d.bar.h - expectTotal) <= 6, label + '：4 行总高 ' + d.bar.h + '，期望 ' + expectTotal);
+        assert(!d.overlapOwnArt && !d.overlapOwnName, label + '：外挂栏压住本人武将牌/名字');
+        assertEq(d.overlaps.length, 0, label + '：外挂栏与相邻座位/外挂栏重叠：' + d.overlaps.join(','));
+        assert(!d.overlapPlayed, label + '：外挂栏压住中央打出的牌');
+        assert(!d.overlapAction, label + '：外挂栏压住动作栏');
+        assert(!d.overlapPick, label + '：外挂栏压住 pick-bar');
+        const dirs = ['eq-right', 'eq-left', 'eq-bottom'].filter((c) => d.seatClass.indexOf(c) >= 0);
+        assertEq(dirs.length, 1, label + '：方向类数量');
+        if (dirs[0] === 'eq-right') assert(d.bar.left >= d.seatRect.right - 2, label + '：eq-right 外挂栏未挂在座位右侧');
+        if (dirs[0] === 'eq-left') assert(d.bar.right <= d.seatRect.left + 2, label + '：eq-left 外挂栏未挂在座位左侧');
+        if (dirs[0] === 'eq-bottom') assert(d.bar.top >= d.seatRect.bottom - 2, label + '：eq-bottom 外挂栏未挂在座位下方');
+        assert(d.actionHit.length === 5 && d.actionHit.every(Boolean), label + '：结束出牌按钮中心/四角不可点 ' + JSON.stringify(d.actionHit));
+        if (wide) {
+          assert(d.mePanel.visible, label + '：宽屏右侧装备面板不可见');
+          assertEq(d.mePanel.slots, 4, label + '：宽屏右侧装备槽数');
+        }
+      };
+      try {
+        await setQaViewport(1600, 900);
+        await startFrozenDemo8p();
+        await waitState((s) => s.pending && s.pending.type === 'play' && s.pending.seat === 0, 15000, 'T39 冻结出牌请求');
+        await equipSeat(1);
+        await sleep(500);
+        const wide = await inspect();
+        assertView(wide, '1600×900', 17, 71, true);
+        await shot('qa_equip_strip.png', row);
+
+        await setQaViewport(792, 323);
+        await sleep(700);
+        await equipSeat(1);
+        await sleep(400);
+        const phone = await inspect();
+        assertView(phone, '792×323', 14, 59, false);
+        await shot('qa_equip_strip_792.png', row);
+        row.notes.push('1600 宽=' + wide.bar.w + ' 高=' + wide.bar.h + '；792 宽=' + phone.bar.w + ' 高=' + phone.bar.h +
+          '；1600 行宽=' + wide.rows.map((r) => Math.round(r.w)).join('/'));
+        return { actual: '1600 外挂栏 ' + Math.round(wide.bar.w) + '×' + Math.round(wide.bar.h) + '（4 行 17px，方向 ' + wide.seatClass.split(' ').filter((c) => c.indexOf('eq-') === 0).join('') + '）；792 外挂栏 ' + Math.round(phone.bar.w) + '×' + Math.round(phone.bar.h) + '（4 行 14px）；结束出牌中心+四角可点' };
+      } finally {
+        await setQaViewport(1600, 900);
       }
-      assert(Math.abs(snap.bars[0].rect.h - 30) <= 1, '单条 .eq-bar 高度应为 30px，实际 ' + snap.bars[0].rect.h + 'px');
-      const clip = { x: snap.seat.x - 12, y: snap.seat.y - 12, width: snap.seat.w + 24, height: snap.seat.h + 24 };
-      await shotClip('qa_equip_strip.png', clip, row);
-      return { actual: '4 条装备，列表宽 ' + snap.list.w + '，单条高 ' + snap.bars[0].rect.h + 'px，图标 20×20，名称均未截断；截图 qa_equip_strip.png' };
     });
 
     /* ---------- T40 流离选目标：牌桌点选 + 顶部取消/确认，无全屏弹窗 ---------- */

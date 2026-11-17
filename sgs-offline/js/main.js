@@ -11,9 +11,6 @@
   const BASE_PACKS = ['标准', '风', '火', '林', '山'];
   const EXTRA_PACK = 'extras';
   const ALL_PACKS = BASE_PACKS.concat([EXTRA_PACK]);
-  const SAVE_KEY = 'sgs.save.v1';
-  const SETTINGS_KEY = 'sgs.settings.v1';
-  let lastSnapshot = null;
   const menu = { mode: '8p', cardPack: 'full', packs: BASE_PACKS.slice(), pace: 'normal', aiLevel: 'normal', duelPool: 'classic' };
   // 整体节奏档位：AI 决策间隔、阶段停顿、托管速度一起缩放
   const PACE_PROFILES = {
@@ -28,12 +25,10 @@
   let trusteeship = false;
   let currentAI = null;
   let battleBgmOn = false;
+  const SETTINGS_KEY = 'sgs.settings.v1';
 
   function q(id) { return document.getElementById(id); }
 
-  /* ============================================================
-     菜单
-     ============================================================ */
   function readSettings() {
     try {
       const raw = global.localStorage && global.localStorage.getItem(SETTINGS_KEY);
@@ -90,37 +85,276 @@
     } catch (e) { /* ignore */ }
   }
 
-  function saveSnapshot(snap) {
-    lastSnapshot = snap;
-    try {
-      global.localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, time: Date.now(), mode: menu.mode, snapshot: snap }));
-    } catch (e) { /* ignore */ }
-    updateContinueButton();
+  // 存档：1 个自动档（每回合滚动）+ 3 个手动槽位；旧 sgs.save.v1 首次启动迁移为自动档
+  const LEGACY_SAVE_KEY = 'sgs.save.v1';
+  const SAVE_AUTO_KEY = 'sgs.save.auto';
+  const SAVE_SLOT_KEYS = ['sgs.save.slot1', 'sgs.save.slot2', 'sgs.save.slot3'];
+  const SAVE_VERSION = 2;
+  const MODE_LABELS = { '8p': '八人身份局', '5p': '五人身份局', '1v1': '单挑', '2v2': '2v2', '3v3': '3v3', ddz: '斗地主' };
+  let lastSnapshot = null;          // 最近一次“回合开始”快照（手动保存也用它）
+  let autoInfo = { status: 'empty' };
+  let slotInfo = [{ status: 'empty' }, { status: 'empty' }, { status: 'empty' }];
+  let saveNotices = [];
+  let autosaveFailed = false;
+  let autosaveToastTimer = 0;
+  let savesPanelMode = null;        // 'save' | 'load'
+  let savesPanelEl = null;
+  let pendingSlotAction = null;     // { type:'overwrite'|'delete', slot, until }
+  let pendingSlotTimer = 0;
+
+  function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+  function formatSaveTime(ms) {
+    if (!ms) return '—';
+    const d = new Date(Number(ms));
+    if (isNaN(d.getTime())) return '—';
+    return (d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+  function modeLabel(mode) { return MODE_LABELS[mode] || mode || '对局'; }
+  function byteLength(str) {
+    try { return new TextEncoder().encode(String(str)).length; }
+    catch (e) { return String(str).length * 2; }
   }
 
-  function readSave() {
-    try {
-      const raw = global.localStorage.getItem(SAVE_KEY);
-      if (!raw) return null;
-      const d = JSON.parse(raw);
-      return d && d.snapshot ? d : null;
-    } catch (e) { return null; }
+  function buildSaveMeta(snap, time) {
+    const hs = snap && snap.humanSeat != null ? snap.humanSeat : 0;
+    const me = snap && snap.players ? snap.players[hs] : null;
+    return {
+      mode: snap && snap.mode,
+      turn: Math.max(1, Number(snap && snap.turnCount) || 0),
+      general: me && me.general ? me.general.name : '—',
+      time: time || Date.now(),
+    };
   }
 
-  function clearSave() {
-    lastSnapshot = null;
-    try { global.localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
-    updateContinueButton();
+  function makeSaveEnvelope(kind, snap, time) {
+    const t = time || Date.now();
+    return {
+      v: SAVE_VERSION, kind: kind, time: t,
+      mode: snap.mode, meta: buildSaveMeta(snap, t), snapshot: snap,
+    };
   }
 
-  function updateContinueButton() {
+  function safeGetItem(key) {
+    try { return global.localStorage.getItem(key); } catch (e) { return null; }
+  }
+  function safeSetItem(key, raw) {
+    try { global.localStorage.setItem(key, raw); return true; } catch (e) { return false; }
+  }
+  function safeRemoveItem(key) {
+    try { global.localStorage.removeItem(key); } catch (e) { /* ignore */ }
+  }
+
+  // 返回 { status:'empty'|'ok'|'corrupt', save?, bytes? }
+  function readSaveAt(key) {
+    const raw = safeGetItem(key);
+    if (!raw) return { status: 'empty' };
+    let d = null;
+    try { d = JSON.parse(raw); } catch (e) { return { status: 'corrupt', bytes: byteLength(raw) }; }
+    if (!d || !d.snapshot || !Array.isArray(d.snapshot.players) || !d.snapshot.players.length || !d.snapshot.mode) {
+      return { status: 'corrupt', bytes: byteLength(raw) };
+    }
+    const snap = d.snapshot;
+    return {
+      status: 'ok', bytes: byteLength(raw),
+      save: {
+        v: d.v || 1, kind: d.kind || 'auto', time: Number(d.time) || 0,
+        mode: d.mode || snap.mode,
+        meta: (d.meta && typeof d.meta === 'object') ? d.meta : buildSaveMeta(snap, Number(d.time) || Date.now()),
+        snapshot: snap,
+      },
+    };
+  }
+
+  function writeSaveAt(key, env) {
+    let raw = '';
+    try { raw = JSON.stringify(env); } catch (e) { return { ok: false, bytes: 0 }; }
+    if (!safeSetItem(key, raw)) return { ok: false, bytes: byteLength(raw) };
+    return { ok: true, bytes: byteLength(raw) };
+  }
+
+  function pushSaveNotice(text) {
+    if (text && saveNotices.indexOf(text) < 0) saveNotices.push(text);
+  }
+
+  function refreshAutoInfo() {
+    const r = readSaveAt(SAVE_AUTO_KEY);
+    if (r.status === 'corrupt') { safeRemoveItem(SAVE_AUTO_KEY); autoInfo = { status: 'empty' }; pushSaveNotice('存档损坏，已清除'); }
+    else autoInfo = r;
+    return autoInfo;
+  }
+
+  function refreshSlotInfo(index) {
+    const r = readSaveAt(SAVE_SLOT_KEYS[index]);
+    if (r.status === 'corrupt') { safeRemoveItem(SAVE_SLOT_KEYS[index]); slotInfo[index] = { status: 'empty' }; pushSaveNotice('存档损坏，已清除'); }
+    else slotInfo[index] = r;
+    return slotInfo[index];
+  }
+
+  function refreshAllSaves() {
+    refreshAutoInfo();
+    for (let i = 0; i < SAVE_SLOT_KEYS.length; i++) refreshSlotInfo(i);
+    updateSaveButtons();
+  }
+
+  function updateSaveButtons() {
     const btn = q('btn-continue');
-    if (!btn) return;
-    btn.classList.toggle('is-hidden', !readSave());
+    const meta = q('continue-meta');
+    const savesBtn = q('btn-saves');
+    const okAuto = autoInfo.status === 'ok' && autoInfo.save;
+    const wrap = q('continue-wrap');
+    if (wrap) wrap.classList.toggle('is-hidden', !okAuto);
+    if (btn) btn.classList.toggle('is-hidden', !okAuto);
+    if (meta) {
+      meta.classList.toggle('is-hidden', !okAuto);
+      if (okAuto) {
+        const m = autoInfo.save.meta || {};
+        meta.textContent = modeLabel(autoInfo.save.mode) + ' · 第 ' + (m.turn || 1) + ' 回合 · ' + formatSaveTime(autoInfo.save.time);
+      } else {
+        meta.textContent = '';
+      }
+    }
+    const anySlot = slotInfo.some(function (x) { return x.status === 'ok'; });
+    if (savesBtn) savesBtn.classList.toggle('is-hidden', !(okAuto || anySlot));
   }
 
-  function loadGame() {
-    const save = readSave();
+  function showAutoSaveToast(text, isError) {
+    let el = q('autosave-toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'autosave-toast';
+      el.className = 'autosave-toast';
+      (document.getElementById('app') || document.body).appendChild(el);
+    }
+    el.textContent = text;
+    el.classList.toggle('is-error', !!isError);
+    el.classList.add('is-on');
+    if (autosaveToastTimer) clearTimeout(autosaveToastTimer);
+    autosaveToastTimer = setTimeout(function () {
+      autosaveToastTimer = 0;
+      el.classList.remove('is-on');
+    }, isError ? 2600 : 1500);
+  }
+
+  function saveAuto(snap, opts) {
+    if (!snap) return false;
+    const env = makeSaveEnvelope('auto', snap);
+    const w = writeSaveAt(SAVE_AUTO_KEY, env);
+    if (w.ok) {
+      autoInfo = { status: 'ok', save: env, bytes: w.bytes };
+      autosaveFailed = false;
+      if (!opts || !opts.silent) showAutoSaveToast('已自动保存');
+    } else {
+      // 写失败时保留上一次仍可用的自动档信息，不能把已有存档判成不可继续
+      if (autosaveFailed) { /* 已在本次失败中提示过 */ }
+      if (!autosaveFailed) {
+        autosaveFailed = true;
+        showAutoSaveToast('自动保存失败：存储空间不足', true);
+        UI.toast('自动保存失败：存储空间不足或浏览器限制', true);
+      }
+    }
+    updateSaveButtons();
+    return w.ok;
+  }
+
+  function clearAuto() {
+    safeRemoveItem(SAVE_AUTO_KEY);
+    autoInfo = { status: 'empty' };
+    lastSnapshot = null;
+    updateSaveButtons();
+  }
+
+  function migrateLegacySave() {
+    const legacy = readSaveAt(LEGACY_SAVE_KEY);
+    if (legacy.status === 'empty') return;
+    if (legacy.status === 'corrupt') {
+      safeRemoveItem(LEGACY_SAVE_KEY);
+      pushSaveNotice('旧存档已损坏，已清除');
+      return;
+    }
+    if (autoInfo.status === 'ok') {
+      // 已经有自动档：旧 v1 只做清理，避免反向覆盖新档
+      safeRemoveItem(LEGACY_SAVE_KEY);
+      return;
+    }
+    const env = makeSaveEnvelope('auto', legacy.save.snapshot, legacy.save.time || Date.now());
+    const w = writeSaveAt(SAVE_AUTO_KEY, env);
+    if (w.ok) {
+      autoInfo = { status: 'ok', save: env, bytes: w.bytes };
+      safeRemoveItem(LEGACY_SAVE_KEY);
+    } else {
+      pushSaveNotice('旧存档迁移失败：存储空间不足');
+    }
+  }
+
+  function saveSlotFromSnapshot(slot, snap) {
+    const index = Number(slot) - 1;
+    if (index < 0 || index >= SAVE_SLOT_KEYS.length) return { ok: false, bytes: 0 };
+    if (!snap) return { ok: false, bytes: 0 };
+    const env = makeSaveEnvelope('manual', snap);
+    const w = writeSaveAt(SAVE_SLOT_KEYS[index], env);
+    if (!w.ok) {
+      UI.toast('保存失败：存储空间不足或浏览器限制', true);
+      return { ok: false, bytes: 0 };
+    }
+    slotInfo[index] = { status: 'ok', save: env, bytes: w.bytes };
+    updateSaveButtons();
+    return { ok: true, bytes: w.bytes };
+  }
+
+  function deleteSaveSlot(slot) {
+    if (slot === 'auto') {
+      clearAuto();
+      return true;
+    }
+    const index = Number(slot) - 1;
+    if (index < 0 || index >= SAVE_SLOT_KEYS.length) return false;
+    safeRemoveItem(SAVE_SLOT_KEYS[index]);
+    slotInfo[index] = { status: 'empty' };
+    updateSaveButtons();
+    return true;
+  }
+
+  function saveStats() {
+    const slots = SAVE_SLOT_KEYS.map(function (key) {
+      const raw = safeGetItem(key);
+      return raw ? byteLength(raw) : 0;
+    });
+    const autoRaw = safeGetItem(SAVE_AUTO_KEY);
+    const autoBytes = autoRaw ? byteLength(autoRaw) : 0;
+    return { auto: autoBytes, slots: slots, total: autoBytes + slots.reduce(function (a, b) { return a + b; }, 0) };
+  }
+
+  function loadAuto() {
+    const r = readSaveAt(SAVE_AUTO_KEY);
+    if (r.status === 'corrupt') {
+      safeRemoveItem(SAVE_AUTO_KEY);
+      autoInfo = { status: 'empty' };
+      updateSaveButtons();
+      UI.toast('存档损坏，已清除', true);
+      return;
+    }
+    if (r.status !== 'ok') { UI.toast('没有可继续的存档', true); return; }
+    loadGame(r.save, SAVE_AUTO_KEY);
+  }
+
+  function loadSlot(slot) {
+    const index = Number(slot) - 1;
+    if (index < 0 || index >= SAVE_SLOT_KEYS.length) return;
+    const key = SAVE_SLOT_KEYS[index];
+    const r = readSaveAt(key);
+    if (r.status === 'corrupt') {
+      safeRemoveItem(key);
+      slotInfo[index] = { status: 'empty' };
+      updateSaveButtons();
+      pushSaveNotice('存档损坏，已清除');
+      UI.toast('存档损坏，已清除', true);
+      return;
+    }
+    if (r.status !== 'ok') { UI.toast('该槽位没有存档', true); return; }
+    loadGame(r.save, key);
+  }
+
+  function loadGame(save, sourceKey) {
     if (!save || !save.snapshot) { UI.toast('没有可继续的存档', true); return; }
     const snap = save.snapshot;
     session += 1;
@@ -132,8 +366,10 @@
     }
     updateMenuUI();
     trusteeship = false;
+    battleBgmOn = false;
     try { UI.setTrust(false); } catch (e) { /* ignore */ }
-    const game = new SGS.Game({
+    let game = null;
+    game = new SGS.Game({
       mode: menu.mode,
       cardPack: snap.cardPack || menu.cardPack,
       packs: (snap.packs || menu.packs).slice(),
@@ -149,15 +385,36 @@
           battleBgmOn = true;
           try { if (global.SGS_AUDIO) global.SGS_AUDIO.playBgm('battle'); } catch (e) { /* ignore */ }
         }
-        if (g.over) clearSave();
+        if (g.over) clearAuto();
       },
-      onSnapshot: function (s) { if (mySession === session) saveSnapshot(s); },
+      onSnapshot: function (s) {
+        if (mySession !== session) return;
+        lastSnapshot = s;
+        saveAuto(s);
+      },
     });
     game.agents = buildAgents(game, n, {}, mySession, paceCfg(menu.pace).ai);
     try { if (global.SGS_AUDIO) global.SGS_AUDIO.playBgm('battle'); } catch (e) { /* ignore */ }
     UI.bindGame(game);
-    try { game.restore(snap); } catch (e) { UI.toast('存档损坏，无法继续', true); return; }
+    try {
+      game.restore(snap);
+    } catch (e) {
+      console.error('[SGS] 读档失败', e);
+      if (sourceKey) safeRemoveItem(sourceKey);
+      if (sourceKey === SAVE_AUTO_KEY) autoInfo = { status: 'empty' };
+      else if (sourceKey) {
+        const idx = SAVE_SLOT_KEYS.indexOf(sourceKey);
+        if (idx >= 0) slotInfo[idx] = { status: 'empty' };
+      }
+      updateSaveButtons();
+      UI.toast('存档损坏，无法继续', true);
+      UI.showScreen('menu');
+      return;
+    }
     UI.render(game);
+    // 手动档读入后，自动档从这一局继续滚动；同时让 lastSnapshot 立即可用
+    lastSnapshot = game.snapshot();
+    saveAuto(lastSnapshot, { silent: true });
     game.resume().then(function () {
       if (mySession !== session) return;
       UI.render(game);
@@ -166,6 +423,149 @@
       console.error('[SGS] 读档异常', err);
       UI.showError(err);
     });
+  }
+
+  /* ============================================================
+     存档面板（保存 / 读取）
+     ============================================================ */
+  function ensureSavesPanel() {
+    if (savesPanelEl && document.body.contains(savesPanelEl)) return savesPanelEl;
+    const el = document.createElement('div');
+    el.id = 'saves-panel';
+    el.className = 'saves-panel';
+    el.innerHTML =
+      '<div class="saves-mask" data-saves-close="1"></div>' +
+      '<div class="saves-dialog" role="dialog" aria-modal="true" aria-labelledby="saves-title">' +
+      '  <div class="saves-head"><h3 id="saves-title">存档</h3>' +
+      '    <button id="saves-close" class="saves-x" type="button" aria-label="关闭">×</button></div>' +
+      '  <p class="saves-sub" id="saves-sub"></p>' +
+      '  <div class="saves-list" id="saves-list"></div>' +
+      '  <div class="saves-foot"><button id="saves-cancel" class="btn btn-outline" type="button">关闭</button></div>' +
+      '</div>';
+    document.body.appendChild(el);
+    el.addEventListener('click', onSavesPanelClick);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && savesPanelMode) { closeSavesPanel(); }
+    });
+    savesPanelEl = el;
+    return el;
+  }
+
+  function saveRowHTML(slot, name, info) {
+    const ok = info && info.status === 'ok' && info.save;
+    let meta = '空槽位';
+    if (ok) {
+      const m = info.save.meta || {};
+      meta = modeLabel(info.save.mode) + ' · 第 ' + (m.turn || 1) + ' 回合 · ' + (m.general || '—') +
+        ' · ' + formatSaveTime(info.save.time) + ' · ' + Math.max(1, Math.round((info.bytes || 0) / 1024)) + 'KB';
+    } else if (info && info.status === 'corrupt') {
+      meta = '存档损坏';
+    }
+    const pending = pendingSlotAction && String(pendingSlotAction.slot) === String(slot);
+    let acts = '';
+    if (savesPanelMode === 'save') {
+      if (slot !== 'auto') {
+        acts = '<button type="button" class="saves-btn primary" data-act="save" data-slot="' + slot + '">' +
+          (ok ? (pending && pendingSlotAction.type === 'overwrite' ? '确认覆盖' : '覆盖保存') : '保存') + '</button>';
+      }
+    } else if (ok) {
+      acts = '<button type="button" class="saves-btn" data-act="load" data-slot="' + slot + '">读取</button>' +
+        '<button type="button" class="saves-btn danger" data-act="delete" data-slot="' + slot + '">' +
+        (pending && pendingSlotAction.type === 'delete' ? '确认删除' : '删除') + '</button>';
+    }
+    return '<div class="save-row' + (ok ? '' : ' is-empty') + '" data-slot="' + slot + '">' +
+      '<div class="save-main"><b>' + name + '</b><span>' + meta + '</span></div>' +
+      '<div class="save-acts">' + acts + '</div></div>';
+  }
+
+  function renderSavesPanel() {
+    const el = ensureSavesPanel();
+    if (!el) return;
+    const isSave = savesPanelMode === 'save';
+    const title = el.querySelector('#saves-title');
+    const sub = el.querySelector('#saves-sub');
+    const list = el.querySelector('#saves-list');
+    if (title) title.textContent = isSave ? '保存进度' : '读取存档';
+    if (sub) sub.textContent = isSave
+      ? '保存的是本回合开始时的进度；覆盖已有槽位需要再次确认。'
+      : '可读取自动存档或任意手动槽位；删除需要再次确认。';
+    let html = '';
+    if (!isSave) html += saveRowHTML('auto', '自动存档', autoInfo);
+    for (let i = 0; i < SAVE_SLOT_KEYS.length; i++) html += saveRowHTML(String(i + 1), '槽位 ' + (i + 1), slotInfo[i]);
+    if (list) list.innerHTML = html;
+    el.classList.add('is-open');
+  }
+
+  function openSavesPanel(mode) {
+    savesPanelMode = mode === 'save' ? 'save' : 'load';
+    pendingSlotAction = null;
+    if (pendingSlotTimer) { clearTimeout(pendingSlotTimer); pendingSlotTimer = 0; }
+    const before = saveNotices.length;
+    refreshAllSaves();
+    if (saveNotices.length > before) {
+      const notice = saveNotices[saveNotices.length - 1];
+      saveNotices = [];
+      try { UI.toast(notice, true); } catch (e) { /* ignore */ }
+    }
+    renderSavesPanel();
+    const close = savesPanelEl && savesPanelEl.querySelector('#saves-close');
+    if (close && close.focus) { try { close.focus(); } catch (e) { /* ignore */ } }
+  }
+
+  function closeSavesPanel() {
+    if (savesPanelEl) savesPanelEl.classList.remove('is-open');
+    savesPanelMode = null;
+    pendingSlotAction = null;
+    if (pendingSlotTimer) { clearTimeout(pendingSlotTimer); pendingSlotTimer = 0; }
+  }
+
+  function setPendingSlotAction(type, slot) {
+    pendingSlotAction = { type: type, slot: slot, until: Date.now() + 4000 };
+    if (pendingSlotTimer) clearTimeout(pendingSlotTimer);
+    pendingSlotTimer = setTimeout(function () {
+      pendingSlotTimer = 0;
+      pendingSlotAction = null;
+      if (savesPanelMode) renderSavesPanel();
+    }, 4000);
+    renderSavesPanel();
+  }
+
+  function onSavesPanelClick(e) {
+    if (e.target.closest && e.target.closest('[data-saves-close],#saves-close,#saves-cancel')) {
+      closeSavesPanel();
+      return;
+    }
+    const btn = e.target.closest ? e.target.closest('[data-act]') : null;
+    if (!btn) return;
+    const act = btn.dataset.act;
+    const slot = btn.dataset.slot;
+    if (act === 'load') {
+      closeSavesPanel();
+      if (slot === 'auto') loadAuto(); else loadSlot(Number(slot));
+      return;
+    }
+    if (act === 'save') {
+      const idx = Number(slot) - 1;
+      const occupied = slotInfo[idx] && slotInfo[idx].status === 'ok';
+      const armed = pendingSlotAction && pendingSlotAction.type === 'overwrite' && String(pendingSlotAction.slot) === String(slot);
+      if (occupied && !armed) { setPendingSlotAction('overwrite', slot); return; }
+      if (!lastSnapshot) { UI.toast('本回合刚开始，暂无可保存进度', true); return; }
+      const r = saveSlotFromSnapshot(Number(slot), lastSnapshot);
+      if (r.ok) {
+        pendingSlotAction = null;
+        UI.toast('已保存到槽位 ' + slot + '（本回合开始进度）');
+        renderSavesPanel();
+      }
+      return;
+    }
+    if (act === 'delete') {
+      const armed = pendingSlotAction && pendingSlotAction.type === 'delete' && String(pendingSlotAction.slot) === String(slot);
+      if (!armed) { setPendingSlotAction('delete', slot); return; }
+      pendingSlotAction = null;
+      deleteSaveSlot(slot);
+      UI.toast(slot === 'auto' ? '已删除自动存档' : ('已删除槽位 ' + slot));
+      renderSavesPanel();
+    }
   }
 
   function bindMenu() {
@@ -261,6 +661,8 @@
     }
     q('btn-start').addEventListener('click', function () { startGame({ demo: false }); });
     q('btn-demo').addEventListener('click', function () { startGame({ demo: true, speed: 300 }); });
+    const btnSaves = q('btn-saves');
+    if (btnSaves) btnSaves.addEventListener('click', function () { openSavesPanel('load'); });
   }
 
   function updateMenuUI() {
@@ -380,7 +782,8 @@
     trusteeship = false;
     battleBgmOn = false;
     try { UI.setTrust(false); } catch (e) { /* ignore */ }
-    if (!opts.keepSave) clearSave();
+    // 演示完全不读写玩家存档；正常新游戏只覆盖自动档，手动槽位一律保留
+    if (!opts.demo) clearAuto();
     const game = new SGS.Game({
       mode: menu.mode,
       cardPack: menu.mode === 'ddz' ? 'full' : menu.cardPack,
@@ -398,11 +801,13 @@
           battleBgmOn = true;
           try { if (global.SGS_AUDIO) global.SGS_AUDIO.playBgm('battle'); } catch (e) { /* ignore */ }
         }
-        if (g.over) clearSave();
+        if (g.over && !opts.demo) clearAuto();
       },
       onSnapshot: function (snap) {
         if (mySession !== session) return;
-        saveSnapshot(snap);
+        if (opts.demo) return; // 自动演示不写任何存档
+        lastSnapshot = snap;
+        saveAuto(snap);
       },
     });
 
@@ -535,6 +940,7 @@
       onQuit: function () {
         if (UI._state && UI._state().game && !UI._state().game.over) {
           UI.confirmDialog('退出本局将判负，确定返回主菜单？', function () {
+            clearAuto(); // 判负退出只清自动档，手动槽位保留
             UI.surrender();
             session += 1;
             UI.showScreen('menu');
@@ -548,12 +954,14 @@
       },
       onSave: function () {
         if (!lastSnapshot) { UI.toast('本回合刚开始，暂无可保存进度', true); return; }
-        saveSnapshot(lastSnapshot);
-        UI.toast('已保存（读档从本回合开始）');
+        openSavesPanel('save');
       },
-      onContinue: function () { loadGame(); },
+      onContinue: function () { loadAuto(); },
       onSurrender: function () {
-        UI.confirmDialog('确定投降？本局将判负。', function () { UI.surrender(); }, { okText: '投降', danger: true });
+        UI.confirmDialog('确定投降？本局将判负。', function () {
+          clearAuto(); // 投降判负只清自动档，手动槽位保留
+          UI.surrender();
+        }, { okText: '投降', danger: true });
       },
       onTrust: function () {
         trusteeship = !trusteeship;
@@ -597,6 +1005,7 @@
         }
       },
       onHome: function () {
+        clearAuto(); // 对局结束回主菜单：只清自动档
         session += 1;
         try { if (global.SGS_AUDIO) global.SGS_AUDIO.playBgm('menu'); } catch (e) { /* ignore */ }
         UI.showScreen('menu');
@@ -609,6 +1018,8 @@
         if (!st) return false;
         const d = global.document;
         if (!d) return false;
+        // 存档面板最上层，先关闭
+        if (savesPanelMode) { closeSavesPanel(); return true; }
         // 「更多」菜单最上层，先关闭
         const mm = d.getElementById('more-menu');
         if (mm && mm.classList.contains('is-open')) {
@@ -693,7 +1104,14 @@
     applyMute(!!readSettings().mute, false);
     bindMenu();
     updateMenuUI();
-    updateContinueButton();
+    refreshAllSaves();
+    migrateLegacySave();
+    updateSaveButtons();
+    if (saveNotices.length) {
+      const notice = saveNotices[0];
+      saveNotices = [];
+      setTimeout(function () { try { UI.toast(notice, true); } catch (e) { /* ignore */ } }, 350);
+    }
 
     const params = new URLSearchParams(global.location.search);
     if (params.get('screen') === 'home' || params.get('screen') === 'menu') {
@@ -702,6 +1120,34 @@
     }
     readParams();
   }
+
+  // 存档测试/调试接口（qa_e2e 使用；不参与正常游戏流程）
+  global.SGS_SAVE = {
+    version: SAVE_VERSION,
+    keys: { auto: SAVE_AUTO_KEY, slots: SAVE_SLOT_KEYS.slice(), legacy: LEGACY_SAVE_KEY },
+    refresh: function () { refreshAllSaves(); return saveStats(); },
+    stats: saveStats,
+    readAuto: function () {
+      const r = readSaveAt(SAVE_AUTO_KEY);
+      return r.status === 'ok' ? r.save : null;
+    },
+    readSlot: function (n) {
+      const i = Number(n) - 1;
+      if (i < 0 || i >= SAVE_SLOT_KEYS.length) return null;
+      const r = readSaveAt(SAVE_SLOT_KEYS[i]);
+      return r.status === 'ok' ? r.save : null;
+    },
+    saveSlot: function (n) { return saveSlotFromSnapshot(n, lastSnapshot); },
+    deleteSlot: deleteSaveSlot,
+    clearAuto: clearAuto,
+    openSavePanel: function () { openSavesPanel('save'); },
+    openLoadPanel: function () { openSavesPanel('load'); },
+    closePanel: closeSavesPanel,
+    migrateLegacy: migrateLegacySave,
+    lastSnapshotBytes: function () {
+      try { return lastSnapshot ? byteLength(JSON.stringify(lastSnapshot)) : 0; } catch (e) { return 0; }
+    },
+  };
 
   function registerSW() {
     try {

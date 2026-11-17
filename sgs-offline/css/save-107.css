@@ -1,0 +1,214 @@
+/* 1.0.7 存档 UI：主菜单继续/读取入口 + 自动保存提示 + 3 槽面板
+ * 只服务存档相关元素；对局 HUD 仍由 css/style.css 与 css/ui-107.css 负责。
+ */
+
+/* ---------- 主菜单 ---------- */
+.menu-save-col {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+}
+.menu-save-col #btn-continue { width: 100%; }
+.continue-meta {
+  max-width: 230px;
+  margin: 0 auto;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#btn-saves { white-space: nowrap; }
+
+@media (max-width: 900px) {
+  .continue-meta { max-width: 100%; }
+}
+
+/* ---------- 顶栏左侧「已自动保存」 ---------- */
+.autosave-toast {
+  position: fixed;
+  left: calc(env(safe-area-inset-left, 0px) + 12px);
+  top: calc(env(safe-area-inset-top, 0px) + 48px);
+  z-index: 12000;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(10, 14, 18, .92);
+  color: var(--gold-2);
+  font-size: 12px;
+  line-height: 1.2;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity .18s ease, transform .18s ease;
+}
+.autosave-toast.is-on { opacity: 1; transform: none; }
+.autosave-toast.is-error {
+  border-color: rgba(224, 96, 79, .55);
+  color: #ffb4a4;
+}
+@media (max-height: 480px) {
+  .menu-save-col { gap: 1px; }
+  .menu-save-col #btn-continue { min-height: 44px; }
+  .continue-meta { font-size: 10px; line-height: 11px; }
+  .autosave-toast {
+    top: calc(env(safe-area-inset-top, 0px) + 36px);
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+}
+
+/* ---------- 存档面板 ---------- */
+.saves-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 13000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.saves-panel.is-open { display: flex; }
+.saves-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, .64);
+}
+.saves-dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(82vh, 580px);
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--ink-2), var(--ink-1));
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+}
+.saves-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.saves-head h3 {
+  margin: 0;
+  color: var(--gold-2);
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: .08em;
+}
+.saves-x {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.saves-x:hover { border-color: var(--line); color: var(--gold-2); }
+.saves-sub {
+  margin: 6px 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.saves-list {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+}
+.save-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .02);
+}
+.save-row.is-empty { opacity: .7; }
+.save-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.save-main b {
+  color: var(--gold-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+.save-main span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.save-acts {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+.saves-btn {
+  min-width: 60px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.saves-btn:hover { border-color: var(--gold-dim); color: var(--gold-2); }
+.saves-btn.primary {
+  border-color: var(--gold-dim);
+  background: rgba(216, 179, 106, .08);
+  color: var(--gold-2);
+}
+.saves-btn.danger {
+  border-color: rgba(224, 96, 79, .38);
+  color: #ffb4a4;
+}
+.saves-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.saves-foot .btn { min-height: 44px; }
+
+@media (max-width: 520px) {
+  .saves-dialog { width: calc(100vw - 16px); padding: 10px; }
+  .save-row { padding: 8px; }
+  .save-acts { flex-direction: column; }
+}
+@media (max-height: 480px) {
+  .saves-dialog {
+    width: min(720px, calc(100vw - 16px));
+    max-height: calc(100vh - 12px);
+    padding: 8px 10px;
+  }
+  .saves-head h3 { font-size: 15px; }
+  .saves-sub { margin: 2px 0 6px; font-size: 11px; }
+  .save-row { padding: 5px 8px; }
+  .save-main b { font-size: 12px; }
+  .save-main span { font-size: 10px; }
+  .saves-foot { margin-top: 6px; }
+}

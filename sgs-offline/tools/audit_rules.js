@@ -3899,6 +3899,137 @@ const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',')
     t('T253', 'AI 使用三陈并选自己', ans && ans.kind === 'skill' && ans.skill === 'j_sanchen' && ans.targets && ans.targets[0] === 0, 'AI=' + (ans && ans.kind) + '/' + (ans && ans.skill) + ' targets=' + JSON.stringify(ans && ans.targets));
   }
 
+  // T254 存档一致性：手牌顺序/装备/判定/牌堆/弃牌/回合/座位/状态/标记/revealed/duelFirstDraw
+  {
+    const g = game([
+      { name: '甲', role: 'lord', skills: ['rende'], hp: 3, maxHp: 4 },
+      { name: '乙', role: 'loyalist', skills: [], hp: 4 },
+      { name: '丙', role: 'rebel', skills: [], hp: 2 },
+    ], { mode: '8p' });
+    const p = g.players[0];
+    p.isHuman = true; g.humanSeat = 0;
+    p.hand = [C('sha', 'spade', 7), C('shan', 'heart', 2), C('tao', 'diamond', 3)];
+    p.equips = { weapon: C('qinggang', 'spade', 6), armor: C('bagua', 'club', 2), offhorse: C('chitu', 'heart', 5), defhorse: C('dilu', 'club', 5) };
+    p.judges = [C('lebu', 'spade', 3), C('bingliang', 'club', 4)];
+    p.marks = { buqu: 2, tian: 1, jue: 1, choufaType: 'sha', sanchenCount: 2, huashen: { id: 7, name: '化身' }, exile: 1 };
+    p.chained = true; p.flipped = true; p.revealed = true; p.duelFirstDraw = true;
+    g.players[1].hand = [C('wuzhong', 'heart', 7)];
+    g.players[2].hand = [];
+    g.deck = [C('sha', 'club', 8), C('shan', 'diamond', 9), C('tao', 'heart', 10)];
+    g.discardPile = [C('guohe', 'spade', 3), C('shunshou', 'diamond', 4)];
+    g.currentSeat = 2; g.turnCount = 7; g.lordSeat = 0; g.phase = 'play';
+    g.logs = [{ text: '第 7 回合', type: 'turn', turn: 7 }];
+    g.stats = { damage: { 0: 3 }, kills: { 0: 1 } };
+    const snap = JSON.parse(JSON.stringify(g.snapshot()));
+    const g2 = game([{ name: 'x' }, { name: 'y' }, { name: 'z' }], { mode: '8p' });
+    g2.restore(JSON.parse(JSON.stringify(snap)));
+    const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    const checks = [
+      eq(g2.mode, '8p'), eq(g2.players.length, 3),
+      eq(g2.players[0].hand, p.hand), eq(g2.players[0].equips, p.equips),
+      eq(g2.players[0].judges, p.judges), eq(g2.players[0].marks, p.marks),
+      g2.players[0].chained === true && g2.players[0].flipped === true && g2.players[0].revealed === true && g2.players[0].duelFirstDraw === true,
+      eq(g2.deck, g.deck), eq(g2.discardPile, g.discardPile),
+      g2.currentSeat === 2 && g2.turnCount === 7 && g2.lordSeat === 0,
+      eq(g2.stats, g.stats),
+    ];
+    t('T254', '存档全字段一致性', checks.every(Boolean),
+      '字段通过 ' + checks.filter(Boolean).length + '/' + checks.length + '；手牌=' + g2.players[0].hand.length + ' 装备=' + Object.values(g2.players[0].equips).filter(Boolean).length + ' 判定=' + g2.players[0].judges.length + ' 牌堆=' + g2.deck.length + ' 回合=' + g2.turnCount);
+  }
+
+  // T255 RNG 状态写入快照并恢复：读档后的随机序列与连续游玩一致
+  {
+    const g = new SGS.Game({ mode: '1v1', seed: 123456789, humanSeat: 0, agents: [], onUpdate() {} });
+    g.players = [P({ name: '甲' }, 0), P({ name: '乙', role: 'rebel' }, 1)];
+    g.started = true; g.pause = async () => {};
+    for (let i = 0; i < 7; i++) g.rand(1000);
+    const snap = JSON.parse(JSON.stringify(g.snapshot()));
+    const expected = [];
+    for (let i = 0; i < 20; i++) expected.push(g.rand(1000));
+    const g2 = new SGS.Game({ mode: '1v1', seed: snap.seed, humanSeat: 0, agents: [], onUpdate() {} });
+    g2.players = [P({ name: '甲' }, 0), P({ name: '乙', role: 'rebel' }, 1)];
+    g2.started = true; g2.pause = async () => {};
+    g2.restore(JSON.parse(JSON.stringify(snap)));
+    const actual = [];
+    for (let i = 0; i < 20; i++) actual.push(g2.rand(1000));
+    t('T255', 'RNG 状态读档后延续', snap.rngState != null && JSON.stringify(actual) === JSON.stringify(expected),
+      'rngState=' + snap.rngState + '，前 5 个随机数=' + actual.slice(0, 5).join(',') + '（期望 ' + expected.slice(0, 5).join(',') + '）');
+  }
+
+  // T256 六种模式的快照/恢复
+  {
+    const modes = [['8p', 8], ['5p', 5], ['1v1', 2], ['2v2', 4], ['3v3', 6], ['ddz', 3]];
+    const bad = [];
+    const details = [];
+    for (const [mode, count] of modes) {
+      const g = new SGS.Game({ mode, seed: 77, humanSeat: 0, agents: [], onUpdate() {} });
+      g.players = Array.from({ length: count }, (_, i) => P({ name: 'P' + i, role: i === 0 ? (mode === 'ddz' ? 'landlord' : 'lord') : (mode === 'ddz' ? 'farmer' : 'rebel') }, i));
+      g.started = true; g.pause = async () => {};
+      g.turnCount = 3 + count; g.currentSeat = count - 1;
+      if (mode === 'ddz') { g.ddzMultiplier = 4; g.players[0].secondGeneral = { id: 88, name: '副将', skills: [] }; }
+      if (mode === '1v1') g.players[1].duelFirstDraw = true;
+      const snap = JSON.parse(JSON.stringify(g.snapshot()));
+      const g2 = new SGS.Game({ mode, seed: 77, humanSeat: 0, agents: [], onUpdate() {} });
+      g2.players = Array.from({ length: count }, (_, i) => P({ name: 'X' + i }, i));
+      g2.started = true; g2.pause = async () => {};
+      try { g2.restore(JSON.parse(JSON.stringify(snap))); } catch (e) { bad.push(mode + ':' + e.message); continue; }
+      const ok = g2.mode === mode && g2.players.length === count &&
+        g2.turnCount === g.turnCount && g2.currentSeat === g.currentSeat &&
+        (mode !== 'ddz' || g2.ddzMultiplier === 4) &&
+        (mode !== '1v1' || g2.players[1].duelFirstDraw === true);
+      if (!ok) bad.push(mode);
+      details.push(mode + '=' + g2.players.length + '人/回合' + g2.turnCount);
+    }
+    t('T256', '六模式快照/恢复', bad.length === 0, '异常=' + (bad.join(',') || '无') + '；' + details.join('，'));
+  }
+
+  // T257 1.0.6 存档（无 rngState）兼容读取
+  {
+    const g = game([{ name: '甲', role: 'lord', hp: 4 }, { name: '乙', role: 'rebel', hp: 4 }], { mode: '1v1' });
+    g.turnCount = 4; g.currentSeat = 1;
+    const snap = JSON.parse(JSON.stringify(g.snapshot()));
+    delete snap.rngState; // 1.0.6 的 snapshot 没有这个字段
+    const g2 = game([{ name: 'x' }, { name: 'y' }], { mode: '1v1' });
+    let err = null;
+    try { g2.restore(snap); } catch (e) { err = e; }
+    t('T257', '1.0.6 无 rngState 存档兼容', !err && g2.turnCount === 4 && g2.currentSeat === 1 && g2.players.length === 2,
+      err ? ('异常：' + err.message) : ('回合=' + g2.turnCount + ' 座位=' + g2.currentSeat + ' 人数=' + g2.players.length));
+  }
+
+  // T258 非法快照在引擎层拒绝
+  {
+    const g = game([{ name: '甲' }, { name: '乙' }], { mode: '1v1' });
+    let e1 = null, e2 = null;
+    try { g.restore(null); } catch (e) { e1 = e; }
+    try { g.restore({ mode: '1v1' }); } catch (e) { e2 = e; }
+    t('T258', '非法快照拒绝', !!e1 && !!e2, 'null=' + (e1 && e1.message) + '，缺 players=' + (e2 && e2.message));
+  }
+
+  // T259 每个回合开始都写快照（含 AI 回合）
+  {
+    const seats = [];
+    const g = new SGS.Game({ mode: '8p', seed: 5, humanSeat: 0, agents: [], onUpdate() {}, onSnapshot: function () { seats.push(this.currentSeat); } });
+    g.players = [P({ name: '甲' }, 0), P({ name: '乙' }, 1)];
+    g.started = true; g.pause = async () => {};
+    g.takeTurn = async function () { this.turnCount += 1; if (this.turnCount >= 3) this.over = true; };
+    await g.runLoop();
+    t('T259', '每回合开始写快照（含 AI）', seats.length >= 3 && seats.indexOf(0) >= 0 && seats.indexOf(1) >= 0,
+      '快照座位序列=' + JSON.stringify(seats));
+  }
+
+  // T260 单档大小（8 人局典型快照，字节）——只记录、不设硬阈值
+  {
+    const g = game([
+      { name: '甲', role: 'lord' }, { name: '乙' }, { name: '丙' }, { name: '丁' },
+      { name: '戊' }, { name: '己' }, { name: '庚' }, { name: '辛' },
+    ], { mode: '8p' });
+    g.players.forEach((p, i) => { p.hand = [C('sha', 'spade', 3 + i), C('shan', 'heart', 2), C('tao', 'diamond', 3), C('wuzhong', 'club', 4)]; });
+    g.deck = Array.from({ length: 40 }, (_, i) => C('sha', 'spade', (i % 13) + 1));
+    const json = JSON.stringify(g.snapshot());
+    const bytes = Buffer.byteLength(json, 'utf8');
+    t('T260', '8 人局快照大小记录', bytes > 0 && bytes < 512 * 1024, '单档=' + bytes + ' 字节（' + (bytes / 1024).toFixed(1) + ' KB）');
+  }
+
   // 汇总（SKIP 不计入失败，单独统计）
   const pass = results.filter((r) => r.pass).length;
   const fails = results.filter((r) => !r.pass);

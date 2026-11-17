@@ -10,12 +10,16 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   function mulberry32(a) {
-    return function () {
+    function rng() {
       a |= 0; a = (a + 0x6D2B79F5) | 0;
       let t = Math.imul(a ^ (a >>> 15), 1 | a);
       t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
+    }
+    // 存档需要把随机数生成器的当前位置一起序列化，读档后才能延续同一随机序列
+    rng.getState = function () { return a | 0; };
+    rng.setState = function (v) { a = v | 0; };
+    return rng;
   }
 
   const MODES = {
@@ -376,7 +380,8 @@
       let guard = 0;
       while (!this.over && guard++ < 400) {
         await this.waitIfPaused();
-        if (this.currentSeat === this.humanSeat && typeof this.onSnapshot === 'function') {
+        // 每个回合开始都落一次快照（含 AI 回合），8 人局最多损失一个回合的进度
+        if (typeof this.onSnapshot === 'function') {
           try { this.onSnapshot(this.snapshot()); } catch (e) { /* 存档失败不影响对局 */ }
         }
         await this.takeTurn();
@@ -405,6 +410,7 @@
       });
       return {
         v: 1, mode: this.mode, humanSeat: this.humanSeat, seed: this.seed,
+        rngState: (this.rng && typeof this.rng.getState === 'function') ? this.rng.getState() : null,
         cardPack: this.cardPack, packs: (this.packs || []).slice(), duelPool: this.duelPool,
         extras: !!this.extrasEnabled,
         turnCount: this.turnCount, currentSeat: this.currentSeat, ddzMultiplier: this.ddzMultiplier || 1,
@@ -423,6 +429,10 @@
       this.mode = snap.mode || this.mode;
       this.humanSeat = snap.humanSeat == null ? 0 : snap.humanSeat;
       this.seed = snap.seed || this.seed;
+      // 1.0.6 及更早的存档没有 rngState：保留按 seed 重建的序列即可
+      if (snap.rngState != null && this.rng && typeof this.rng.setState === 'function') {
+        this.rng.setState(snap.rngState);
+      }
       this.cardPack = snap.cardPack || this.cardPack;
       this.duelPool = snap.duelPool || this.duelPool || 'classic';
       this.packs = (snap.packs || this.packs || []).slice();
