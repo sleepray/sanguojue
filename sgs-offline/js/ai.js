@@ -33,10 +33,64 @@
 
   // 难度参数：normal 为调优主目标；easy 削弱，hard 略增强
   const LEVELS = {
-    easy: { name: 'easy', threshold: 1.6, jitter: 2.0, shaRespond: 0.6, shanRespond: 0.8, peachFriend: 0.55, wuxie: 0.5, pindian: 'random', trackThreat: false },
+    easy: { name: 'easy', threshold: 1.1, jitter: 0.8, shaRespond: 1, shanRespond: 1, peachFriend: 1, wuxie: 1, pindian: 'random', trackThreat: false },
     normal: { name: 'normal', threshold: 0.8, jitter: 0, shaRespond: 1, shanRespond: 1, peachFriend: 1, wuxie: 1, pindian: 'high', trackThreat: true },
     hard: { name: 'hard', threshold: 0.7, jitter: 0, shaRespond: 1, shanRespond: 1, peachFriend: 1, wuxie: 1, pindian: 'high', trackThreat: true },
   };
+
+  // 任务 3b：AI 私有打法风格。只按 seed + 座位 + 自身角色确定性抽取，不写回玩家数据/存档；
+  // 每局重开或读档时由相同 seed/座位重新得到同一风格。风格只改策略权重，不改变可见信息。
+  const STYLE_TABLE = {
+    easy: {
+      rebel: [['rebel_aggressive', 70], ['rebel_watch', 20], ['rebel_hidden', 10]],
+      loyalist: [['loyal_open', 80], ['loyal_hidden', 20]],
+      lord: [['lord_active', 60], ['lord_steady', 40]],
+      renegade: [['ren_loyal', 70], ['ren_neutral', 30]],
+    },
+    normal: {
+      rebel: [['rebel_aggressive', 30], ['rebel_watch', 35], ['rebel_hidden', 35]],
+      loyalist: [['loyal_open', 60], ['loyal_hidden', 40]],
+      lord: [['lord_active', 50], ['lord_steady', 50]],
+      renegade: [['ren_loyal', 50], ['ren_neutral', 50]],
+    },
+    hard: {
+      rebel: [['rebel_aggressive', 15], ['rebel_watch', 35], ['rebel_hidden', 50]],
+      loyalist: [['loyal_open', 40], ['loyal_hidden', 60]],
+      lord: [['lord_active', 40], ['lord_steady', 60]],
+      renegade: [['ren_loyal', 45], ['ren_neutral', 55]],
+    },
+  };
+  // 难度/模式微调：5p 与 8p 的反贼压力不同，只在 easy/hard 的分布上做小幅校正；
+  // 风格仍由 seed+座位确定性抽取，不读取任何隐藏信息。
+  const STYLE_MODE_OVERRIDE = {
+    easy: {
+      '5p': {
+        rebel: [['rebel_aggressive', 95], ['rebel_watch', 5], ['rebel_hidden', 0]],
+        loyalist: [['loyal_open', 90], ['loyal_hidden', 10]],
+        lord: [['lord_active', 70], ['lord_steady', 30]],
+      },
+      '8p': {
+        rebel: [['rebel_aggressive', 30], ['rebel_watch', 30], ['rebel_hidden', 40]],
+        loyalist: [['loyal_open', 70], ['loyal_hidden', 30]],
+        lord: [['lord_steady', 70], ['lord_active', 30]],
+        renegade: [['ren_loyal', 80], ['ren_neutral', 20]],
+      },
+    },
+    hard: {
+      '8p': {
+        rebel: [['rebel_aggressive', 15], ['rebel_watch', 25], ['rebel_hidden', 60]],
+        lord: [['lord_steady', 70], ['lord_active', 30]],
+      },
+    },
+  };
+  const ROLE_CODE = { lord: 1, loyalist: 2, rebel: 3, renegade: 4 };
+  function styleHash(seed, seat, role) {
+    let h = ((Number(seed) >>> 0) ^ Math.imul((seat | 0) + 1, 0x9e3779b1) ^ Math.imul(ROLE_CODE[role] || 7, 0x85ebca6b)) >>> 0;
+    h ^= h >>> 16; h = Math.imul(h, 0x7feb352d) >>> 0;
+    h ^= h >>> 15; h = Math.imul(h, 0x846ca68b) >>> 0;
+    h ^= h >>> 16;
+    return h >>> 0;
+  }
 
   const valueOf = (c) => c ? (c.type === 'equip' ? (EQUIP_VALUE[c.name] || 4) : (CARD_VALUE[c.name] || 3)) : 0;
   const byId = (arr, id) => (arr || []).find((c) => c && c.id === id) || null;
@@ -49,6 +103,8 @@
       this.levelName = opts.aiLevel || opts.level || 'normal';
       this.level = LEVELS[this.levelName] || LEVELS.normal;
       this._guhuoName = null;
+      this.style = null;        // 私有风格名（不写玩家数据；统计工具可读）
+      this.styleRoll = null;    // 0..99，便于复现/审计
     }
     get p() { return this.game.players[this.seat]; }
     get alive() { return this.game.alivePlayers; }
@@ -58,6 +114,7 @@
 
     async decide(req) {
       await this.delay(req.type === 'play' ? 1 : 0.55);
+      this.ensureStyle();
       this.scanPublicEvents();
       switch (req.type) {
         case 'chooseGeneral': return this.chooseGeneral(req);
@@ -75,6 +132,73 @@
       }
     }
 
+    // ---------------- 风格（AI 私有，随 seed+座位可复现） ----------------
+    ensureStyle() {
+      if (this.style) return this.style;
+      const p = this.p;
+      if (!p || !p.role) return 'default';
+      const table = STYLE_TABLE[this.levelName] || STYLE_TABLE.normal;
+      const ov = STYLE_MODE_OVERRIDE[this.levelName] && STYLE_MODE_OVERRIDE[this.levelName][this.game.mode];
+      const list = (ov && ov[p.role]) || table[p.role];
+      if (!list || !list.length) { this.style = 'default'; return this.style; }
+      const roll = styleHash(this.game.seed, this.seat, p.role) % 100;
+      let acc = 0;
+      let pick = list[list.length - 1][0];
+      for (const item of list) {
+        acc += item[1];
+        if (roll < acc) { pick = item[0]; break; }
+      }
+      this.styleRoll = roll;
+      this.style = pick;
+      return this.style;
+    }
+    isStyle(...names) { this.ensureStyle(); return names.indexOf(this.style) >= 0; }
+    // 公开压力：recent 中已有多少名不同角色对主公使用过伤害/削弱牌（不读身份）
+    lordPressure() {
+      const g = this.game;
+      const harmful = ['sha', 'huosha', 'leisha', 'juedou', 'guohe', 'shunshou', 'huogong', 'jiedao', 'lebu', 'bingliang', 'nanman', 'wanjian'];
+      const seats = new Set();
+      for (const ev of (g.recent || [])) {
+        if (!ev || ev.kind !== 'use' || ev.seat === this.seat || !Array.isArray(ev.targets)) continue;
+        if (ev.targets.indexOf(g.lordSeat) < 0) continue;
+        if (harmful.indexOf(ev.card) >= 0) seats.add(ev.seat);
+      }
+      return seats.size;
+    }
+    // 潜伏/观望反贼：前期不对主公出手；主公残血或队友形成公开压制后恢复集火
+    rebelLordWait() {
+      this.ensureStyle();
+      const p = this.p;
+      if (!p || p.role !== 'rebel') return false;
+      if (this.style !== 'rebel_hidden' && this.style !== 'rebel_watch') return false;
+      const g = this.game;
+      const lord = g.players[g.lordSeat];
+      if (!lord || !lord.alive) return false;
+      if (lord.hp <= 2) return false; // 斩杀窗口优先
+      if (g.mode === '5p') {
+        // 5p 人数少：观望到队友已公开攻主（有压力）或第 4 回合，避免完全不参战
+        if (this.style === 'rebel_hidden') return lord.hp >= 4 && g.turnCount < 4 && this.lordPressure() < 1;
+        return lord.hp >= 4 && g.turnCount < 3 && this.lordPressure() < 1;
+      }
+      const pressure = this.lordPressure();
+      if (this.style === 'rebel_hidden') {
+        if (pressure >= 3) return false;      // 队友已形成压制
+        return g.turnCount < 10 && lord.hp >= 3; // 伪装上限 10 回合
+      }
+      if (pressure >= 2) return false;
+      return g.turnCount < 8 && lord.hp >= 3;
+    }
+    // 暗忠：前两回合、主公血线安全时不主动暴露攻击性
+    loyalHiddenDelay(q) {
+      this.ensureStyle();
+      const p = this.p;
+      if (!p || p.role !== 'loyalist' || this.style !== 'loyal_hidden') return false;
+      if (!q || q.seat === this.game.lordSeat) return false;
+      const lord = this.game.players[this.game.lordSeat];
+      if (!lord || !lord.alive || lord.hp <= 3) return false;
+      return this.game.turnCount < 3 && lord.hp >= 4;
+    }
+
     // ---------------- 身份关系 ----------------
     lordSeat() { return this.game.lordSeat; }
     isLord(q) { return !!q && q.seat === this.game.lordSeat; }
@@ -88,13 +212,44 @@
       if (q.revealed) return q.role;
       return null;
     }
-    revelationCounts() {
-      const me = this.p;
-      const revealedRebels = this.alive.filter((q) => q.seat !== me.seat && q.revealed && q.role === 'rebel').length;
-      const revealedLoyal = this.alive.filter((q) => q.seat !== me.seat && q.revealed && q.role === 'loyalist').length;
+    // 公开的角色人数：模式初始配置（公开规则）- 已公开阵亡者的身份，不读取未公开身份。
+    // 这是“反贼是否已清空/还剩几个”的唯一合法来源；旧版只数“存活且 revealed”，
+    // 开局恒为 0，导致内奸把主公当敌人、且反贼清空后仍不救主公。
+    publicCounts() {
+      const def = this.game.modeDef;
+      if (!def || !def.roles || this.game.mode === '1v1' || this.game.teamMode || this.game.ddzMode) return null;
+      const c = { lord: 0, loyalist: 0, rebel: 0, renegade: 0 };
+      const players = this.game.players || [];
+      if (players.length !== def.roles.length) {
+        // 合成/自定义小样本：只统计“自己 + 主公 + 已公开”的存活身份，仍不读未公开 role
+        for (const q of players) {
+          if (!q || !q.alive) continue;
+          const isKnown = q.seat === this.seat || q.seat === this.game.lordSeat || q.revealed;
+          if (!isKnown) continue;
+          if (c[q.role] != null) c[q.role] += 1;
+        }
+      } else {
+        for (const r of def.roles) if (c[r] != null) c[r] += 1;
+        for (const q of players) {
+          if (!q || q.alive) continue;
+          if (!q.revealed) continue; // 只读已公开的阵亡身份
+          if (c[q.role] != null) c[q.role] = Math.max(0, c[q.role] - 1);
+        }
+      }
       return {
-        rebels: revealedRebels + (me.role === 'rebel' ? 1 : 0),
-        loyal: revealedLoyal + (me.role === 'loyalist' ? 1 : 0),
+        lord: c.lord, loyalist: c.loyalist, rebel: c.rebel, renegade: c.renegade,
+        rebels: c.rebel, loyal: c.loyalist,
+        lordAlive: c.lord > 0,
+        alive: this.game.alivePlayers.length,
+      };
+    }
+    revelationCounts() {
+      const c = this.publicCounts();
+      if (c) return c;
+      const me = this.p;
+      return {
+        rebels: me && me.role === 'rebel' ? 1 : 0,
+        loyal: me && me.role === 'loyalist' ? 1 : 0,
         lordAlive: !!(this.game.lord && this.game.lord.alive),
       };
     }
@@ -112,14 +267,23 @@
         if (knownRole === 'rebel') return 1;
         return 0;
       }
-      // 内奸：反贼在时保主公；均势时按人数判断
-      const c = this.revelationCounts();
-      if (knownRole === 'lord') return c.rebels > 0 ? 1 : -1;
-      if (knownRole === 'rebel') return c.rebels >= (c.loyal + (c.lordAlive ? 1 : 0)) ? -1 : 0;
-      if (knownRole === 'loyalist') return c.rebels === 0 ? -1 : 0;
+      // 内奸：反贼在时保主公；反贼清空后先清忠臣、最后单挑主公
+      const c = this.publicCounts();
+      if (!c) return 0;
+      const lordCamp = c.loyal + (c.lordAlive ? 1 : 0);
+      if (knownRole === 'lord') return (c.rebels > 0 || this.alive.length > 2) ? 1 : -1;
+      if (knownRole === 'rebel') return c.rebels > lordCamp ? -1 : 0;
+      if (knownRole === 'loyalist') return c.rebels === 0 ? -1 : (lordCamp > c.rebels ? -1 : 0);
       return 0;
     }
-    inferThreshold() { return this.p.role === 'renegade' ? 3 : 2; }
+    inferThreshold() {
+      this.ensureStyle();
+      let t = this.p.role === 'renegade' ? 3 : 2;
+      if (this.p.role === 'lord') t += this.style === 'lord_steady' ? 0.2 : (this.style === 'lord_active' ? -0.2 : 0);
+      if (this.p.role === 'loyalist') t += this.style === 'loyal_hidden' ? 0.2 : (this.style === 'loyal_open' ? -0.1 : 0);
+      if (this.p.role === 'rebel' && (this.style === 'rebel_hidden' || this.style === 'rebel_watch')) t += 0.2;
+      return Math.max(1.2, t);
+    }
     inferred(seat) {
       const sc = (this.infer && this.infer.scores[seat]) || 0;
       const t = this.inferThreshold();
@@ -135,16 +299,42 @@
     }
     // 只扫描公开事件（recent），每个 AI 私有保存；不写回玩家数据。
     scanPublicEvents() {
-      if (!this.infer) this.infer = { scores: {}, tail: null };
-      const rec = this.game.recent || [];
-      let start = 0;
-      if (this.infer.tail) {
-        const idx = rec.lastIndexOf(this.infer.tail);
-        if (idx >= 0) start = idx + 1;
-        else { this.infer.scores = {}; start = 0; } // recent 窗口已滚掉旧事件，避免重复累计
+      if (!this.infer) this.infer = { scores: {}, seen: new WeakSet(), turn: null };
+      if (!this.infer.seen) this.infer.seen = new WeakSet();
+      if (!this.infer.scores) this.infer.scores = {};
+      const g = this.game;
+      if (this.infer.turn !== g.turnCount) {
+        this.decayInference();
+        this.infer.turn = g.turnCount;
       }
-      for (let i = start; i < rec.length; i++) this.observePublicEvent(rec[i]);
-      this.infer.tail = rec.length ? rec[rec.length - 1] : null;
+      const rec = g.recent || [];
+      for (const ev of rec) {
+        if (!ev || typeof ev !== 'object') continue;
+        if (this.infer.seen.has(ev)) continue;
+        this.infer.seen.add(ev);
+        this.observePublicEvent(ev);
+      }
+    }
+    // 敌意/善意随时间衰减，避免一次判定永久锁死；矛盾行为另在 noteInference 降置信。
+    decayInference() {
+      if (!this.infer || !this.infer.scores) return;
+      // 衰减要慢：一次攻击主公 -2.5，若每回合衰减 0.2，3 回合就回 neutral，
+      // 主公方会停止追击残存反贼，造成 70+ 回合的僵局。这里只做“长期淡忘”。
+      const step = this.p && this.p.role === 'renegade' ? 0.1 : 0.05;
+      for (const k of Object.keys(this.infer.scores)) {
+        const v = this.infer.scores[k];
+        const nv = v > 0 ? Math.max(0, v - step) : Math.min(0, v + step);
+        if (Math.abs(nv) < 0.05) delete this.infer.scores[k];
+        else this.infer.scores[k] = nv;
+      }
+    }
+    noteInference(seat, delta) {
+      if (seat == null || seat === this.seat || !delta) return;
+      if (!this.infer) this.infer = { scores: {}, seen: new WeakSet(), turn: null };
+      if (!this.infer.scores) this.infer.scores = {};
+      let cur = this.infer.scores[seat] || 0;
+      if (cur * delta < 0) cur *= 0.5; // 与既有判断矛盾：先降置信再累计
+      this.infer.scores[seat] = Math.max(-6, Math.min(6, cur + delta));
     }
     observePublicEvent(ev) {
       if (!ev) return;
@@ -168,6 +358,18 @@
         const isHelp = helpful.indexOf(ev.card) >= 0;
         if (!isHarm && !isHelp) return;
         for (const t of ev.targets) evaluate(ev.seat, t, isHarm ? 1 : -1);
+        // 反贼清空后，对非主公/非敌人的伤害行为只可能来自内奸（公开规则可推）
+        if (isHarm && this.p.role !== 'renegade' && this.p.role !== 'rebel' && ev.seat !== this.seat) {
+          const counts = this.publicCounts();
+          if (counts && counts.rebels === 0 && counts.renegade > 0 && this.alive.length > 2) {
+            for (const t of ev.targets) {
+              const tp = this.game.players[t];
+              if (!tp || t === this.seat || this.isLord(tp)) continue;
+              if (this.isEnemy(tp)) continue; // 攻击已判定的敌人是正常行为
+              this.noteInference(ev.seat, -2.5);
+            }
+          }
+        }
         return;
       }
       if (ev.kind === 'rescue' && ev.phase === 'save') {
@@ -191,31 +393,61 @@
         return a && b && a === b ? 'friend' : 'enemy';
       }
       const known = this.knownRole(other);
-      if (!known) return this.inferred(other.seat);
-      const counts = this.revelationCounts();
-      const aliveRebels = counts.rebels;
-      const lordCamp = counts.loyal + (counts.lordAlive ? 1 : 0);
+      const counts = this.publicCounts();
+      const aliveRebels = counts ? counts.rebels : 0;
+      const lordCamp = counts ? (counts.loyal + (counts.lordAlive ? 1 : 0)) : 1;
+      const aliveCount = this.alive.length;
       if (me.role === 'lord' || me.role === 'loyalist') {
         if (known === 'lord' || known === 'loyalist') return 'friend';
-        if (known === 'rebel') return 'enemy';
-        return 'neutral';
+        if (known === 'rebel' || known === 'renegade') return 'enemy';
+        // 反贼清空后，未公开身份者只可能是忠臣或内奸；有把握才打，避免主公误杀忠臣
+        if (!known && counts && counts.rebels === 0 && counts.renegade > 0) {
+          if (aliveCount <= 2) return 'enemy';
+          if (counts.loyal === 0) return 'enemy';
+          return this.inferred(other.seat) === 'enemy' ? 'enemy' : 'neutral';
+        }
+        return known ? 'neutral' : this.inferred(other.seat);
       }
       if (me.role === 'rebel') {
         if (known === 'lord' || known === 'loyalist') return 'enemy';
         if (known === 'rebel') return 'friend';
-        return 'neutral';
+        return this.inferred(other.seat);
       }
-      // 内奸：只知道主公与已揭示角色；不按真实人数透视
-      if (known === 'lord') return aliveRebels > 0 ? 'friend' : 'enemy';
+      // 内奸：只能依据“模式初始人数 - 已公开阵亡”判断反贼是否还在
+      if (!counts) return 'neutral';
+      if (known === 'lord') {
+        if (aliveRebels > 0) return 'friend';            // 反贼在，主公死=内奸输
+        return aliveCount <= 2 ? 'enemy' : 'friend';     // 先清忠臣，最后单挑主公
+      }
       if (known === 'loyalist') {
         if (aliveRebels === 0) return 'enemy';
-        return lordCamp > aliveRebels ? 'enemy' : 'neutral';
+        return lordCamp > aliveRebels ? 'enemy' : 'neutral'; // 主忠占优时暗中削弱
       }
       if (known === 'rebel') {
-        if (aliveRebels >= lordCamp) return 'enemy';
+        // 早装忠：8p 未清完反贼前持续压反；中立：主忠已占优时保存实力
+        // 5p 不主动压反（只救主/削忠臣）；8p 早装忠持续压反，中立只在反贼≥主忠时帮
+        if (this.game.mode === '5p') return 'neutral';
+        if (this.game.mode === '8p') return 'enemy'; // 8p 反贼未清空前，任何风格内奸都必须压反保主公
+        if (aliveRebels > lordCamp) return 'enemy';
         return 'neutral';
       }
-      return 'neutral';
+      // 反贼清空后，除主公与自己外的未公开者只能是忠臣，必须清除
+      if (known == null && aliveRebels === 0 && aliveCount > 2) return 'enemy';
+      const inf = this.inferred(other.seat);
+      if (inf === 'enemy') {
+        // 早装忠：8p 未清完反贼前持续压反；中立：主忠已占优时保存实力
+        // 5p 不主动压反（只救主/削忠臣）；8p 早装忠持续压反，中立只在反贼≥主忠时帮
+        if (this.game.mode === '5p') return 'neutral';
+        if (this.game.mode === '8p') return 'enemy'; // 8p 反贼未清空前，任何风格内奸都必须压反保主公
+        if (aliveRebels > lordCamp) return 'enemy';
+        return 'neutral';
+      }
+      if (inf === 'friend') {
+        // 5p 均势：主公的支援者（忠臣）是未来单挑的障碍，暗中削弱以维持均势
+        if (this.game.mode === '5p' && aliveRebels > 0 && lordCamp >= aliveRebels && aliveCount > 2) return 'enemy';
+        return 'friend';
+      }
+      return inf;
     }
 
     isFriend(q) { const r = this.relation(q); return r === 'friend' || r === 'self'; }
@@ -236,7 +468,7 @@
       if (!other) return 0;
       const rel = this.relation(other);
       let s = 0;
-      if (rel === 'enemy') s += 30;
+      if (rel === 'enemy') s += 30 + this.rebelFocusBonus(other);
       else if (rel === 'friend') s -= 30;
       else if (rel === 'self') s -= 200;
       s += (other.maxHp - other.hp) * 2;
@@ -246,6 +478,15 @@
       if (other.hp <= 1) s += 8;
       s += this.threatOf(other) * 1.5;
       return s;
+    }
+    // 5p：反贼优先拆主公的支援（忠臣/内奸），否则 2v2+桃救主会被拖死；主公残血时仍优先斩首。
+    rebelFocusBonus(q) {
+      if (!q) return 0;
+      if (this.game.mode !== '5p' || this.p.role !== 'rebel') return 0;
+      if (q.seat === this.game.lordSeat) return 0;
+      const lord = this.game.players[this.game.lordSeat];
+      if (!lord || !lord.alive || lord.hp <= 2) return 0;
+      return 0; // 实测拆支援反而拖慢斩首，保留函数便于后续风格化启用
     }
     healNeed(q) {
       if (!q) return 0;
@@ -381,9 +622,20 @@
     targetValue(q, as, ctx = {}) {
       if (!q || !q.alive) return -100;
       const g = this.game, p = this.p;
+      if (q.seat === g.lordSeat && this.rebelLordWait()) return -100;
+      // 潜伏反贼洗嫌疑：仅 8p、等待期、对未表态的“中立”用过河拆桥，不攻击友方、不造成伤害
+      if (as === 'guohe' && g.mode === '8p' && p.role === 'rebel' && this.style === 'rebel_hidden' && this.rebelLordWait()) {
+        if (q.seat !== g.lordSeat && this.relation(q) === 'neutral') return 2.5;
+      }
+      const hiddenHarm = ['sha', 'huosha', 'leisha', 'juedou', 'guohe', 'shunshou', 'huogong', 'jiedao', 'lebu', 'bingliang'];
+      if (hiddenHarm.indexOf(as) >= 0 && this.loyalHiddenDelay(q)) return -100;
       const rel = this.relation(q);
       const enemy = rel === 'enemy';
       const friend = rel === 'friend' || rel === 'self';
+      // 8p 主公方火力优先：对已判定敌人优先出伤害牌，减少无中/装备/控制抢节奏
+      const campDamageBonus = (enemy && g.mode === '8p' && (p.role === 'lord' || p.role === 'loyalist' || p.role === 'renegade')) ? 3 : 0;
+      // 内奸风格差异：早装忠对反贼更主动；中立保留资源（同样压反，但不额外加权）
+      const renStyleBonus = (enemy && g.mode === '8p' && p.role === 'renegade' && this.style === 'ren_loyal') ? 2 : 0;
       const dist = p.seat === q.seat ? 0 : g.distance(p, q);
       const color = ctx.color || null;
       const nature = ctx.nature || 'normal';
@@ -409,6 +661,7 @@
         if (armor && armor.name === 'tengjia' && nature === 'fire') v += 4;
         if (q.equips.weapon && q.equips.weapon.name === 'gudingdao' && p.hand.length === 0) v += 2;
         if (p.skills.includes('liegong') && q.hand.length <= g.attackRange(p)) v += 1.5;
+        v += this.rebelFocusBonus(q) + campDamageBonus + renStyleBonus;
         return v;
       }
       if (as === 'juedou') {
@@ -421,6 +674,7 @@
         v += (q.maxHp - q.hp) * 1.2;
         if (q.skills.includes('wushuang')) v -= 4; // 对方需要两张杀
         if (!this.shaLikeCount()) v -= 5;
+        v += this.rebelFocusBonus(q) + campDamageBonus + renStyleBonus;
         return v;
       }
       if (as === 'guohe' || as === 'shunshou') {
@@ -445,16 +699,17 @@
         }
         return -100;
       }
+      const campControl = (g.mode === '8p' && (p.role === 'lord' || p.role === 'loyalist' || p.role === 'renegade')) ? 10 : 0;
       if (as === 'lebu') {
         if (!enemy) return -100;
-        let v = 9 + this.threatOf(q) + (q.hand.length ? 1 : 0);
+        let v = 9 + this.threatOf(q) + (q.hand.length ? 1 : 0) + campControl;
         if (q.seat === this.game.lordSeat) v += 4;
         if (q.hp <= 1) v -= 3; // 快死的人不用乐
         return v;
       }
       if (as === 'bingliang') {
         if (!enemy) return -100;
-        return 7 + this.threatOf(q) + (q.hand.length >= 3 ? 2 : 0) + (q.seat === this.game.lordSeat ? 3 : 0);
+        return 7 + this.threatOf(q) + (q.hand.length >= 3 ? 2 : 0) + (q.seat === this.game.lordSeat ? 3 : 0) + campControl;
       }
       if (as === 'tiesuo') {
         if (!enemy || q.chained) return -100;
@@ -464,6 +719,7 @@
         if (!enemy || !q.hand.length) return -100;
         let v = 5 + (q.equips.armor && q.equips.armor.name === 'tengjia' ? 4 : 0);
         if (q.hp <= 1) v += 5;
+        v += campDamageBonus + renStyleBonus;
         return v;
       }
       return 0;
@@ -480,6 +736,8 @@
     scoreTao() {
       const p = this.p;
       if (p.hp >= p.maxHp) return 0;
+      // 8p 反贼：4 人集火靠节奏，2 血缺口不主动回血（留桃救命/救队友），避免被治疗拖成长局
+      if (p.role === 'rebel' && this.game.mode === '8p' && p.hp > 1 && p.hand.length <= p.hp) return 0;
       const taoCount = p.hand.filter((c) => c.name === 'tao').length;
       if (p.hp <= 1) return 15;
       let s = 0;
@@ -501,6 +759,7 @@
 
     scoreAoe(asName, color) {
       const g = this.game, p = this.p;
+      if (this.rebelLordWait()) return 0; // 潜伏/观望中的反贼不参与集火主公的 AOE
       let s = 0, enemies = 0;
       for (const q of g.alivePlayers) {
         if (q.seat === p.seat) continue;
@@ -513,8 +772,11 @@
           dodge = Math.max(dodge, 0.5);
         }
         const hit = 1 - dodge;
-        if (rel === 'enemy') { enemies++; s += (6 + (q.hp <= 1 ? 6 : 0) + (q.seat === this.game.lordSeat ? 2 : 0)) * hit; }
-        else if (rel === 'friend') s -= (9 + (q.hp <= 1 ? 12 : 0) + (q.seat === this.lordSeat() ? 8 : 0)) * hit;
+        // 8p 目标多，AOE 的敌方收益更高；友方惩罚适当降低（仍明显为负）
+        const friendScale = this.game.mode === '8p' ? 0.6 : 1;
+        const enemyScale = this.game.mode === '8p' ? 1.1 : 1;
+        if (rel === 'enemy') { enemies++; s += (6 + (q.hp <= 1 ? 6 : 0) + (q.seat === this.game.lordSeat ? 2 : 0)) * hit * enemyScale; }
+        else if (rel === 'friend') s -= (9 + (q.hp <= 1 ? 12 : 0) + (q.seat === this.lordSeat() ? 8 : 0)) * hit * friendScale;
       }
       if (!enemies) return 0;
       return s > 0 ? s : 0;
@@ -1156,10 +1418,10 @@
         const c = g.findCard(p, o.cardId);
         return c && (c.name === 'tao' || o.as === 'tao');
       }).length;
-      // 内奸：反贼还在时保主公
+      // 内奸硬规则：除主公和自己外还有其他人时，主公死=反贼胜，必须救；
+      // 只剩主公+内奸时，主公死=内奸胜，不救。
       if (p.role === 'renegade') {
-        const rebels = g.alivePlayers.filter((q) => q.revealed && q.role === 'rebel').length;
-        if (dying.seat === this.game.lordSeat && rebels > 0) return this.pickResponseCard(opts);
+        if (dying.seat === this.game.lordSeat && g.alivePlayers.length > 2) return this.pickResponseCard(opts);
         return null;
       }
       if (rel === 'enemy') return null;
@@ -1192,6 +1454,11 @@
         return null;
       }
       if (!want) return null;
+      // 暗忠：主公血线安全时不为锦囊出无懈暴露自己（濒死救主/桃不受影响）
+      if (this.style === 'loyal_hidden' && target.seat === this.game.lordSeat) {
+        const lord = this.game.players[this.game.lordSeat];
+        if (lord && lord.hp >= 4) return null;
+      }
       if (this.level.wuxie < 1 && !this.chance(this.level.wuxie)) return null;
       // 【过河拆桥】对空手无装备的敌人收益低，不浪费无懈
       if (card.name === 'guohe' && target.hand.length <= 1 && !Object.values(target.equips).some(Boolean) && !target.judges.length) return null;
@@ -1318,15 +1585,19 @@
       const p = this.p;
       const hand = p.hand;
       let v = valueOf(c);
+      // 8p：主公方抗 4 反贼集火，保 2 闪；反贼搏命，保 2 杀。5p 保持通用攻守平衡。
+      const defensive = this.game.mode === '8p' && (p.role === 'lord' || p.role === 'loyalist' || p.role === 'renegade');
       if (c.name === 'shan') {
         const n = hand.filter((x) => x.name === 'shan').length;
-        if (n <= 2) v += 3;
-        else if (n === 3) v -= 2;
+        if (defensive) { if (n <= 2) v += 4; else v -= 4; }
+        else if (n <= 1) v += 3;
+        else if (n === 2) v += 0;
         else v -= 4;
       } else if (['sha', 'huosha', 'leisha'].includes(c.name)) {
         const n = hand.filter((x) => ['sha', 'huosha', 'leisha'].includes(x.name)).length;
-        if (n <= 1) v += 4;
-        else if (n === 2) v += 1;
+        if (defensive) { if (n <= 1) v += 3; else v -= 3; }
+        else if (n <= 2) v += 4;
+        else if (n === 3) v += 1;
         else v -= 2;
         if (!this.game.legalTargetsFor(p, 'sha', null).length) v -= 2;
       } else if (c.name === 'tao') {
@@ -1703,6 +1974,22 @@
   // 供文档/调试使用（不改变调用契约）
   AI.LEVELS = Object.keys(LEVELS);
   AI.VERSION = 'ai-2026.11';
+
+  // 供测试/审计使用：同一 seed+座位+角色+难度+模式必须得到同一风格（不依赖游戏 RNG）。
+  AI.styleFor = function (seed, seat, role, level, mode) {
+    const lv = level || 'normal';
+    const table = STYLE_TABLE[lv] || STYLE_TABLE.normal;
+    const ov = STYLE_MODE_OVERRIDE[lv] && STYLE_MODE_OVERRIDE[lv][mode || '8p'];
+    const list = (ov && ov[role]) || table[role];
+    if (!list || !list.length) return 'default';
+    const roll = styleHash(seed, seat, role) % 100;
+    let acc = 0;
+    for (const item of list) {
+      acc += item[1];
+      if (roll < acc) return item[0];
+    }
+    return list[list.length - 1][0];
+  };
 
   SGS.AI = AI;
 })(typeof window !== 'undefined' ? window : globalThis);
