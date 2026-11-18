@@ -609,7 +609,7 @@
 
   function placeActionBar() {
     if (!els.actionBar) return;
-    const host = global.innerWidth > 1100 ? document.querySelector('.human-mid') : document.querySelector('.table');
+    const host = (global.innerWidth > 1100 && global.innerHeight > 640) ? document.querySelector('.human-mid') : document.querySelector('.table');
     if (!host || els.actionBar.parentElement === host) return;
     if (host.classList.contains('human-mid')) host.insertBefore(els.actionBar, host.firstChild);
     else host.appendChild(els.actionBar);
@@ -1811,7 +1811,7 @@
     if (!g.players || !g.players.length) return;
     const opp = g.players.filter(function (p) { return p.seat !== humanSeat; });
     const phonePortrait = global.innerWidth <= 480 && global.innerHeight > global.innerWidth;
-    const phoneLandscape = global.innerWidth > global.innerHeight && global.innerHeight <= 520 && global.innerWidth <= 1100;
+    const phoneLandscape = global.innerWidth > global.innerHeight && global.innerHeight <= 640 && global.innerWidth <= 1400;
     const P = phonePortrait;
     const L = phoneLandscape;
     const pos = L

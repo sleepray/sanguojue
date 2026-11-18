@@ -2462,7 +2462,7 @@ body > .sgs-tooltip {
   #screen-game .skill-banner { max-width: 92vw; }
   #screen-game .skill-line { font-size: 17px; }
 }
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-game .wugu-tray {
     top: auto; bottom: 168px; transform: translateX(-50%);
     max-width: 82vw; padding: 5px 7px;
@@ -2525,7 +2525,7 @@ body > .sgs-tooltip {
 }
 
 /* APK/横屏矮视口（998×448 等）：选将卡压缩，底部确定/返回必须可见 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-select { padding: 6px 10px 4px; }
   #screen-select .select-kicker, #screen-select .select-reason { display: none; }
   #screen-select .select-title { font-size: 24px; margin: 0 0 2px; letter-spacing: .2em; }
@@ -2546,7 +2546,7 @@ body > .sgs-tooltip {
   #screen-select .select-hint { font-size: 10px; line-height: 1.2; }
 }
 /* APK/手机横屏：浮字不遮头像，技能横幅收小，右栏技能/装备紧凑 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-game .flow-float { font-size: 11px; padding: 1px 6px; }
   #screen-game .skill-banner { top: 48%; transform: translate(-50%, -50%) scale(.58); max-width: 62vw; }
   #screen-game .skill-line { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -2579,7 +2579,7 @@ body > .sgs-tooltip {
   }
   #screen-menu .menu-frame { padding-bottom: 92px; }
 }
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-game .phase-banner { top: 50%; transform: translate(-50%, -50%) scale(.46); }
   #screen-game .phase-banner .pb-title { font-size: 22px; letter-spacing: .22em; }
   #screen-game .phase-banner .pb-sub { font-size: 9px; letter-spacing: .18em; }
@@ -2681,7 +2681,7 @@ body > .sgs-tooltip {
 }
 
 /* APK/手机横屏选将：3/4 列列表卡（只作用于 998×448、844×390 等短横屏） */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-select {
     padding: 6px max(10px, env(safe-area-inset-right, 0px)) 4px max(10px, env(safe-area-inset-left, 0px));
     overflow: hidden;
@@ -2814,7 +2814,7 @@ body > .sgs-tooltip {
   #screen-game .human-right .eq-label { display: none; }
 }
 /* 手机横屏：敌方已装备牌用小图标显示在姓名条上方，不再整条隐藏 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-game .seat-equip-list {
     display: flex !important; flex-direction: row; flex-wrap: wrap;
     justify-content: flex-end; align-content: flex-end;
@@ -2831,7 +2831,7 @@ body > .sgs-tooltip {
   #screen-game .seat-equip-list .eq-name { display: none; }
 }
 /* 敌方装备挂件移到武将牌外，朝牌桌中心展开，不占姓名/血条 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-game .seat .seat-equip-list {
     display: flex !important; flex-wrap: nowrap; align-content: center; justify-content: center;
     gap: 2px; width: auto; height: auto; max-width: none; overflow: visible;
@@ -2858,7 +2858,7 @@ body > .sgs-tooltip {
   #screen-game .seat .seat-equip-list .eq-name { display: none; }
 }
 /* 牌外装备：图标 + 名称，按座位方向排列 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-game .seat .seat-equip-list { gap: 2px; }
   #screen-game .seat .seat-equip-list .eq-bar {
     width: auto; height: 14px; min-height: 0; padding: 0 2px;
@@ -2897,7 +2897,7 @@ body > .sgs-tooltip {
   justify-content: flex-end;
 }
 /* 手机横屏武将详情：压缩头像/间距，弹层可滚动看到装备+技能 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   .general-info-modal { max-height: calc(100dvh - 12px); }
   .general-info-modal .modal-head { padding: 7px 12px; }
   .general-info-modal .modal-body { padding: 8px 12px 10px; min-height: 0; }
@@ -2924,7 +2924,7 @@ body > .sgs-tooltip {
   align-items: flex-start !important;
 }
 /* 顶部中间座位：装备移到牌右侧，不再放牌下方 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-game .seat.eq-bottom .seat-equip-list {
     left: calc(100% + 3px) !important; right: auto !important;
     top: 50% !important; bottom: auto !important; transform: translateY(-50%) !important;
@@ -2932,7 +2932,7 @@ body > .sgs-tooltip {
   }
 }
 /* 顶部中间装备也改为右侧、底部对齐向上生长 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-game .seat.eq-bottom .seat-equip-list {
     left: calc(100% + 3px) !important; right: auto !important;
     top: auto !important; bottom: 0 !important; transform: none !important;
@@ -2941,7 +2941,7 @@ body > .sgs-tooltip {
   }
 }
 /* 自己装备槽：有装备时图片铺满，不再留 contain 黑边 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-game .human-right .equip-slot.is-filled { background: #0b0d10; }
   #screen-game .human-right .equip-slot.is-filled img {
     width: 100%; height: 100%; object-fit: cover; object-position: center;
@@ -2949,7 +2949,7 @@ body > .sgs-tooltip {
   }
 }
 /* APK/手机横屏：手气卡选项横向两列，结算页压缩到视口 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #modal-root .option-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
   #modal-root .option-btn { padding: 8px 6px; font-size: 12px; text-align: center; }
   #modal-root .modal { max-height: calc(100dvh - 8px); }
@@ -2978,7 +2978,7 @@ body > .sgs-tooltip {
    APK/手机弹层与结算紧凑化（998×448、720×1280）
    ============================================================ */
 /* 横屏短屏：手气卡/选项 2 列，modal 在视口内滚动 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #modal-root .modal {
     max-height: calc(100dvh - 12px);
   }
@@ -3066,7 +3066,7 @@ body > .sgs-tooltip {
   #screen-result .result-actions .btn { padding: 8px 16px; font-size: 12px; }
 }
 /* 敌方装备可点击查看描述；自己的装备保留卡牌比例，不拉伸 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-game .seat .seat-equip-list .eq-bar { pointer-events: auto !important; cursor: pointer; }
   #screen-game .human-right .equip-slot.is-filled img {
     width: 100%; height: 100%; object-fit: contain; object-position: center;
@@ -3084,7 +3084,7 @@ body > .sgs-tooltip {
 }
 /* 自己装备槽：图标 + 两字简称，不展示完整卡图 */
 #screen-game .eq-short { display: none; }
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-game .human-right .equip-slot.is-filled {
     display: flex; flex-direction: row; align-items: center; justify-content: flex-start;
     gap: 2px; padding: 0 2px; height: 26px;
@@ -3100,7 +3100,7 @@ body > .sgs-tooltip {
   }
 }
 /* 选将卡统一高度，长技能描述裁切，避免同排高低不一/压出边界 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-select .general-card { height: 120px !important; min-height: 120px !important; }
   #screen-select .gc-body { overflow: hidden; }
   #screen-select .gc-skills { max-height: 52px; overflow: hidden; }
@@ -3110,7 +3110,7 @@ body > .sgs-tooltip {
 #screen-game.is-revealing .phase-banner,
 #screen-game.is-revealing .phase-orbit { opacity: 0 !important; visibility: hidden !important; }
 /* 敌方装备名不再压成省略号；朝牌外展开 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-game .seat .seat-equip-list .eq-name {
     max-width: 66px; font-size: 8.5px; letter-spacing: 0;
   }
@@ -3118,7 +3118,7 @@ body > .sgs-tooltip {
 }
 
 /* 自己的装备区改 2×2，每格可显示完整装备名 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-game .human-right .equip-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px;
   }
@@ -3137,12 +3137,12 @@ body > .sgs-tooltip {
   }
   #screen-game .human-right .equip-slot.is-empty { height: 28px; }
 }
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-game .human-right .equip-slot.is-filled,
   #screen-game .human-right .equip-slot.is-empty { height: 24px; }
 }
 /* 右栏紧凑：2×2 装备 + 技能 + 判定必须都落在 130px 内 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-game .human-right { gap: 1px; padding: 1px 2px; }
   #screen-game .human-right .mini-title { font-size: 7px; line-height: 1.1; padding: 0; }
   #screen-game .human-right .equip-grid { gap: 2px; }
@@ -3212,7 +3212,7 @@ body > .sgs-tooltip {
   #screen-game .pf-name { font-size: 12px; }
 }
 /* 斗地主手牌底部不再被裁 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-game .hand-card { bottom: 11px; }
 }
 /* 桌面矮屏菜单：内容超高时顶部对齐并滚动 */
@@ -3228,7 +3228,7 @@ body > .sgs-tooltip {
   #screen-select .gc-name { font-size: 15px; }
 }
 /* 对局可读性：技能横幅/座位名/右下标题设最低字号 */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-game .skill-banner { top: 47%; transform: translate(-50%, -50%) scale(.72); max-width: 74vw; }
   #screen-game .skill-line { font-size: 15px; }
   #screen-game .seat-name { font-size: 10px; }
@@ -3237,7 +3237,7 @@ body > .sgs-tooltip {
   #screen-game .human-right .skill-btn { font-size: 9px; }
 }
 /* 顶栏触控目标放大（不改变布局行高） */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   #screen-game .tb-right .tb-btn {
     min-width: 34px; min-height: 30px; padding: 4px 4px;
     font-size: 10px; line-height: 1.1;
@@ -3310,7 +3310,7 @@ body > .sgs-tooltip {
 }
 .hand-timer.is-on { display: block; }
 .hand-timer.is-warn { color: #ffd6c8; border-color: rgba(224,96,79,.75); box-shadow: 0 0 18px rgba(224,96,79,.28); }
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   .hand-timer { font-size: 11px; top: 2px; right: 6px; padding: 2px 7px; }
   /* 手机/APK 顶栏时间让位给底部手牌区 */
   #screen-game .tb-count { display: none; }
@@ -3425,7 +3425,7 @@ body > .sgs-tooltip {
 .pd-result.is-tie { color: #e9e1cf; }
 @keyframes pdStageIn { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }
 @keyframes pdVs { 0%,100% { transform: scale(1); opacity: .82; } 50% { transform: scale(1.16); opacity: 1; } }
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   .pindian-stage { gap: 12px; padding: 10px 16px 32px; }
   .pd-card { width: 62px; height: 88px; }
   .pd-name { font-size: 9px; max-width: 88px; }
@@ -3484,7 +3484,7 @@ body > .sgs-tooltip {
 .hr-rank { position: absolute; right: 5px; top: 3px; font-size: 14px; font-weight: 700; color: #f5ead2; text-shadow: 0 1px 3px #000; }
 .hr-name { position: absolute; left: 0; right: 0; bottom: 0; padding: 4px 2px; text-align: center; font-size: 11px; color: #f4ead4; background: linear-gradient(180deg,transparent,rgba(0,0,0,.86)); }
 .hr-caption { font-size: 11px; color: #e9dfca; letter-spacing: .08em; text-shadow: 0 2px 6px #000; }
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   .hidden-card { width: 42px; height: 60px; }
   .hidden-card .hc-back i { font-size: 8px; }
   .hidden-hand-row { gap: 5px; }
@@ -3516,7 +3516,7 @@ body > .sgs-tooltip {
 .rescue-banner.is-pass { border-color: rgba(216,179,106,.2); color: #a8a08e; }
 .rescue-banner.is-save { border-color: rgba(111,191,160,.5); color: #d9f3e7; }
 @keyframes rescueIn { from { opacity: 0; transform: translate(-50%, -44%); } to { opacity: 1; transform: translate(-50%, -50%); } }
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1400px) {
   .rescue-banner { font-size: 9px; padding: 3px 8px; top: 35%; }
 }
 .hand-reveal { z-index: 620; }
@@ -3659,7 +3659,7 @@ body.is-table-pick #screen-game .pick-bar { z-index: 130; }
  * 合并 792×323 / 915×412 / 997×448 的旧短横屏覆盖；顶栏 40、玩家区按内容 112、
  * 牌桌占剩余高度（≥50%）。结构：头像 | 装备/判定图标条 | 手牌 | 技能。
  */
-@media (orientation: landscape) and (max-height: 640px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 640px) and (max-width: 1400px) {
   /* 顶栏 40：按钮仍保留 44 高点击区，上下各溢出 2px（不压座位） */
   #screen-game { grid-template-rows: 40px minmax(0, 1fr) auto; }
   #screen-game .topbar {
@@ -3898,7 +3898,7 @@ body.is-table-pick #screen-game .pick-bar { z-index: 130; }
 .btn.btn-danger:hover:not(:disabled) { filter: brightness(1.1); }
 
 /* ===== 1.0.7 B3 1c-13: 手机横屏主菜单两栏，一屏放下，开始按钮始终可见 ===== */
-@media (orientation: landscape) and (max-height: 640px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 640px) and (max-width: 1400px) {
   #screen-menu { padding: 0; }
   #screen-menu .menu-frame {
     width: 100%; height: 100%; padding: 6px 14px 8px;
@@ -3943,7 +3943,7 @@ body.is-table-pick #screen-game .pick-bar { z-index: 130; }
 }
 
 /* ===== 1.0.7 B3 1c-14: 手机横屏设置面板紧凑化，全部选项一屏可见 ===== */
-@media (orientation: landscape) and (max-height: 640px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 640px) and (max-width: 1400px) {
   #settings-panel { top: 40px !important; height: calc(100dvh - 40px) !important; }
   #settings-panel .settings-head { padding: 2px 10px; }
   #settings-panel .settings-body { padding: 2px 12px 4px; }
@@ -4042,7 +4042,7 @@ body.is-table-pick #screen-game .pick-bar { z-index: 130; }
 #screen-game .human-right .judge-list { gap: 1px !important; min-height: 0 !important; }
 
 /* 真实选目标：技能列临时收起，action-bar 让出按钮宽度，取消/确认完整可点 */
-@media (orientation: landscape) and (max-height: 640px) and (max-width: 1100px) {
+@media (orientation: landscape) and (max-height: 640px) and (max-width: 1400px) {
   #screen-game .human:has(#action-bar [data-act="play-cancel"]) {
     grid-template-columns: 76px 34px minmax(0, 1fr) 0;
   }
