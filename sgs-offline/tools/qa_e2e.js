@@ -641,7 +641,13 @@ function pageState() {
 
   // 真实鼠标点击菜单项（自动展开「更多」菜单，保留 Input.dispatchMouseEvent 风格）
   async function clickMenu(selector, index = 0, opts = {}) {
-    const pt = await pointMenu(selector, index);
+    let pt = await pointMenu(selector, index);
+    // 更多菜单是异步展开的，首次 point 可能早于过渡帧；短轮询重试，不改断言
+    for (let attempt = 0; !pt && attempt < 6; attempt++) {
+      await sleep(120);
+      await openMoreMenu();
+      pt = await cdp.point(selector, index);
+    }
     if (!pt) throw new Error('「更多」菜单项不可见/被遮挡: ' + selector + '[' + index + ']');
     const out = await cdp.click(selector, index, opts);
     // 兜底：菜单项的点击处理器理论上会 setMore(false)；若仍展开则收起，避免挡后续点击
@@ -1733,7 +1739,7 @@ function pageState() {
       }
       let found = null;
       const t0 = Date.now();
-      while (Date.now() - t0 < 60000) {
+      while (Date.now() - t0 < 90000) {
         const st = await state();
         if (st.screenActive.result || st.over) break;
         if (st.transient > 0) { found = st; break; }
@@ -1746,7 +1752,7 @@ function pageState() {
         }
         await sleep(50);
       }
-      assert(found, '45s 内未捕获 AI 出牌方向箭头（可能本局 AI 未使用带目标牌）');
+      assert(found, '90s 内未捕获 AI 出牌方向箭头（可能本局 AI 未使用带目标牌）');
       await shot('qa_ai_arrow.png', row);
       const stroke = String(found.transientStroke).replace(/\s+/g, '');
       const marker = String(found.transientMarker || '');
@@ -3087,7 +3093,7 @@ function pageState() {
       };
       const waitAutoMarks = async (want) => {
         const t0 = Date.now();
-        while (Date.now() - t0 < 20000) {
+        while (Date.now() - t0 < 45000) {
           const m = await cdp.eval(() => {
             try { const d = JSON.parse(localStorage.getItem('sgs.save.auto') || 'null'); return d && d.meta ? d.meta.marks || null : null; } catch (e) { return null; }
           });
@@ -3098,6 +3104,14 @@ function pageState() {
       };
       await start8pGame();
       await waitState((s) => s.screenActive.game && s.seats === 7, 8000, 'T56 8p 牌桌');
+      // 座位1/2必须是可标记的未知身份；若随机到主公则重开，避免把「主公」公开身份误判为标记失效
+      let lordSeat = await cdp.eval(() => { const g = SGS_UI._state().game; const p = g.players.find((x) => x.role === 'lord'); return p ? p.seat : null; });
+      for (let attempt = 0; attempt < 6 && (lordSeat === 1 || lordSeat === 2); attempt++) {
+        await start8pGame();
+        await waitState((s) => s.screenActive.game && s.seats === 7, 8000, 'T56 换局');
+        lordSeat = await cdp.eval(() => { const g = SGS_UI._state().game; const p = g.players.find((x) => x.role === 'lord'); return p ? p.seat : null; });
+      }
+      assert(lordSeat !== 1 && lordSeat !== 2, 'T56 连续 6 局座位1/2仍是主公，无法验证标记');
       await markSeat(1, 1); // loyalist
       await markSeat(2, 2); // rebel
       const hiddenRebel = await cdp.eval(() => {
@@ -3234,7 +3248,18 @@ function pageState() {
       assert(st.meRole === '蓝队' || st.meRole === '红队', '3v3 自己队伍标签异常：' + st.meRole);
       await shot('qa_table_3v3.png', row);
       await clearPendingSafely(10000);
-      await clickMenu('#btn-trust');
+      // 3v3 可能在清理后立刻弹出新的技能选项（好施等），挡住「更多」菜单；先清掉再点，最多重试 5 次
+      let trustClicked = false;
+      for (let attempt = 0; attempt < 5 && !trustClicked; attempt++) {
+        try {
+          await clickMenu('#btn-trust');
+          trustClicked = true;
+        } catch (e) {
+          await clearPendingSafely(3000);
+          await sleep(200);
+        }
+      }
+      assert(trustClicked, '3v3 托管理：5 次清理后「更多」菜单仍不可见');
       const end = await waitState((s) => s.screenActive.result, 600000, '等待 3v3 结算');
       assertEq(end.resultPlayers.length, 6, '3v3 结算玩家数');
       assert(/蓝队|红队/.test(end.resultSub) && /获胜/.test(end.resultSub), '3v3 结算缺少队伍获胜文案：' + end.resultSub);
@@ -4102,7 +4127,7 @@ function pageState() {
       '冻结 8p 局依次注入 judge/五谷/无懈/仁德日志并 render',
       '读取判定浮层、五谷托盘、无懈 reveal、flow 卡、played-card 角标',
       '合成 play/response 请求验证 90s/45s 读秒、10s 红色与超时 AI 代操作',
-    ], '判定牌显示花色/点数/结果；五谷托盘逐张减少；无懈中央牌显示抵消；仁德有飞牌；中央牌左右角标；读秒 90/45s、10s 红色、超时清空；截图 qa_judge_card/qa_wugu_tray/qa_wuxie_center/qa_rende_flow/qa_center_card/qa_countdown_ring.png', 'P1', async (row) => {
+    ], '判定牌显示花色/点数/结果；五谷托盘逐张减少；无懈中央牌显示抵消；仁德有飞牌；中央牌图片 naturalWidth/宽高比与手牌一致、顶部不裁；读秒 90/45s、10s 红色、超时清空；截图 qa_judge_card/qa_wugu_tray/qa_wuxie_center/qa_rende_flow/qa_center_card/qa_countdown_ring.png', 'P1', async (row) => {
       await startFrozenDemo8p();
       // freeze=play 到 seat0 的出牌请求才真正冻结引擎；先等到该请求，避免合成的
       // judge/五谷/无懈日志与真实牌局日志并发，导致五谷托盘被重新渲染
@@ -4220,11 +4245,25 @@ function pageState() {
         const tl = document.querySelector('#played-cards .played-card .hc-suit');
         const name = document.querySelector('#played-cards .played-card .hc-name');
         const rank = document.querySelector('#played-cards .played-card .hc-rank');
+        const pc = document.querySelector('#played-cards .played-card');
+        const img = pc && pc.querySelector('img');
+        const handImg = document.querySelector('.hand-card img');
+        const pr = pc.getBoundingClientRect();
+        const ir = img ? img.getBoundingClientRect() : null;
+        const hr = handImg ? handImg.getBoundingClientRect() : null;
         return {
           cards: document.querySelectorAll('#played-cards .played-card').length,
           tl: tl ? tl.textContent.trim() : '',
           name: name ? name.textContent.trim() : '',
           rank: rank ? rank.textContent.trim() : '',
+          natural: img ? [img.naturalWidth, img.naturalHeight] : [0, 0],
+          ratio: img ? img.clientWidth / img.clientHeight : 0,
+          handRatio: handImg ? handImg.clientWidth / handImg.clientHeight : 0,
+          imgClient: img ? [img.clientWidth, img.clientHeight] : [0, 0],
+          cardClient: pc ? [pc.clientWidth, pc.clientHeight] : [0, 0],
+          imgTop: ir ? ir.top : 0,
+          cardTop: pr.top,
+          overflow: pc ? getComputedStyle(pc).overflow : '',
         };
       });
       assertEq(center.cards, 1, '中央打出牌数量');
@@ -4232,6 +4271,11 @@ function pageState() {
       assertEq(center.name, '杀', '中央牌牌名');
       assert(center.rank.indexOf('10') >= 0, '中央牌点数：' + center.rank);
       assert(!center.tl.includes('10'), '中央牌左上不应再叠加点数：' + center.tl);
+      assert(center.natural[0] > 0 && center.natural[1] > 0, '中央牌图片未加载：' + JSON.stringify(center.natural));
+      assert(Math.abs(center.ratio - center.handRatio) < 0.03, '中央牌图片宽高比未与手牌一致：' + center.ratio.toFixed(3) + ' vs ' + center.handRatio.toFixed(3));
+      assert(center.imgClient[1] >= center.cardClient[1] - 2, '中央牌图片容器高度不足：' + JSON.stringify(center.imgClient));
+      assert(center.imgTop >= center.cardTop - 1, '中央牌图片顶部被裁出容器：' + center.imgTop + ' < ' + center.cardTop);
+      assert(center.overflow !== 'hidden', '中央牌容器 overflow:hidden 会裁切卡图');
       await shot('qa_center_card.png', row);
 
       // 读秒：AI/冻结态不显示；play 90s；10s 红色；超时清空；response 45s

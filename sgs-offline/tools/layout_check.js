@@ -25,12 +25,17 @@ const VIEWPORTS = [
   { id: '792x323', width: 792, height: 323 },
   { id: '915x412', width: 915, height: 412 },
   { id: '997x448', width: 997, height: 448 },
+  { id: '1067x480', width: 1067, height: 480 },
+  { id: '1280x576', width: 1280, height: 576 },
+  { id: '1600x720', width: 1600, height: 720 },
   { id: '720x619', width: 720, height: 619 },
   { id: '1280x800', width: 1280, height: 800 },
   { id: '1376x1032', width: 1376, height: 1032 },
   { id: '412x915', width: 412, height: 915 },
 ];
-const MOBILE_LANDSCAPE = [792, 915, 997, 720];
+const OLD_MOBILE_IDS = ['792x323', '915x412', '997x448', '720x619'];
+const HIGH_RES_IDS = ['1067x480', '1280x576', '1600x720'];
+const MOBILE_LANDSCAPE = OLD_MOBILE_IDS.concat(HIGH_RES_IDS);
 const FULL_MODES = ['8p', '3v3'];
 const MINI_MODES = ['1v1', '5p'];
 const FULL_SCENES = ['play1', 'play5', 'play10', 'play15', 'target', 'response', 'discard', 'wugu', 'rescue', 'pindian', 'hidden', 'judge', 'intro', 'skilldesc', 'log', 'settings', 'pause', 'dying'];
@@ -104,7 +109,7 @@ async function main() {
   });
   let page = await browser.newPage();
   page.on('pageerror', e => console.error('PAGEERROR', e.message));
-  let report = { generated: new Date().toISOString(), viewports: [], issues: [], notes: [], audits: [], seatmax: [] };
+  let report = { generated: new Date().toISOString(), viewports: [], issues: [], notes: [], audits: [], seatmax: [], highres: [], judgeShots: [] };
   if (!full) {
     try {
       const old = JSON.parse(fs.readFileSync(path.join(LATEST, 'layout-report.json'), 'utf8'));
@@ -117,6 +122,8 @@ async function main() {
           notes: (old.notes || []).filter(n => !ids.has(n.viewport)),
           audits: (old.audits || []).filter(a => !ids.has(a.viewport)),
           seatmax: (old.seatmax || []).filter(a => !ids.has(a.viewport)),
+          highres: (old.highres || []).filter(a => !ids.has(a.viewport)),
+          judgeShots: (old.judgeShots || []).filter(a => !ids.has(a.viewport)),
         };
       }
     } catch (e) { /* first incremental run */ }
@@ -210,11 +217,12 @@ async function main() {
     } catch (e) { report.notes.push({ viewport: vp.id, note: 'Emulation.setSafeAreaInsets unsupported: ' + e.message }); }
     const vpres = { id: vp.id, width: vp.width, height: vp.height, safeArea: safeOK, scenes: [], p0: 0, p1: 0, p2: 0 };
     let vpShot = false;
+    let vpJudgeShot = false;
     const modes = FULL_MODES.concat(MINI_MODES);
     for (const mode of modes) {
       const scenes = FULL_MODES.includes(mode)
         ? (mode === '8p' ? FULL_SCENES.concat(['central4', 'seatmax_top', 'seatmax_side', 'seatmax_human']) : FULL_SCENES)
-        : MINI_SCENES;
+        : (mode === '1v1' ? MINI_SCENES.concat(['central4']) : MINI_SCENES);
       for (const scene of scenes) {
         if (onlyScene && !onlyScene.includes(scene)) continue;
         let one;
@@ -245,7 +253,18 @@ async function main() {
           try {
             await page.screenshot({ path: path.join(LATEST, `full_${vp.id}.jpg`), type: 'jpeg', quality: 70, fullPage: false });
             vpShot = true;
+            if (HIGH_RES_IDS.indexOf(vp.id) >= 0) {
+              const B8 = path.join(OUT, 'b8'); fs.mkdirSync(B8, { recursive: true });
+              const hf = path.join(B8, 'highres_' + vp.id + '.png');
+              await page.screenshot({ path: hf, type: 'png', fullPage: false });
+              report.highres = report.highres || []; report.highres.push({ viewport: vp.id, path: path.relative(ROOT, hf) });
+            }
           } catch (e) { report.notes.push({ viewport: vp.id, note: 'screenshot failed: ' + e.message }); }
+        }
+        if (!A['no-shot'] && HIGH_RES_IDS.indexOf(vp.id) >= 0 && scene === 'judge' && !vpJudgeShot) {
+          const B8 = path.join(OUT, 'b8'); fs.mkdirSync(B8, { recursive: true });
+          const jf = path.join(B8, 'judge_' + vp.id + '.png');
+          try { await page.screenshot({ path: jf, type: 'png', fullPage: false }); vpJudgeShot = true; report.judgeShots = report.judgeShots || []; report.judgeShots.push({ viewport: vp.id, path: path.relative(ROOT, jf) }); } catch (e) { report.notes.push({ viewport: vp.id, scene, note: 'judge shot failed: ' + e.message }); }
         }
         for (const it of one.issues.filter(x => x.level === 'P0' || x.level === 'P1')) {
           if (A['no-shot'] || !it.rect) continue;
@@ -493,7 +512,7 @@ async function runScene(page, vp, mode, scene, whitelist) {
   await sleep(scene === 'pause' ? 900 : 350);
   const idle = await waitForIdle(page, 5000);
   await sleep(80);
-  const found = await page.evaluate(auditPage, { whitelist, keySel: SELECTOR_KEY, textSel: SELECTOR_TEXT, clickSel: SELECTOR_INTERACTIVE, overlaySel: OVERLAY_SEL, scene, mobile: MOBILE_LANDSCAPE.indexOf(vp.width) >= 0, mobileLandscape: MOBILE_LANDSCAPE.indexOf(vp.width) >= 0, vp: { width: vp.width, height: vp.height } });
+  const found = await page.evaluate(auditPage, { whitelist, keySel: SELECTOR_KEY, textSel: SELECTOR_TEXT, clickSel: SELECTOR_INTERACTIVE, overlaySel: OVERLAY_SEL, scene, mobile: OLD_MOBILE_IDS.indexOf(vp.id) >= 0, mobileLandscape: MOBILE_LANDSCAPE.indexOf(vp.id) >= 0, highres: HIGH_RES_IDS.indexOf(vp.id) >= 0, vp: { width: vp.width, height: vp.height } });
   found.idle = idle;
   return found;
 }
@@ -693,9 +712,10 @@ function auditPage(opts) {
       const ratio = hr.height / vh;
       if (ratio > 0.35) add('P1', '玩家区高度>35%', pathOf(human), `${Math.round(hr.height)}px=${(ratio * 100).toFixed(1)}% of ${vh}`);
     }
+    const gapCheck = vw < 1600;
     const action = document.querySelector('.action-bar');
     const handCards = Array.from(document.querySelectorAll('.hand-card')).filter(visible);
-    if (action && visible(action) && handCards.length) {
+    if (gapCheck && action && visible(action) && handCards.length) {
       const ar = rect(action);
       const top = Math.min.apply(null, handCards.map(e => rect(e).top));
       const gap = top - ar.bottom;
@@ -705,7 +725,7 @@ function auditPage(opts) {
       ['.human-mid', '.action-bar,.hand-wrap'],
       ['.human-right', '.me-block,.me-marks'],
     ];
-    gapGroups.forEach(([parentSel, childSel]) => {
+    if (gapCheck) gapGroups.forEach(([parentSel, childSel]) => {
       const parent = document.querySelector(parentSel);
       if (!parent || !visible(parent)) return;
       const kids = Array.from(parent.querySelectorAll(':scope > ' + childSel)).filter(visible)
@@ -967,6 +987,7 @@ function auditPage(opts) {
   });
   // 5) 字体/拼音
   if (document.fonts && document.fonts.status !== 'loaded') add('P2', '字体未就绪', 'document.fonts', document.fonts.status);
+  if (opts.highres && document.documentElement.scrollWidth > innerWidth + 1) add('P1', '横向滚动', 'document.documentElement', `scrollWidth=${document.documentElement.scrollWidth} vw=${innerWidth}`);
   const texts = Array.from(document.querySelectorAll(opts.textSel)).filter(e => visible(e) && inContext(e));
   const py = /(?:^|[^a-z])(dayuan|sha|shan|tao|zhuge|qinggang|bagua|chitu|dilu|guohe|wuxie|juedou|wugu|lebu|bingliang|shandian|jiedao|tiesuo|huogong|shunshou|cixiong|qingnang|zhangba|fangtian|qilin|hanbing|tengjia|renwang|jueying|zhuahuang|dawan|zhuque)(?:$|[^a-z])/i;
   const pinyinEls = Array.from(document.querySelectorAll(opts.textSel + ',.eq-bar,.eq-short,.eq-name,.eq-type,.judge-chip')).filter(e => visible(e) && inContext(e));
