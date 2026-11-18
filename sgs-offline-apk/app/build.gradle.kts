@@ -14,8 +14,8 @@ android {
         applicationId = "io.sanguoduel.offline"
         minSdk = 26
         targetSdk = 36
-        versionCode = 8
-        versionName = "1.0.7-2026.11.18"
+        versionCode = 9
+        versionName = "1.0.8-2026.11.18"
     }
 
     signingConfigs {
