@@ -183,7 +183,7 @@ cd ../sgs-offline-apk
 ./build.sh                      # 产出 artifacts/sgs-offline.apk
 ```
 
-`package.sh` 自动排除 `out/`、`artifacts/`、`.venv/`、`node_modules/` 等目录。APK 构建会把 `sgs-offline` 静态包同步进 assets。
+`package.sh` 自动排除 `out/`、`artifacts/`、`.venv/`、`node_modules/` 等目录，并在打包成功后只保留 `artifacts/` 下最新的 2 个日期 zip（超过自动清理）。APK 构建会把 `sgs-offline` 静态包同步进 assets。
 
 ---
 

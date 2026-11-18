@@ -64,3 +64,11 @@ echo "打包完成：${ZIP_PATH}"
 echo "zip 体积：${SIZE_HUMAN}（${SIZE_BYTES} 字节）"
 echo "包含文件：${FILE_COUNT} 个"
 echo "----------------------------------------------"
+
+# 只保留最新 2 个日期包，避免 artifacts 无限增长
+OLD_ZIPS="$(ls -1t "${PROJECT_DIR}/${OUT_DIR}"/sgs-offline-*.zip 2>/dev/null | tail -n +3 || true)"
+while IFS= read -r old; do
+  [ -n "$old" ] || continue
+  rm -f "$old"
+  echo "已清理旧包：$(basename "$old")"
+done <<< "$OLD_ZIPS"

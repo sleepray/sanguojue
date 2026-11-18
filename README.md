@@ -41,7 +41,7 @@ cd sgs-offline-apk
 # 输出 sgs-offline-apk/artifacts/sgs-offline.apk
 ```
 
-当前发布包：`1.0.7-2026.11.18`，约 113 MB；每次构建 SHA-256 会变化，具体值见 [`docs/1.0.7-第六轮报告.md`](sgs-offline/docs/1.0.7-第六轮报告.md)。
+当前发布包：`1.0.7-2026.11.18`，约 113 MB；每次构建 SHA-256 会变化，具体值见 [`docs/1.0.7-第六轮报告.md`](sgs-offline/docs/1.0.7-第六轮报告.md)。Web 日期包在 `artifacts/` 只保留最新 2 个，旧的自动清理。
 
 ## 验证
 
