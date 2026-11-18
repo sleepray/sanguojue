@@ -733,7 +733,7 @@
     const note = q('menu-note');
     if (note) {
       const modeText = ddz ? '斗地主 1v2 · 每人 ' : (menu.mode === '1v1' ? '单挑 · 每人 ' : (n + ' 人' + (team ? (menu.mode === '2v2' ? ' 2v2' : ' 3v3') : '局') + '每人 '));
-      const deckText = (menu.mode === '1v1' || ddz) ? (ddz ? '标准+军争 160 张（固定）' : '军争剪裁 108 张（固定）') : (menu.cardPack === 'full' ? '标准+军争 160 张' : '标准 108 张');
+      const deckText = (menu.mode === '1v1' || ddz) ? (ddz ? '斗地主专属 108 张（固定）' : '军争剪裁 108 张（固定）') : (menu.cardPack === 'full' ? '标准+军争 160 张' : '标准 108 张');
       note.textContent = '已选 ' + menu.packs.length + ' 个武将包 · ' + total + ' 名武将 · ' +
         modeText + per + ' 张候选 · 牌堆 ' + deckText + ' · 节奏 ' + ({ slow: '慢', normal: '标准', fast: '快' }[menu.pace] || '标准') + ' · AI ' + ({ easy: '简单', normal: '普通', hard: '困难' }[menu.aiLevel] || '普通') + (menu.mode === '1v1' ? ' · 将池 ' + (menu.duelPool === 'classic' ? '经典' : (menu.duelPool === 'new1v1' ? '新1V1（46/50，基础技能近似）' : '全武将')) : '') + (extrasOn ? ' · 扩展已开启' : '');
     }
