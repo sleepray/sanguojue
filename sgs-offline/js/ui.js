@@ -128,6 +128,8 @@
   let judgeShowing = false;
   let handLayoutTimer = 0;
   let logNewCount = 0;
+  let flowSeenLogs = new WeakSet();
+  let flowRecentSig = { key: '', t: 0 };
 
   /* ============================================================
      基础工具
@@ -150,6 +152,15 @@
   function cardImg(name) { const d = cardDef(name); return d && d.noArt ? '' : ('assets/cards/' + d.pinyin + '.png'); }
   function cardImgOf(c) { return cardImg(c && c.name); }
   function cardImgTag(c) { const src = cardImgOf(c); return src ? '<img src="' + src + '" alt="" onerror="this.onerror=null;this.style.display=&quot;none&quot;">' : '<span class="card-noimg"></span>'; }
+  // 手牌/中央牌共用的牌面组件：左上花色小图标、底部左牌名、底部右点数框
+  function cardFaceHTML(c) {
+    const def = cardDef(c.name);
+    const s = suitOf(c);
+    return cardImgTag(c) +
+      (s ? '<span class="hc-suit" style="color:' + suitColor(c) + '">' + s.cn + '</span>' : '') +
+      '<span class="hc-name">' + esc(def.name) + '</span>' +
+      '<span class="hc-rank">' + esc(rankCn(c.rank)) + '</span>';
+  }
   function cardCornersHTML(c, topOnly) {
     const s = suitOf(c);
     if (!s) return '';
@@ -1627,7 +1638,17 @@
 
   function handleEffectLog(lg) {
     if (!lg) return;
+    // 同一日志对象只生成一次浮字/飞牌；render 重放或冻结局刷新时不重复
+    if (flowSeenLogs && flowSeenLogs.has(lg)) return;
+    if (flowSeenLogs) flowSeenLogs.add(lg);
     const text = String(lg.text || '');
+    // 同一类事件在极短时间内重复（引擎补发/同一 log 文本）只保留一次浮字
+    const sig = lg.type + '|' + text + '|' + lg.turn;
+    const nowT = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    if (flowRecentSig.key === sig && nowT - flowRecentSig.t < 500) return;
+    flowRecentSig = { key: sig, t: nowT };
+    // 摸牌浮字同一屏幕只保留一条，避免两个相邻摸牌事件叠成「+2 牌 ×2」
+    if (/摸了 \d+ 张牌/.test(text) && els.flowLayer && els.flowLayer.querySelector('.flow-float.is-draw')) return;
     if (/（初始手牌）|（手气卡）|（地主底牌）/.test(text)) return;
     if (/^【五谷丰登】亮出：/.test(text)) showWuguReveal(text);
     if (lg.type === 'respond' || lg.type === 'wuxie') handleRevealLog(lg);
@@ -2465,10 +2486,7 @@
         const def = cardDef(c.name);
         const s = suitOf(c);
         return '<div class="hand-card" data-cid="' + c.id + '">' +
-          cardImgTag(c) +
-          (s ? '<span class="hc-suit" style="color:' + suitColor(c) + '">' + s.cn + '</span>' : '') +
-          '<span class="hc-rank">' + esc(rankCn(c.rank)) + '</span>' +
-          '<span class="hc-name">' + esc(def.name) + '</span>' +
+          cardFaceHTML(c) +
           '<span class="hc-check">✓</span>' +
           '</div>';
       }).join('');
@@ -3139,10 +3157,8 @@
           const tag = c.skill ? skillName(c.skill) : (c.virtual ? '转化' : '');
           return '<div class="played-card' + (def.name.length >= 4 ? ' is-four' : '') + '" data-tip="' + esc(cardTip(c)) + '">' +
             (srcName ? '<span class="pc-src">' + esc(srcName) + '</span>' : '') +
-            cardImgTag(c) +
-            cardCornersHTML(c, true) +
-            (tag ? '<span class="pc-tag">' + esc(tag) + '</span>' : '') +
-            '<span class="pc-name">' + esc(def.name) + '</span></div>';
+            cardFaceHTML(c) +
+            (tag ? '<span class="pc-tag">' + esc(tag) + '</span>' : '') + '</div>';
         }).join('');
         // 出牌音效统一由 recent use 事件驱动（覆盖 AI/装备/锦囊）
       }
@@ -3960,6 +3976,7 @@
       last.hp = {};
       g.players.forEach(function (p) { last.hp[p.seat] = p.hp; });
       const initLogs = g.logs || [];
+      initLogs.forEach(function (l) { try { flowSeenLogs.add(l); } catch (e) {} });
       last.sfxLogLen = initLogs.length;
       last.sfxLogTail = initLogs.length ? initLogs[initLogs.length - 1] : null;
       last.judgeLogLen = initLogs.length;
@@ -3973,6 +3990,7 @@
     if (!g.started) {
       g.players.forEach(function (p) { last.hp[p.seat] = p.hp; });
       const preLogs = g.logs || [];
+      preLogs.forEach(function (l) { try { flowSeenLogs.add(l); } catch (e) {} });
       last.sfxLogLen = preLogs.length;
       last.sfxLogTail = preLogs.length ? preLogs[preLogs.length - 1] : null;
       last.judgeLogLen = preLogs.length;

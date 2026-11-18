@@ -110,7 +110,10 @@
           </button>
         </div>
         <div class="b5-small">
-          <button id="btn-saves" class="btn b5-small-btn is-hidden">读取存档</button>
+          <button id="btn-saves" class="btn b5-small-btn is-hidden">
+            <span class="b5-btn-main">读取存档</span>
+            <span class="b5-btn-sub" id="saves-sub">暂无存档</span>
+          </button>
           <button id="btn-demo" class="btn b5-small-btn">自动演示</button>
         </div>
       </aside>
@@ -461,11 +464,24 @@
     var ub = $('#seg-duel-pool [data-duel="' + c.duel + '"]'); if (ub && !ub.classList.contains('is-on')) ub.click();
     return true;
   }
+  function refreshSaves() {
+    var btn = document.getElementById('btn-saves'), sub = document.getElementById('saves-sub');
+    if (!btn) return;
+    var has = false;
+    try {
+      has = !!(localStorage.getItem('sgs.save.v1') || localStorage.getItem('sgs.save.slot1') || localStorage.getItem('sgs.save.slot2') || localStorage.getItem('sgs.save.slot3'));
+    } catch (e) {}
+    btn.disabled = !has;
+    if (sub) sub.textContent = has ? '查看全部槽位' : '暂无存档';
+  }
   function boot() {
     if (!applySaved()) {
       var m = $('#seg-mode [data-mode="5p"]'); if (m && !m.classList.contains('is-on')) m.click();
       var d = $('#seg-deck [data-deck="standard"]'); if (d && !d.classList.contains('is-on')) d.click();
     }
+    refreshSaves();
+    var sb = document.getElementById('btn-saves');
+    if (sb && typeof MutationObserver !== 'undefined') new MutationObserver(refreshSaves).observe(sb, { attributes: true, attributeFilter: ['class'] });
     summary();
   }
   if (document.readyState === 'complete') boot(); else window.addEventListener('load', boot);

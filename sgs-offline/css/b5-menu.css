@@ -15,6 +15,7 @@
 #screen-menu .b5-head {
   grid-column: 1 / -1;
   display: flex;
+  min-height: 48px !important;
   align-items: center;
   gap: 10px;
   min-height: 52px;
@@ -108,7 +109,7 @@
 }
 #screen-menu .b5-start:disabled { filter: grayscale(.5); opacity: .55; }
 #screen-menu .b5-btn-main { font-size: 17px; font-weight: 700; line-height: 1.1; }
-#screen-menu .b5-btn-sub { font-size: 9px; line-height: 1.15; color: inherit; opacity: .8; white-space: normal; overflow: visible; text-overflow: clip; max-width: 100%; }
+#screen-menu .b5-btn-sub { font-size: 9px; line-height: 1.15; letter-spacing: 0 !important; color: inherit; opacity: .8; white-space: normal; overflow: visible; text-overflow: clip; max-width: 100%; }
 #screen-menu .b5-continue-btn { background: rgba(8,12,15,.72); border: 1px solid rgba(216,179,106,.55); color: #f2e6c8; }
 #screen-menu .b5-continue.is-hidden { display: none; }
 #screen-menu .b5-small { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -118,7 +119,7 @@
 
 @media (max-width: 720px) {
   #screen-menu .b5-menu { grid-template-columns: minmax(0, 1fr) 148px; gap: 8px 10px; padding: 10px 12px; }
-  #screen-menu .b5-head { min-height: 38px; }
+  #screen-menu .b5-head { min-height: 48px; }
   #screen-menu .b5-head .logo { font-size: 26px; }
   #screen-menu .b5-head .logo-mark { width: 30px; height: 30px; font-size: 18px; }
   #screen-menu .b5-head .logo-desc { display: none; }
@@ -128,7 +129,7 @@
 }
 @media (max-height: 380px) and (orientation: landscape) {
   #screen-menu .b5-menu { height: calc(100vh - 10px); max-height: calc(100vh - 10px); padding: 6px 12px 8px; gap: 4px 10px; grid-template-columns: minmax(0, 1fr) 190px; }
-  #screen-menu .b5-head { min-height: 30px; }
+  #screen-menu .b5-head { min-height: 48px; }
   #screen-menu .b5-head .logo { font-size: 24px; }
   #screen-menu .b5-head .logo-mark { width: 26px; height: 26px; font-size: 16px; }
   #screen-menu .b5-head .logo-desc { display: none; }
@@ -161,3 +162,13 @@
 .gi-chip .gi-range { font-style: normal; font-size: 10px; color: #d8b36a; margin-left: 4px; }
 /* 无存档时也保留「读取存档」，点击打开空面板；有档时正常可用 */
 #screen-menu #btn-saves.is-hidden { display: flex !important; }
+
+#screen-menu #btn-saves { display: flex !important; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; padding: 4px 8px; }
+#screen-menu #btn-saves .b5-btn-main { font-size: 12px; font-weight: 600; line-height: 1.1; }
+#screen-menu #btn-saves .b5-btn-sub { font-size: 9px; line-height: 1.1; opacity: .75; }
+#screen-menu #btn-saves:disabled { background: rgba(8,12,15,.35) !important; border-color: rgba(120,112,96,.45) !important; color: #77705f !important; cursor: not-allowed; opacity: 1 !important; }
+#screen-menu #btn-saves:disabled .b5-btn-sub { color: #8a8270 !important; }
+#screen-menu .b5-head { justify-content: flex-start !important; text-align: left !important; }
+#screen-menu .b5-head .logo { margin-left: 0 !important; margin-right: 0 !important; }
+#screen-menu .b5-small-btn { letter-spacing: 0 !important; }
+#screen-menu .b5-head .logo-mark { margin-left: 0 !important; margin-right: 0 !important; }
