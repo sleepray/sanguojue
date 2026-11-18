@@ -4217,17 +4217,21 @@ function pageState() {
         const g = SGS_UI._state().game;
         g.table = [{ id: 99002, name: 'sha', suit: 'heart', rank: '10', type: 'basic', color: 'red' }];
         SGS_UI.render(g);
-        const tl = document.querySelector('#played-cards .played-card .card-corner.cc-tl');
-        const name = document.querySelector('#played-cards .played-card .pc-name');
+        const tl = document.querySelector('#played-cards .played-card .hc-suit');
+        const name = document.querySelector('#played-cards .played-card .hc-name');
+        const rank = document.querySelector('#played-cards .played-card .hc-rank');
         return {
           cards: document.querySelectorAll('#played-cards .played-card').length,
           tl: tl ? tl.textContent.trim() : '',
           name: name ? name.textContent.trim() : '',
+          rank: rank ? rank.textContent.trim() : '',
         };
       });
       assertEq(center.cards, 1, '中央打出牌数量');
-      assert(center.tl.indexOf('♥') >= 0 && center.tl.indexOf('10') >= 0, '中央牌左上角标：' + center.tl);
+      assert(center.tl.indexOf('♥') >= 0, '中央牌左上花色：' + center.tl);
       assertEq(center.name, '杀', '中央牌牌名');
+      assert(center.rank.indexOf('10') >= 0, '中央牌点数：' + center.rank);
+      assert(!center.tl.includes('10'), '中央牌左上不应再叠加点数：' + center.tl);
       await shot('qa_center_card.png', row);
 
       // 读秒：AI/冻结态不显示；play 90s；10s 红色；超时清空；response 45s
