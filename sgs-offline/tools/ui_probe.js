@@ -34,7 +34,8 @@ function parseArgs(argv) {
   const out = { baseUrl: 'http://127.0.0.1:8899/', chrome: process.env.CHROME_PATH || DEFAULT_CHROME, viewport: '412x915', json: false, headless: true };
   for (let i = 2; i < argv.length; i += 1) {
     const a = argv[i];
-    if (a === '--base-url') out.baseUrl = argv[++i];
+    if (a === '--float-check') out.floatCheck = true;
+    else if (a === '--base-url') out.baseUrl = argv[++i];
     else if (a === '--chrome') out.chrome = argv[++i];
     else if (a === '--viewport') out.viewport = argv[++i];
     else if (a === '--json') out.json = true;
@@ -172,6 +173,27 @@ async function closeModal(page) {
 }
 
 /* ---------------- 1. SGS_BACK 矩阵 ---------------- */
+async function probeFloat(page) {
+  await openGame(page);
+  const res = await page.evaluate(async () => {
+    const st = window.SGS_UI && SGS_UI._state ? SGS_UI._state() : null;
+    const g = st && st.game;
+    if (!g) return { error: 'no game' };
+    const before = document.querySelectorAll('.flow-float.is-draw').length;
+    g.log('你 摸了 2 张牌', 'info');
+    const counts = [];
+    for (let i = 0; i < 5; i++) { SGS_UI.render(g); await new Promise(r => setTimeout(r, 120)); counts.push(document.querySelectorAll('.flow-float.is-draw').length); }
+    return { before, counts, max: Math.max.apply(null, counts) };
+  });
+  if (res.error) { fail('浮字/重复采样', res.error); return; }
+  if (res.max <= 1) pass('浮字/同一 draw recent 多次 render 只生成一次', JSON.stringify(res));
+  else fail('浮字/同一 draw recent 重复生成', JSON.stringify(res));
+  await sleep(3000);
+  const left = await page.evaluate(() => document.querySelectorAll('.flow-float.is-draw').length);
+  if (left === 0) pass('浮字/动画结束后消失');
+  else fail('浮字/动画结束后仍残留', String(left));
+}
+
 async function probeBack(page) {
   await open(page, '?screen=menu');
   const menu = await back(page);
@@ -530,6 +552,7 @@ async function probePickPause(page) {
       process.exit(0);
     }
 
+    if (args.floatCheck) { await probeFloat(page); const p = results.filter(r => r.level === 'PASS').length; const f = results.filter(r => r.level === 'FAIL').length; console.log('FLOAT_SUMMARY', JSON.stringify({ PASS: p, FAIL: f, results })); await browser.close(); process.exit(f ? 1 : 0); }
     await probeBack(page);
     await probePause(page);
     await probeMute(page);

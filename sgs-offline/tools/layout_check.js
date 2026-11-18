@@ -98,6 +98,7 @@ async function main() {
   const browser = await puppeteer.launch({
     executablePath: CHROME,
     headless: true,
+    protocolTimeout: 120000,
     userDataDir: PROFILE,
     args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--hidden-scrollbars', '--force-device-scale-factor=1'],
   });
@@ -121,7 +122,7 @@ async function main() {
     } catch (e) { /* first incremental run */ }
   }
   if (A.menu) {
-    const B5 = path.join(OUT, 'b5');
+    const B5 = path.join(OUT, 'b6');
     fs.mkdirSync(B5, { recursive: true });
     const menuIssues = [];
     for (const vp of onlyVp) {
@@ -142,6 +143,20 @@ async function main() {
           if (r.height < 44) out.push({ level: 'P1', type: '菜单按钮高度<44', selector: sel, measure: `${Math.round(r.width)}x${Math.round(r.height)}` });
           if (r.right > innerWidth + 1 || r.left < -1) out.push({ level: 'P1', type: '菜单按钮越界', selector: sel, measure: `${Math.round(r.left)}..${Math.round(r.right)} vw=${innerWidth}` });
         });
+        const head = document.querySelector('.b5-head,.menu-head');
+        const left = document.querySelector('.b5-left,.menu-panel');
+        if (head) {
+          const hr = head.getBoundingClientRect();
+          if (hr.height < 44 || hr.height > 56) out.push({ level: 'P1', type: '菜单标题高度非48', selector: '.b5-head', measure: `${Math.round(hr.width)}x${Math.round(hr.height)}` });
+          if (left) { const lr = left.getBoundingClientRect(); if (Math.abs(hr.left - lr.left) > 4) out.push({ level: 'P1', type: '菜单标题未左对齐', selector: '.b5-head', measure: `head=${Math.round(hr.left)} left=${Math.round(lr.left)}` }); }
+        }
+        const sub = document.querySelector('.b5-btn-sub');
+        if (sub) { const ls = getComputedStyle(sub).letterSpacing; if (ls && ls !== 'normal' && parseFloat(ls) > 1) out.push({ level: 'P1', type: '菜单第二行字距过大', selector: '.b5-btn-sub', measure: ls }); }
+        const saves = document.querySelector('#btn-saves');
+        if (saves && vis(saves)) {
+          const disabled = saves.disabled || saves.getAttribute('aria-disabled') === 'true' || /暂无存档/.test(saves.textContent);
+          if (!disabled) out.push({ level: 'P1', type: '无档读取存档未禁用', selector: '#btn-saves', measure: saves.textContent.trim() });
+        }
         if (document.documentElement.scrollWidth > innerWidth + 1) out.push({ level: 'P1', type: '主菜单横向滚动', selector: 'document', measure: `scrollWidth=${document.documentElement.scrollWidth} vw=${innerWidth}` });
         return out;
       });
@@ -166,7 +181,7 @@ async function main() {
         await page.waitForFunction(() => {
           const s = window.SGS_UI && SGS_UI._state && SGS_UI._state();
           return !!(s && s.game && s.game.players && s.game.players.length);
-        }, { timeout: 15000 });
+        }, { timeout: 30000 });
         await sleep(1300);
         await waitForIdle(page, 5000);
         const f = path.join(LATEST, `${prefix}_${mode}_${vp.id}.jpg`);
@@ -306,12 +321,12 @@ async function runScene(page, vp, mode, scene, whitelist) {
   await page.waitForFunction(() => {
     const s = window.SGS_UI && SGS_UI._state && SGS_UI._state();
     return !!(s && s.game && s.game.players && s.game.players.length);
-  }, { timeout: 15000 });
+  }, { timeout: 30000 });
   try {
     await page.waitForFunction(() => {
       const s = SGS_UI._state();
       return !!(s.pending && s.pending.req && s.pending.req.type === 'play');
-    }, { timeout: 12000 });
+    }, { timeout: 20000 });
   } catch (e) {
     // 某些模式启动/演示冻结会错过 play 请求；用 UI 公开请求强制进入出牌态，仅测试布局。
     await page.evaluate(() => {
@@ -430,12 +445,12 @@ async function runScene(page, vp, mode, scene, whitelist) {
     } else if (scene === 'discard') {
       SGS_UI.preview('chooseCards');
     } else if (scene === 'central4') {
-      const pc = document.querySelector('#played-cards');
-      const img = document.querySelector('.hand-card img');
-      const src = img ? img.getAttribute('src') : '';
-      if (pc) pc.innerHTML = ['杀', '闪', '桃', '无懈可击'].map(function (n, i) {
-        return '<div class="played-card"><img src="' + src + '" alt=""><span class="pc-name">' + n + '</span><span class="pc-suit">♠</span><span class="pc-rank">' + (i + 7) + '</span></div>';
-      }).join('');
+      // 走真实 renderCenter：g.table + recent use，避免手工伪造旧 DOM。
+      const names = ['sha', 'shan', 'tao', 'wuxie'];
+      g.table = names.map(function (n, i) { return C(n, i % 2 ? 'heart' : 'spade', 3 + i); });
+      g.recent = g.recent || [];
+      g.recent.push({ kind: 'use', seat: 1, card: g.table[0] });
+      SGS_UI.render(g);
     } else if (scene === 'wugu') {
       g.log('【五谷丰登】亮出：【桃】♥3、【杀】♠7、【闪】♦9、【无懈可击】♣4、【决斗】♥K', 'info'); g.emit();
     } else if (scene === 'rescue') {
@@ -782,7 +797,26 @@ function auditPage(opts) {
       played.forEach(card => {
         const ch = rect(card).height;
         if (ch + 0.5 < requiredH) add('P1', '中央牌高度不足', pathOf(card), `${Math.round(ch)}px < ${Math.round(requiredH)}px (handH=${Math.round(handH)})`);
+        if (handH && ch > handH * 1.05 + 1) add('P1', '中央牌高度过大', pathOf(card), `${Math.round(ch)}px > ${Math.round(handH)}px`);
+        const img = card.querySelector('img');
+        if (img) {
+          const ir = rect(img);
+          const top40 = ir.top + ir.height * 0.4;
+          card.querySelectorAll('[class*="suit"],[class*="rank"],.cc-tl,.card-corner').forEach(x => {
+            const xr = rect(x);
+            if (xr.left < ir.right && xr.right > ir.left && xr.top < top40 && xr.bottom > ir.top) add('P1', '中央花色点数压卡图上方40%', pathOf(x), `y=${Math.round(xr.top)}..${Math.round(xr.bottom)} top40=${Math.round(top40)}`);
+          });
+        }
+        const from = card.querySelector('.pc-src,.pc-player,.played-player,.pc-from');
+        if (!from) add('P1', '中央牌缺少出牌人', pathOf(card), '未找到 pc-src');
+        else { const fs = parseFloat(getComputedStyle(from).fontSize); if (fs < 11.5 || fs > 12.5) add('P1', '出牌人字号非12', pathOf(from), `${fs}px`); }
       });
+      const handFace = document.querySelector('.hand-card .card-face');
+      const playedFace = document.querySelector('.played-card .card-face');
+      const hc = function (root) { return !!(root && root.querySelector('.hc-suit') && root.querySelector('.hc-name') && root.querySelector('.hc-rank')); };
+      const handHC = hc(document.querySelector('.hand-card'));
+      const playedHC = hc(document.querySelector('.played-card'));
+      if (!(handFace && playedFace) && !(handHC && playedHC)) add('P1', '中央牌未复用手牌牌面组件', '.played-card', `handFace=${!!handFace} playedFace=${!!playedFace} handHC=${handHC} playedHC=${playedHC}`);
       const pr = rect(pc);
       if (pr.left < 0 || pr.right > vw) add('P1', '中央出牌区越界', '.played-cards', `left=${Math.round(pr.left)} right=${Math.round(pr.right)}`);
       ['.seat', '.seat-attach', '.seat-equip-bar', '.seat-external-equips', '.action-bar', '.pick-bar'].forEach(sel => {
