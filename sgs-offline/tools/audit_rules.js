@@ -4192,6 +4192,150 @@ const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',')
       '询问座位=' + JSON.stringify(seats) + '，询问次数=' + asks.length + '（三人均无无懈仍应各问一次）');
   }
 
+  // T267 风格可复现：同 seed+seat+role+level+mode；不同 seat 可不同；读档同座位不变
+  {
+    const a1 = SGS.AI.styleFor(20261118, 2, 'rebel', 'normal', '8p');
+    const a2 = SGS.AI.styleFor(20261118, 2, 'rebel', 'normal', '8p');
+    let diffSeat = null, diffSeed = null;
+    for (let seed = 1; seed < 400 && !diffSeat; seed++) {
+      for (const role of ['rebel', 'loyalist', 'lord', 'renegade']) {
+        const s0 = SGS.AI.styleFor(seed, 0, role, 'normal', '8p');
+        const s1 = SGS.AI.styleFor(seed, 1, role, 'normal', '8p');
+        if (s0 !== s1) { diffSeat = { seed, role, s0, s1 }; break; }
+      }
+    }
+    for (let seed = 1; seed < 400 && !diffSeed; seed++) {
+      if (SGS.AI.styleFor(seed, 2, 'rebel', 'normal', '8p') !== SGS.AI.styleFor(seed, 2, 'rebel', 'hard', '8p')) {
+        diffSeed = { seed };
+      }
+    }
+    const g = game([
+      { name: '甲', role: 'lord' }, { name: '乙', role: 'loyalist' },
+      { name: '丙', role: 'rebel', hp: 4 }, { name: '丁', role: 'renegade' },
+    ], { mode: '8p' });
+    g.seed = 20261118;
+    const ai = new SGS.AI(g, 2, { speed: 0 });
+    ai.ensureStyle();
+    const before = ai.style;
+    const snap = JSON.parse(JSON.stringify(g.snapshot()));
+    const g2 = game([
+      { name: '甲', role: 'lord' }, { name: '乙', role: 'loyalist' },
+      { name: '丙', role: 'rebel', hp: 4 }, { name: '丁', role: 'renegade' },
+    ], { mode: '8p' });
+    g2.restore(snap);
+    const ai2 = new SGS.AI(g2, 2, { speed: 0 });
+    ai2.ensureStyle();
+    t('T267', '风格可复现/座位差异/读档不变', a1 === a2 && !!diffSeat && !!diffSeed && before === ai2.style,
+      '同参数两次=' + a1 + '/' + a2 + '；不同座位=' + JSON.stringify(diffSeat) + '；不同难度有差异 seed=' + JSON.stringify(diffSeed) + '；读档前/后=' + before + '/' + ai2.style);
+  }
+
+  // T268 风格私有：不在 snapshot.players / 玩家对象中
+  {
+    const g = game([
+      { name: '甲', role: 'lord' }, { name: '乙', role: 'loyalist' },
+      { name: '丙', role: 'rebel' }, { name: '丁', role: 'renegade' },
+    ], { mode: '8p' });
+    g.seed = 20261118;
+    const ai = new SGS.AI(g, 2, { speed: 0 });
+    ai.ensureStyle();
+    const snap = g.snapshot();
+    const playerStyle = Object.prototype.hasOwnProperty.call(g.players[2], 'style');
+    const raw = JSON.stringify(snap);
+    t('T268', '风格不写入玩家数据/快照', !playerStyle && raw.indexOf('"style"') < 0,
+      '玩家 style 字段=' + playerStyle + '；snapshot 含 "style"=' + (raw.indexOf('"style"') >= 0) + '；AI 私有 style=' + ai.style);
+  }
+
+  // T269 濒死救主护栏：反贼（含潜伏）不救；忠臣（含暗忠）救；内奸按存活人数
+  {
+    const specs = [
+      { name: '主公', role: 'lord', hp: 1 }, { name: '暗忠', role: 'loyalist' },
+      { name: '潜伏反', role: 'rebel' }, { name: '内奸', role: 'renegade' }, { name: '另一个', role: 'loyalist' },
+    ];
+    const g = game(specs, { mode: '5p' });
+    const opt = (seat) => {
+      const p = g.players[seat];
+      const tao = C('tao', 'heart', 2);
+      p.hand = [tao];
+      return [{ cardId: tao.id }];
+    };
+    const rebelAI = new SGS.AI(g, 2, { speed: 0 });
+    rebelAI.style = 'rebel_hidden';
+    const rebelSave = rebelAI.choosePeachResponse({ dyingSeat: 0, options: opt(2) });
+    const rebelAI2 = new SGS.AI(g, 2, { speed: 0 });
+    rebelAI2.style = 'rebel_aggressive';
+    const rebelSave2 = rebelAI2.choosePeachResponse({ dyingSeat: 0, options: opt(2) });
+    const loyalAI = new SGS.AI(g, 1, { speed: 0 });
+    loyalAI.style = 'loyal_hidden';
+    const loyalSave = loyalAI.choosePeachResponse({ dyingSeat: 0, options: opt(1) });
+    const loyalAI2 = new SGS.AI(g, 1, { speed: 0 });
+    loyalAI2.style = 'loyal_open';
+    const loyalSave2 = loyalAI2.choosePeachResponse({ dyingSeat: 0, options: opt(1) });
+    const renAI = new SGS.AI(g, 3, { speed: 0 });
+    const renSave3 = renAI.choosePeachResponse({ dyingSeat: 0, options: opt(3) });
+    // 只剩主公+内奸
+    g.players[1].alive = false; g.players[2].alive = false; g.players[4].alive = false;
+    const renSave2 = renAI.choosePeachResponse({ dyingSeat: 0, options: opt(3) });
+    t('T269', '救主护栏（反/忠/内奸）', rebelSave === null && rebelSave2 === null && !!loyalSave && !!loyalSave2 && !!renSave3 && renSave2 === null,
+      '潜伏反=' + (rebelSave ? '救' : '拒绝') + '，普通反=' + (rebelSave2 ? '救' : '拒绝') +
+      '；暗忠=' + (loyalSave ? '救' : '拒绝') + '，普通忠=' + (loyalSave2 ? '救' : '拒绝') +
+      '；内奸3人=' + (renSave3 ? '救' : '拒绝') + '，2人=' + (renSave2 ? '救' : '拒绝'));
+  }
+
+  // T270 潜伏反贼不击杀已确认反贼队友
+  {
+    const g = game([
+      { name: '主公', role: 'lord' }, { name: '潜伏反', role: 'rebel' },
+      { name: '已确认反', role: 'rebel' },
+    ], { mode: '8p' });
+    g.players[2].revealed = true;
+    g.players[0].hp = 2; // 跳过潜伏反贼的观望期，单独验证“不杀已确认队友”
+    const ai = new SGS.AI(g, 1, { speed: 0 });
+    ai.style = 'rebel_hidden';
+    const ctx = { card: C('sha', 'spade', 7), color: 'black', nature: 'normal', a: {} };
+    const vAlly = ai.targetValue(g.players[2], 'sha', ctx);
+    const vLord = ai.targetValue(g.players[0], 'sha', ctx);
+    const targets = ai.chooseTargets({ type: 'chooseTargets', player: g.players[1], candidates: [0, 2], min: 1, max: 1, reason: '杀的目标' });
+    t('T270', '潜伏反不击杀已确认反贼队友', vAlly <= 0 && vLord > 0 && targets.length === 1 && targets[0] === 0,
+      '对已确认反=' + vAlly + '；对主公=' + vLord + '；杀目标=' + JSON.stringify(targets));
+  }
+
+  // T271 反贼全灭后：内奸不攻击主公、优先削忠臣；只剩两人时攻击主公
+  {
+    const g = game([
+      { name: '主公', role: 'lord' }, { name: '忠臣', role: 'loyalist' },
+      { name: '死反1', role: 'rebel' }, { name: '死反2', role: 'rebel' },
+      { name: '内奸', role: 'renegade' },
+    ], { mode: '5p' });
+    g.players[2].alive = false; g.players[2].revealed = true;
+    g.players[3].alive = false; g.players[3].revealed = true;
+    const ai = new SGS.AI(g, 4, { speed: 0 });
+    const ctx = { card: C('sha', 'spade', 7), color: 'black', nature: 'normal', a: {} };
+    const vLord = ai.targetValue(g.players[0], 'sha', ctx);
+    const vLoyal = ai.targetValue(g.players[1], 'sha', ctx);
+    const pick3 = ai.chooseTargets({ type: 'chooseTargets', player: g.players[4], candidates: [0, 1], min: 1, max: 1, reason: '杀的目标' });
+    g.players[1].alive = false;
+    const vLord2 = ai.targetValue(g.players[0], 'sha', ctx);
+    const pick2 = ai.chooseTargets({ type: 'chooseTargets', player: g.players[4], candidates: [0], min: 1, max: 1, reason: '杀的目标' });
+    t('T271', '内奸反贼清空后目标', vLord <= 0 && vLoyal > 0 && pick3.length === 1 && pick3[0] === 1 && vLord2 > 0 && pick2[0] === 0,
+      '3人：对主=' + vLord + '，对忠=' + vLoyal + '，目标=' + JSON.stringify(pick3) + '；2人：对主=' + vLord2 + '，目标=' + JSON.stringify(pick2));
+  }
+
+  // T272 主公把握不足不攻击疑似忠臣（反贼清空但主忠人数不明）
+  {
+    const g = game([
+      { name: '主公', role: 'lord' }, { name: '未表态', role: 'loyalist' },
+      { name: '死反1', role: 'rebel' }, { name: '死反2', role: 'rebel' },
+      { name: '内奸', role: 'renegade' },
+    ], { mode: '5p' });
+    g.players[2].alive = false; g.players[2].revealed = true;
+    g.players[3].alive = false; g.players[3].revealed = true;
+    const ai = new SGS.AI(g, 0, { speed: 0 });
+    const rel = ai.relation(g.players[1]);
+    const v = ai.targetValue(g.players[1], 'sha', { card: C('sha', 'spade', 7), color: 'black', nature: 'normal', a: {} });
+    t('T272', '主公不误杀疑似忠臣', rel !== 'enemy' && v <= 0,
+      '关系=' + rel + '；对疑似忠臣杀价值=' + v);
+  }
+
   // 汇总（SKIP 不计入失败，单独统计）
   const pass = results.filter((r) => r.pass).length;
   const fails = results.filter((r) => !r.pass);
