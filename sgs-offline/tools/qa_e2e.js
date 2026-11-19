@@ -1423,8 +1423,8 @@ function pageState() {
       }));
       assertEq(m.cards, 5, '8p 候选数');
       assert(m.disabled, '确定出战按钮初始未禁用');
-      assert(/身份：/.test(m.role), '身份文案异常：' + m.role);
-      assert(m.reason.length > 0, '选将提示为空');
+      assert(/^(主公|忠臣|反贼|内奸)$/.test(m.role), '身份文案异常：' + m.role);
+      assert(m.hint.length > 0, '选将提示为空');
       await shot('qa_select_8p.png', row);
       return { actual: '候选=5，确定按钮 disabled，身份=' + m.role + '，提示=' + truncate(m.reason, 30) };
     });
@@ -1440,11 +1440,11 @@ function pageState() {
       let m = await cdp.eval(() => ({
         picked: [].map.call(document.querySelectorAll('#general-row .general-card.is-picked'), (e) => e.dataset.index),
         disabled: document.querySelector('#btn-general-confirm').disabled,
-        hint: document.querySelector('#select-hint').textContent,
+        pickedText: (document.querySelector('#select-picked') || {}).textContent || '',
       }));
       assertEq(m.picked.join(','), '1', '第 2 张卡选中态');
       assert(!m.disabled, '选中后确定按钮仍禁用');
-      assert(m.hint.indexOf('已选择') >= 0, '底部提示未显示已选择');
+      assert(m.pickedText.indexOf('已选：') >= 0, '底部未显示已选择：' + m.pickedText);
       await cdp.click('#general-row .general-card', 0);
       m = await cdp.eval(() => ({
         picked: [].map.call(document.querySelectorAll('#general-row .general-card.is-picked'), (e) => e.dataset.index),
@@ -1733,7 +1733,8 @@ function pageState() {
     ], 'AI 使用带目标的牌时出现橙色 #E47816 光带（金龙按等阶，默认 0 阶关闭）并截图 qa_ai_arrow.png', 'P1', async (row) => {
       let st0 = await state();
       if (!st0.screenActive.game || st0.over || st0.screenActive.result) {
-        await start5pGame();
+        // 8p 的 AI 数量更多、出带目标牌的概率更高，避免 5p 随机长局 90s 捕获不到箭头
+        await start8pGame(false);
         await clickMenu('#btn-trust');
         await sleep(500);
       }
@@ -2044,10 +2045,11 @@ function pageState() {
       const m = await cdp.eval(() => ({
         cards: document.querySelectorAll('#general-row .general-card').length,
         role: document.querySelector('#select-role').textContent,
+        roleHidden: document.querySelector('#select-role').hidden,
         disabled: document.querySelector('#btn-general-confirm').disabled,
       }));
       assertEq(m.cards, 4, '1v1 候选数');
-      assert(m.role.indexOf('单挑') >= 0, '1v1 身份文案异常：' + m.role);
+      assert(m.roleHidden || m.role === '', '1v1 不应显示身份牌：' + m.role);
       assert(m.disabled, '1v1 确定按钮初始未禁用');
       await shot('qa_select_1v1.png', row);
       // 选一个不带摸牌/判定阶段技能的武将，避免观星/洛神等改变牌堆数量，影响 T19
@@ -3951,7 +3953,7 @@ function pageState() {
       const started = await startDdzGame();
       row.notes.push('斗地主启动弹窗：' + JSON.stringify(started.seenModals));
       assertEq(started.cards, 3, '斗地主候选武将数');
-      assert(started.roleText.indexOf('斗地主') >= 0, '选将页未显示斗地主身份：' + started.roleText);
+      assert(/农民|地主/.test(started.roleText), '选将页未显示斗地主身份：' + started.roleText);
       row.notes.push('斗地主启动弹窗：' + JSON.stringify(started.seenModals));
       assert(started.auction.length > 0, '未出现叫地主/抢地主弹窗');
       const auctionLabels = started.auction.reduce((a, x) => a.concat(x.options), []);
