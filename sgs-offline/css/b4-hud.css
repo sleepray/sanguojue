@@ -430,3 +430,255 @@
   #screen-game .played-card { width: 84px !important; height: 112px !important; }
   #screen-game .played-card .hc-name { font-size: 8px; right: 20px; }
 }
+
+/* ===== 1.0.8 收尾：平板右侧面板恢复（1280×800 / 1376×1032 / 1600×720） ===== */
+@media (min-width: 1101px) and (min-height: 641px) {
+  #screen-game .tb-phase { display: none !important; }
+  #screen-game .tb-prompt {
+    display: block !important; max-width: 46vw; font-size: 13px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #screen-game .human-mid::before,
+  #screen-game .human-mid::after { display: none !important; content: none !important; }
+  #screen-game .human-right {
+    display: flex !important; flex-direction: column !important;
+    justify-content: flex-start !important; gap: 2px !important;
+    padding: 3px 10px 3px !important; overflow: visible !important;
+  }
+  #screen-game .human-right::after { display: none !important; content: none !important; flex: 0 0 0 !important; }
+  #screen-game .human-right .me-block { display: flex; flex-direction: column; gap: 2px; min-height: 0; flex: 0 0 auto; }
+  #screen-game .human-right .mini-title {
+    font-size: 12px !important; line-height: .95 !important; letter-spacing: .05em !important;
+    padding-bottom: 0 !important; color: #d8c9a2 !important;
+  }
+
+  /* 装备：4 固定槽，2×2；缩略图 + 全名 + 实际花色点数 */
+  #screen-game .human-right .equip-grid {
+    display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px !important; width: 100% !important;
+  }
+  #screen-game .human-right .equip-slot,
+  #screen-game .human-right .equip-slot.is-filled,
+  #screen-game .human-right .equip-slot.is-empty {
+    width: auto !important; height: 40px !important; min-height: 40px !important;
+    display: flex !important; flex-direction: row !important; align-items: center !important;
+    gap: 3px !important; padding: 3px 4px !important; box-sizing: border-box !important;
+    border-radius: 5px !important; overflow: hidden !important;
+  }
+  #screen-game .human-right .equip-slot.is-empty { visibility: visible !important; border-style: dashed !important; }
+  #screen-game .human-right .equip-slot.is-empty .eq-glyph,
+  #screen-game .human-right .equip-slot.is-empty .eq-label { display: none !important; }
+  #screen-game .human-right .equip-slot .eq-type {
+    flex: 0 0 16px !important; width: 16px !important; height: 16px !important;
+    font-size: 10px !important; display: grid !important; place-items: center !important;
+  }
+  #screen-game .human-right .equip-slot .eq-ico {
+    display: block !important; position: static !important; flex: 0 0 24px !important;
+    width: 24px !important; height: 36px !important; object-fit: contain !important;
+    border-radius: 3px; background: rgba(6,9,11,.7);
+  }
+  #screen-game .human-right .equip-slot .eq-name {
+    display: block !important; position: static !important; flex: 1 1 auto !important;
+    padding: 0 !important; background: none !important; font-size: 12px !important;
+    line-height: 1.15 !important; color: #f2e8d2 !important; white-space: normal !important;
+    overflow: visible !important; text-overflow: clip !important;
+  }
+  #screen-game .human-right .equip-slot .eq-short { display: none !important; }
+  #screen-game .human-right .equip-slot .eq-sr {
+    display: block !important; position: static !important; flex: 0 0 auto !important;
+    margin-left: auto !important; font-size: 11px !important; white-space: nowrap !important;
+  }
+  #screen-game .human-right .equip-slot .eq-range { display: none !important; }
+
+  /* 技能：按钮化，主动金/被动灰/可发动高亮，ⓘ 独立 */
+  #screen-game .human-right .me-skills-block { width: auto !important; overflow: visible !important; }
+  #screen-game .human-right .skill-list { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 5px !important; }
+  #screen-game .human-right .skill-more { grid-column: 1 / -1; }
+  #screen-game .human-right .skill-row.skill-btn {
+    width: 100% !important; height: 44px !important; min-height: 44px !important;
+    display: flex !important; align-items: center !important;
+    padding: 0 6px 0 10px !important; box-sizing: border-box !important;
+    border-radius: 6px !important; font-size: 12px !important;
+    white-space: nowrap !important; overflow: visible !important;
+  }
+  #screen-game .human-right .skill-row.is-active {
+    color: #e9c26a !important; border-color: rgba(216,179,106,.62) !important;
+    background: rgba(216,179,106,.09) !important;
+  }
+  #screen-game .human-right .skill-row.is-passive {
+    color: #a39a86 !important; border-color: rgba(160,150,130,.3) !important;
+    background: rgba(255,255,255,.025) !important;
+  }
+  #screen-game .human-right .skill-row.is-ready {
+    color: #ffd66e !important; border-color: #d8b36a !important;
+    background: rgba(216,179,106,.18) !important; box-shadow: 0 0 12px rgba(216,179,106,.25) !important;
+  }
+  #screen-game .human-right .skill-row .sk-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+  #screen-game .human-right .skill-row .sk-info {
+    flex: 0 0 28px; width: 28px; height: 40px; display: grid; place-items: center;
+    margin-left: 4px; font-size: 16px; opacity: .9; cursor: pointer;
+    border-left: 1px solid rgba(216,179,106,.18);
+  }
+  #screen-game .human-right .skill-more { height: 44px; min-height: 44px; font-size: 12px; }
+
+  /* 判定：缩略图 + 完整牌名 */
+  #screen-game .human-right .judge-list { display: flex !important; flex-direction: row !important; flex-wrap: wrap; gap: 5px; min-height: 34px; align-items: center; }
+  #screen-game .human-right .judge-chip {
+    width: auto !important; height: 30px !important; min-height: 30px; padding: 2px 6px !important;
+    display: flex !important; flex-direction: row !important; align-items: center !important; gap: 4px !important;
+    border-radius: 4px !important; font-size: 12px !important; color: #f0e2c8 !important;
+    background: rgba(178,58,50,.22) !important; border: 1px solid rgba(224,96,79,.45) !important;
+  }
+  #screen-game .human-right .judge-chip .jd-ico { display: block !important; width: 16px; height: 22px; object-fit: cover; border-radius: 2px; }
+  #screen-game .human-right .judge-chip .jd-ch { display: none !important; }
+  #screen-game .human-right .judge-chip .jd-name { display: inline !important; font-size: 12px; white-space: nowrap; }
+  #screen-game .human-right .judge-empty { font-size: 12px; }
+}
+
+/* ===== 1.0.8 收尾：1v1 信息与中央牌 ===== */
+#screen-game.mode-1v1 .seat-role,
+#screen-game.mode-1v1 .pf-role { display: none !important; }
+@media (orientation: landscape) and (max-height: 640px) and (max-width: 1400px) {
+  #screen-game.mode-1v1 .pf-name {
+    font-size: 12px !important; line-height: 1.1 !important;
+    white-space: normal !important; overflow: visible !important; text-overflow: clip !important;
+    bottom: 3px !important;
+  }
+  #screen-game.mode-1v1 .pf-title { display: none !important; }
+  #screen-game.mode-1v1 .played-card .pc-src {
+    position: absolute !important; left: 50% !important; bottom: calc(100% + 4px) !important; top: auto !important;
+    transform: translateX(-50%) !important; background: none !important; border: 0 !important;
+    font-size: 12px !important; line-height: 1 !important; color: #f0e3c6 !important;
+    text-shadow: 0 1px 2px #000; white-space: nowrap;
+  }
+  #screen-game.mode-1v1 .played-card .hc-suit {
+    left: 4px !important; right: auto !important; bottom: 4px !important; top: auto !important; font-size: 11px !important;
+  }
+  #screen-game.mode-1v1 .played-card .hc-rank {
+    right: 4px !important; left: auto !important; bottom: 4px !important; top: auto !important; font-size: 11px !important;
+  }
+  #screen-game.mode-1v1 .played-card .hc-name {
+    left: 20px !important; right: 20px !important; bottom: 2px !important; top: auto !important;
+    text-align: center !important; font-size: 8px !important; padding: 0 !important;
+  }
+}
+
+/* ===== 1.0.8 收尾：主菜单高分辨率缩放/去重摘要 ===== */
+#screen-menu .b5-head .logo-desc,
+#screen-menu .b5-note { display: none !important; }
+@media (orientation: landscape) and (min-width: 998px) {
+  #screen-menu { align-items: center; justify-content: center; overflow: hidden; }
+  #screen-menu .b5-menu {
+    position: relative !important; top: auto !important; left: auto !important;
+    width: min(900px, calc(100vw - 28px)) !important;
+    height: auto !important;
+    max-height: calc(100vh - 16px) !important;
+    grid-template-rows: auto auto !important;
+    zoom: var(--ui-scale, 1);
+  }
+}
+#screen-menu .b5-label,
+#screen-menu .b5-btn-sub,
+#screen-menu .b5-adv summary,
+#screen-menu .b5-note { font-size: 12px !important; }
+
+/* ===== 1.0.8 收尾：720×619 顶栏标签保留 ===== */
+@media (orientation: landscape) and (min-width: 701px) and (max-width: 760px) {
+  #screen-game .tb-label { display: inline !important; font-size: 10px !important; letter-spacing: 0 !important; }
+  #screen-game .tb-item { gap: 3px !important; }
+  #screen-game .tb-left { gap: 5px !important; }
+}
+
+/* ===== 1.0.8 收尾：412 竖屏网页兼容，装备/判定内容可见 ===== */
+@media (orientation: portrait) and (max-width: 500px) {
+  #screen-game .human-right .mini-title { display: none !important; }
+  #screen-game .pf-name { font-size: 12px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+  #screen-game .human-right .equip-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 2px !important; }
+  #screen-game .human-right .equip-slot,
+  #screen-game .human-right .equip-slot.is-filled,
+  #screen-game .human-right .equip-slot.is-empty {
+    width: 100% !important; height: 22px !important; min-height: 22px !important;
+    display: flex !important; flex-direction: row !important; align-items: center !important;
+    gap: 2px !important; padding: 0 2px !important; overflow: hidden !important;
+  }
+  #screen-game .human-right .equip-slot .eq-type { display: none !important; }
+  #screen-game .human-right .equip-slot .eq-ico { display: none !important; }
+  #screen-game .human-right .equip-slot .eq-name { display: block !important; position: static !important; flex: 1 1 auto; font-size: 11px !important; line-height: 1; white-space: nowrap; overflow: hidden !important; text-overflow: clip !important; background: none !important; padding: 0 !important; }
+  #screen-game .human-right .equip-slot .eq-short { display: none !important; }
+  #screen-game .human-right .equip-slot .eq-sr { display: block !important; position: static !important; margin-left: auto; font-size: 10px !important; }
+  #screen-game .human-right .judge-list { display: flex !important; flex-wrap: wrap; gap: 3px; min-height: 0; }
+  #screen-game .human-right .judge-chip { width: auto !important; height: 22px !important; min-height: 22px; padding: 1px 4px !important; font-size: 11px !important; }
+  #screen-game .human-right .judge-chip .jd-ico { display: block !important; width: 14px; height: 20px; }
+  #screen-game .human-right .judge-chip .jd-ch { display: none !important; }
+  #screen-game .human-right .judge-chip .jd-name { display: inline !important; font-size: 11px !important; white-space: nowrap; }
+  #screen-game .human-right .skill-row.skill-btn { min-height: 32px !important; height: 32px !important; font-size: 12px !important; }
+  #screen-game .human-right .skill-row .sk-info { width: 28px; flex-basis: 28px; height: 30px; font-size: 16px; }
+  #screen-game .human-right .me-block:nth-of-type(3):has(.judge-empty) { display: flex !important; }
+}
+
+/* ===== 1.0.8 收尾：高分辨率手机短横屏等比放大（997×448 基准，1.0–1.3） ===== */
+@media (orientation: landscape) and (min-width: 1000px) and (max-height: 640px) {
+  #screen-game { grid-template-rows: calc(40px * var(--ui-scale, 1)) minmax(0, 1fr) auto; }
+  #screen-game .topbar { height: calc(40px * var(--ui-scale, 1)); }
+  #screen-game .tb-item { font-size: calc(9px * var(--ui-scale, 1)); }
+  #screen-game .tb-item b { font-size: calc(12px * var(--ui-scale, 1)); }
+  #screen-game .tb-right .tb-btn { min-width: calc(44px * var(--ui-scale, 1)); min-height: calc(44px * var(--ui-scale, 1)); font-size: calc(12px * var(--ui-scale, 1)); }
+  #screen-game .tb-prompt { font-size: calc(12px * var(--ui-scale, 1)); }
+
+  #screen-game .human {
+    height: calc(111px * var(--ui-scale, 1));
+    grid-template-columns: calc(76px * var(--ui-scale, 1)) calc(34px * var(--ui-scale, 1)) minmax(0, 1fr) calc(106px * var(--ui-scale, 1));
+    grid-template-rows: calc(106px * var(--ui-scale, 1));
+    gap: calc(6px * var(--ui-scale, 1)); padding: calc(2px * var(--ui-scale, 1)) calc(6px * var(--ui-scale, 1));
+  }
+  #screen-game .portrait-frame,
+  #screen-game.mode-1v1 .portrait-frame { width: calc(74px * var(--ui-scale, 1)); height: calc(90px * var(--ui-scale, 1)); }
+  #screen-game .pf-name { font-size: calc(12px * var(--ui-scale, 1)); }
+  #screen-game .pf-kingdom { width: calc(18px * var(--ui-scale, 1)); height: calc(18px * var(--ui-scale, 1)); font-size: calc(10px * var(--ui-scale, 1)); }
+  #screen-game .pf-role { font-size: calc(9px * var(--ui-scale, 1)); padding: calc(1px * var(--ui-scale, 1)) calc(4px * var(--ui-scale, 1)); }
+  #screen-game .me-hp { height: calc(12px * var(--ui-scale, 1)); }
+  #screen-game .me-hp .bead { width: calc(6px * var(--ui-scale, 1)); height: calc(6px * var(--ui-scale, 1)); }
+  #screen-game .human-mid { grid-template-columns: minmax(0, 1fr) calc(58px * var(--ui-scale, 1)); grid-template-rows: calc(14px * var(--ui-scale, 1)) calc(90px * var(--ui-scale, 1)); gap: 0 calc(6px * var(--ui-scale, 1)); }
+  #screen-game .hand-wrap { height: calc(90px * var(--ui-scale, 1)); min-height: calc(90px * var(--ui-scale, 1)); }
+  #screen-game .hand-card { --hand-w: calc(68px * var(--ui-scale, 1)); --hand-h: calc(90px * var(--ui-scale, 1)); }
+  #screen-game .hand-card .hc-suit { font-size: calc(12px * var(--ui-scale, 1)); }
+  #screen-game .hand-card .hc-rank { font-size: calc(11px * var(--ui-scale, 1)); }
+  #screen-game .hand-card .hc-name { font-size: calc(10px * var(--ui-scale, 1)); }
+  #screen-game .bar-title { font-size: calc(12px * var(--ui-scale, 1)); line-height: calc(14px * var(--ui-scale, 1)); }
+  #screen-game #action-bar .bar-btn { min-width: calc(56px * var(--ui-scale, 1)); height: calc(44px * var(--ui-scale, 1)) !important; min-height: calc(44px * var(--ui-scale, 1)) !important; font-size: calc(12px * var(--ui-scale, 1)); }
+  #screen-game .hand-timer { font-size: calc(11px * var(--ui-scale, 1)); }
+
+  #screen-game .played-card { width: calc(68px * var(--ui-scale, 1)); height: calc(94px * var(--ui-scale, 1)); }
+  #screen-game .played-card .pc-name { font-size: calc(9px * var(--ui-scale, 1)); }
+  #screen-game .played-card .hc-suit { font-size: calc(11px * var(--ui-scale, 1)); }
+  #screen-game .played-card .hc-rank { font-size: calc(11px * var(--ui-scale, 1)); }
+  #screen-game .phase-orbit { width: calc(78px * var(--ui-scale, 1)); height: calc(78px * var(--ui-scale, 1)); }
+  #screen-game .orbit-phase { font-size: calc(14px * var(--ui-scale, 1)); }
+  #screen-game .orbit-sub, #screen-game .orbit-timer { font-size: calc(8px * var(--ui-scale, 1)); }
+
+  #screen-game .seat { --seat-w: calc(72px * var(--ui-scale, 1)); --seat-h: calc(80px * var(--ui-scale, 1)); }
+  #screen-game.mode-5p .seat { --seat-w: calc(70px * var(--ui-scale, 1)); --seat-h: calc(92px * var(--ui-scale, 1)); }
+  #screen-game.mode-1v1 .seat { --seat-w: calc(80px * var(--ui-scale, 1)); --seat-h: calc(104px * var(--ui-scale, 1)); }
+  #screen-game .seat-name, #screen-game.mode-1v1 .seat-name { font-size: calc(12px * var(--ui-scale, 1)); height: calc(16px * var(--ui-scale, 1)); line-height: calc(16px * var(--ui-scale, 1)); }
+  #screen-game .seat-hand { left: calc(26px * var(--ui-scale, 1)); width: calc(16px * var(--ui-scale, 1)); height: calc(12px * var(--ui-scale, 1)); font-size: calc(9px * var(--ui-scale, 1)); }
+  #screen-game .seat-hp { bottom: calc(17px * var(--ui-scale, 1)); }
+  #screen-game .seat-hp .bead { width: calc(5px * var(--ui-scale, 1)); height: calc(5px * var(--ui-scale, 1)); }
+  #screen-game .seat .seat-equip-list { top: calc(2px * var(--ui-scale, 1)) !important; right: calc(2px * var(--ui-scale, 1)) !important; grid-template-columns: repeat(2, calc(8px * var(--ui-scale, 1))); }
+  #screen-game .seat .seat-equip-list .eq-bar { width: calc(8px * var(--ui-scale, 1)) !important; height: calc(8px * var(--ui-scale, 1)) !important; }
+  #screen-game .seat .seat-equip-list .eq-ico { width: calc(8px * var(--ui-scale, 1)) !important; height: calc(8px * var(--ui-scale, 1)) !important; flex: 0 0 calc(8px * var(--ui-scale, 1)) !important; }
+  #screen-game .seat-jds .jd-dot { width: 16px; height: 18px; font-size: 14px; }
+  #screen-game .seat-distance { font-size: calc(10px * var(--ui-scale, 1)); }
+  #screen-game .skill-btn { font-size: calc(12px * var(--ui-scale, 1)); min-height: calc(44px * var(--ui-scale, 1)); }
+  #screen-game .equip-slot { height: calc(26px * var(--ui-scale, 1)); }
+}
+/* 1.0.8 收尾：主菜单所有信息字号 ≥12 */
+#screen-menu .b5-modes .seg-btn em,
+#screen-menu .b5-adv-body .seg-btn,
+#screen-menu .b5-start .b5-btn-sub,
+#screen-menu .b5-continue-btn .b5-btn-sub { font-size: 12px !important; }
+
+/* 1.0.8 收尾：短横屏去掉手牌区两侧装饰字（任务 1.5） */
+@media (orientation: landscape) and (max-height: 640px) {
+  #screen-game .human-mid::before,
+  #screen-game .human-mid::after { display: none !important; content: none !important; }
+}

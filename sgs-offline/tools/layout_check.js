@@ -56,6 +56,7 @@ function args() {
 }
 const A = args();
 const full = !A.viewport && !A.scene && !A['before-shots'] && !A['after-shots'];
+const ONLY_MODE = A.mode && ['8p','3v3','1v1','5p'].indexOf(String(A.mode)) >= 0 ? String(A.mode) : null;
 const onlyVp = A.viewport ? VIEWPORTS.filter(v => v.id === A.viewport || String(v.width) === A.viewport) : VIEWPORTS;
 const onlyScene = A.scene && A.scene !== 'all' ? String(A.scene).split(',') : null;
 
@@ -109,7 +110,7 @@ async function main() {
   });
   let page = await browser.newPage();
   page.on('pageerror', e => console.error('PAGEERROR', e.message));
-  let report = { generated: new Date().toISOString(), viewports: [], issues: [], notes: [], audits: [], seatmax: [], highres: [], judgeShots: [] };
+  let report = { generated: new Date().toISOString(), viewports: [], issues: [], notes: [], audits: [], seatmax: [], highres: [], judgeShots: [], shots8: [] };
   if (!full) {
     try {
       const old = JSON.parse(fs.readFileSync(path.join(LATEST, 'layout-report.json'), 'utf8'));
@@ -124,6 +125,7 @@ async function main() {
           seatmax: (old.seatmax || []).filter(a => !ids.has(a.viewport)),
           highres: (old.highres || []).filter(a => !ids.has(a.viewport)),
           judgeShots: (old.judgeShots || []).filter(a => !ids.has(a.viewport)),
+          shots8: (old.shots8 || []).filter(a => !ids.has(a.viewport)),
         };
       }
     } catch (e) { /* first incremental run */ }
@@ -150,11 +152,13 @@ async function main() {
           if (r.height < 44) out.push({ level: 'P1', type: '菜单按钮高度<44', selector: sel, measure: `${Math.round(r.width)}x${Math.round(r.height)}` });
           if (r.right > innerWidth + 1 || r.left < -1) out.push({ level: 'P1', type: '菜单按钮越界', selector: sel, measure: `${Math.round(r.left)}..${Math.round(r.right)} vw=${innerWidth}` });
         });
+        const uiScale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-scale')) || 1;
         const head = document.querySelector('.b5-head,.menu-head');
         const left = document.querySelector('.b5-left,.menu-panel');
         if (head) {
           const hr = head.getBoundingClientRect();
-          if (hr.height < 44 || hr.height > 56) out.push({ level: 'P1', type: '菜单标题高度非48', selector: '.b5-head', measure: `${Math.round(hr.width)}x${Math.round(hr.height)}` });
+          const hrH = hr.height / uiScale;
+          if (hrH < 44 || hrH > 56) out.push({ level: 'P1', type: '菜单标题高度非48', selector: '.b5-head', measure: `${Math.round(hr.width / uiScale)}x${Math.round(hrH)} (scale ${uiScale})` });
           if (left) { const lr = left.getBoundingClientRect(); if (Math.abs(hr.left - lr.left) > 4) out.push({ level: 'P1', type: '菜单标题未左对齐', selector: '.b5-head', measure: `head=${Math.round(hr.left)} left=${Math.round(lr.left)}` }); }
         }
         const sub = document.querySelector('.b5-btn-sub');
@@ -218,7 +222,7 @@ async function main() {
     const vpres = { id: vp.id, width: vp.width, height: vp.height, safeArea: safeOK, scenes: [], p0: 0, p1: 0, p2: 0 };
     let vpShot = false;
     let vpJudgeShot = false;
-    const modes = FULL_MODES.concat(MINI_MODES);
+    const modes = FULL_MODES.concat(MINI_MODES).filter(m => !ONLY_MODE || m === ONLY_MODE);
     for (const mode of modes) {
       const scenes = FULL_MODES.includes(mode)
         ? (mode === '8p' ? FULL_SCENES.concat(['central4', 'seatmax_top', 'seatmax_side', 'seatmax_human']) : FULL_SCENES)
@@ -258,6 +262,13 @@ async function main() {
               const hf = path.join(B8, 'highres_' + vp.id + '.png');
               await page.screenshot({ path: hf, type: 'png', fullPage: false });
               report.highres = report.highres || []; report.highres.push({ viewport: vp.id, path: path.relative(ROOT, hf) });
+            }
+            const SHOT8 = { '997x448': '8x_mobile_997x448.png', '1067x480': '8x_mobile_1067x480.png', '1280x576': '8x_mobile_1280x576.png', '1280x800': '8x_tablet_1280x800.png', '1376x1032': '8x_tablet_1376x1032.png', '1600x720': '8x_tablet_1600x720.png' };
+            if (SHOT8[vp.id]) {
+              const B8F = path.join(OUT, 'b8f'); fs.mkdirSync(B8F, { recursive: true });
+              const sf = path.join(B8F, SHOT8[vp.id]);
+              await page.screenshot({ path: sf, type: 'png', fullPage: false });
+              report.shots8 = report.shots8 || []; report.shots8.push({ viewport: vp.id, path: path.relative(ROOT, sf) });
             }
           } catch (e) { report.notes.push({ viewport: vp.id, note: 'screenshot failed: ' + e.message }); }
         }
@@ -378,16 +389,20 @@ async function runScene(page, vp, mode, scene, whitelist) {
       }
       p.hand = cards;
     }
-    function longName() {
-      const arr = Object.keys(D.GENERALS || {}).map(k => D.GENERALS[k].name).filter(Boolean);
-      return arr.sort((a, b) => b.length - a.length)[0] || '卧龙诸葛亮';
+    const allGens = Object.keys(D.GENERALS || {}).map(k => D.GENERALS[k]).filter(g => g && g.name && Array.isArray(g.skills));
+    const byName = function (name) { return allGens.find(g => g.name === name) || null; };
+    const longNameGen = allGens.slice().sort((a, b) => b.name.length - a.name.length)[0] || null;
+    const generalSkillDescLen = function (g) {
+      return Math.max.apply(null, (g.skills || []).map(function (id) { return ((SKILLS[id] || {}).desc || '').length; }).concat([0]));
+    };
+    const longDescGen = allGens.slice().sort((a, b) => generalSkillDescLen(b) - generalSkillDescLen(a))[0] || longNameGen;
+    const useGen = scene === 'skilldesc' ? longDescGen : longNameGen;
+    if (useGen) {
+      p.general = Object.assign({}, useGen);
+      p.name = useGen.name;
+      p.general.skills = (useGen.skills || []).slice();
+      p.skills = (useGen.skills || []).slice();
     }
-    const longSkill = Object.keys(SKILLS).sort((a, b) => ((SKILLS[b].desc || '').length - (SKILLS[a].desc || '').length))[0] || 'j_yijue';
-    p.general = p.general || {};
-    p.general.name = longName();
-    p.name = p.general.name;
-    p.general.skills = [longSkill];
-    p.skills = [longSkill];
     let n = scene === 'play1' ? 1 : scene === 'play10' ? 10 : scene === 'play15' ? 15 : 5;
     setHand(n);
     p.equips = {
@@ -419,12 +434,17 @@ async function runScene(page, vp, mode, scene, whitelist) {
       const side = g.players[1] || g.players[2];
       const extra = g.players[4] || side;
       const longNames = ['卧龙诸葛亮', '颜良文丑', '张昭张纮', '张虎乐綝'];
+      const longGens = longNames.map(function (n) { return byName(n); }).filter(Boolean);
       const targets = [top, side, p, extra];
       targets.forEach((q, i) => {
         if (!q) return;
-        q.general = q.general || {};
-        q.general.name = longNames[i];
-        q.name = longNames[i];
+        const gen = longGens[i] || longNames[i] && byName(longNames[i]) || null;
+        if (gen) {
+          q.general = Object.assign({}, gen);
+          q.general.skills = (gen.skills || []).slice();
+          q.skills = (gen.skills || []).slice();
+          q.name = gen.name;
+        }
         q.maxHp = i === 0 ? 10 : i === 1 ? 9 : 9;
         q.hp = i === 0 ? 10 : i === 1 ? 9 : 3;
         q.alive = true;
@@ -433,8 +453,12 @@ async function runScene(page, vp, mode, scene, whitelist) {
         fullEquips(q); judge3(q); hand15(q); marks(q, i === 0 ? 'buqu' : i === 1 ? 'tian' : 'huashen');
       });
       const focus = String(scene).slice('seatmax_'.length);
-      if (focus === 'side') { side.general.name = '颜良文丑'; side.name = '颜良文丑'; }
-      if (focus === 'human') { p.general.name = '张昭张纮'; p.name = '张昭张纮'; }
+      const swapGeneral = function (q, name) {
+        const g2 = byName(name); if (!q || !g2) return;
+        q.general = Object.assign({}, g2); q.general.skills = (g2.skills || []).slice(); q.skills = (g2.skills || []).slice(); q.name = g2.name;
+      };
+      if (focus === 'side') swapGeneral(side, '颜良文丑');
+      if (focus === 'human') swapGeneral(p, '张昭张纮');
     }
     SGS_UI.render(g);
     if (scene === 'target') {
@@ -510,6 +534,11 @@ async function runScene(page, vp, mode, scene, whitelist) {
   }, { scene, mode });
 
   await sleep(scene === 'pause' ? 900 : 350);
+  if (scene === 'judge' && !A['no-shot'] && [997,1067,1280,1600].indexOf(vp.width) >= 0) {
+    await sleep(700);
+    const B8F = path.join(OUT, 'b8f'); fs.mkdirSync(B8F, { recursive: true });
+    try { await page.screenshot({ path: path.join(B8F, '8x_judge_' + vp.id + '.png'), type: 'png', fullPage: false }); } catch (e) { /* ignore */ }
+  }
   const idle = await waitForIdle(page, 5000);
   await sleep(80);
   const found = await page.evaluate(auditPage, { whitelist, keySel: SELECTOR_KEY, textSel: SELECTOR_TEXT, clickSel: SELECTOR_INTERACTIVE, overlaySel: OVERLAY_SEL, scene, mobile: OLD_MOBILE_IDS.indexOf(vp.id) >= 0, mobileLandscape: MOBILE_LANDSCAPE.indexOf(vp.id) >= 0, highres: HIGH_RES_IDS.indexOf(vp.id) >= 0, vp: { width: vp.width, height: vp.height } });
@@ -757,6 +786,50 @@ function auditPage(opts) {
       if (r.left < 0 || r.right > vw) add('P1', '关键元素横向越界', pathOf(n), `left=${Math.round(r.left)} right=${Math.round(r.right)} vw=${vw}`);
     });
   }
+  // 1b2) 1.0.8 收尾：平板右侧面板 / 1v1 / 自己名字 / 判定不压装备
+  {
+    const tablet = vw >= 1101 && vh >= 641;
+    const is1v1 = !!document.querySelector('#screen-game.mode-1v1');
+    const eqNameEls = Array.from(document.querySelectorAll('#me-equips .equip-slot.is-filled .eq-name')).filter(visible);
+    if (tablet && eqNameEls.length) {
+      eqNameEls.forEach(n => {
+        if (!String(n.textContent || '').trim()) add('P1', '平板装备缺少牌名', pathOf(n), '有装备但牌名为空');
+      });
+    }
+    if (tablet) {
+      const skillEls = Array.from(document.querySelectorAll('#me-skills .skill-row')).filter(visible);
+      skillEls.forEach(n => {
+        const sr = rect(n), cs = getComputedStyle(n);
+        if (sr.height + 0.5 < 44) add('P1', '平板技能按钮高度<44', pathOf(n), `${Math.round(sr.height)}px`);
+        if (cs.display !== 'flex' && cs.display !== 'inline-flex' && cs.display !== 'grid') add('P1', '平板技能不是按钮', pathOf(n), `display=${cs.display}`);
+      });
+      Array.from(document.querySelectorAll('#me-skills-block .mini-title,#me-equips-block .mini-title,#me-judges-block .mini-title,.human-right .mini-title')).filter(visible).forEach(n => {
+        const fs = parseFloat(getComputedStyle(n).fontSize) || 0;
+        if (fs < 12) add('P1', '平板面板标题<12px', pathOf(n), `${fs}px`);
+      });
+    }
+    const je = document.querySelector('#me-judges');
+    const ee = document.querySelector('#me-equips');
+    if (je && ee && visible(je) && visible(ee)) {
+      const a = rect(je), b = rect(ee);
+      if (a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1) {
+        add('P1', '自己判定压装备列', pathOf(je), `judge=${Math.round(a.left)},${Math.round(a.top)},${Math.round(a.right)},${Math.round(a.bottom)} equip=${Math.round(b.left)},${Math.round(b.top)},${Math.round(b.right)},${Math.round(b.bottom)}`);
+      }
+    }
+    const meName = document.querySelector('#me-portrait .pf-name');
+    if (meName && visible(meName)) {
+      const mr = rect(meName), fs = parseFloat(getComputedStyle(meName).fontSize) || 0;
+      if (meName.scrollWidth > meName.clientWidth + 1 || /…/.test(meName.textContent || '')) {
+        add('P1', '自己武将名被截断', pathOf(meName), `${Math.round(mr.width)}px scroll=${meName.scrollWidth} text=${String(meName.textContent || '').trim()}`);
+      }
+      if ((is1v1 || tablet) && fs < 12) add('P1', '自己武将名字号<12', pathOf(meName), `${fs}px`);
+    }
+    if (is1v1) {
+      Array.from(document.querySelectorAll('#screen-game.mode-1v1 .seat-role')).filter(visible).forEach(n => {
+        if (!String(n.textContent || '').trim()) add('P1', '1v1 空白身份框', pathOf(n), 'role 元素可见但无内容');
+      });
+    }
+  }
   // 1c) 工具控件：手机横屏 <44x44 或 <12px → P1；桌面不强制 44
   if (opts.mobile) {
     const INTERACTIVE = '.topbar button,.topbar .tb-btn,.tb-btn,.more-menu button,.more-menu [role=button],.more-item,#more-menu button,#more-menu [role=button],.settings-panel button,.settings-panel input[type=range],.settings-panel .switch,.settings-panel .switch-mute,.settings-panel .setting-row,.pick-bar button,#btn-pause';
@@ -789,7 +862,8 @@ function auditPage(opts) {
     buttons.forEach(btn => {
       const r = rect(btn), name = btn.dataset.act;
       if (r.left < 0 || r.right > vw || r.top < 0 || r.bottom > vh) add('P1', '动作按钮越界', pathOf(btn), `${name} ${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.right)},${Math.round(r.bottom)} vp=${vw}x${vh}`);
-      const pts = [[r.left + r.width / 2, r.top + r.height / 2], [r.left + 2, r.top + 2], [r.right - 2, r.top + 2], [r.left + 2, r.bottom - 2], [r.right - 2, r.bottom - 2]];
+      const inset = Math.max(6, Math.min(10, Math.round(r.height * 0.15)));
+      const pts = [[r.left + r.width / 2, r.top + r.height / 2], [r.left + inset, r.top + inset], [r.right - inset, r.top + inset], [r.left + inset, r.bottom - inset], [r.right - inset, r.bottom - inset]];
       pts.forEach((pt, i) => {
         const top = document.elementFromPoint(Math.max(0, Math.min(vw - 1, pt[0])), Math.max(0, Math.min(vh - 1, pt[1])));
         if (!top) return;

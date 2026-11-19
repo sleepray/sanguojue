@@ -488,7 +488,13 @@
   /* ============================================================
      初始化
      ============================================================ */
+  function applyViewportScale() {
+    const s = Math.min(1.3, Math.max(1, Math.min(global.innerWidth / 997, global.innerHeight / 448)));
+    document.documentElement.style.setProperty('--ui-scale', String(Math.round(s * 1000) / 1000));
+  }
+
   function init(h) {
+    applyViewportScale();
     hooks = h || {};
     els.app = q('app');
     els.screenMenu = q('screen-menu');
@@ -745,6 +751,7 @@
       closeChooser();
     }, true);
     window.addEventListener('resize', function () {
+      applyViewportScale();
       placeActionBar();
       // 横竖屏切换时座位坐标/尺寸需要重算；重建座位后保持原事件绑定
       seatGame = null;
@@ -2369,7 +2376,7 @@
     els.meKingdom.style.background = kingdomColor(gen && gen.kingdom);
     // 手机横屏：自己的判定移到头像右上角；平板恢复到右侧面板
     if (els.meJudges && els.mePortrait && meJudgeHome) {
-      const mobile = global.innerWidth <= 1100;
+      const mobile = global.innerWidth <= 1400 && global.innerHeight <= 640;
       const host = mobile ? els.mePortrait : meJudgeHome;
       if (els.meJudges.parentElement !== host) host.appendChild(els.meJudges);
     }
@@ -2421,7 +2428,7 @@
           const active = !!meta.active;
           const desc = skillDesc(id);
           const tip = skillName(id) + (desc ? '：' + desc : '');
-          return '<div class="skill-row' + (active ? ' is-active' : ' is-passive') + (ready ? ' is-ready' : '') +
+          return '<div class="skill-row skill-btn' + (active ? ' is-active' : ' is-passive') + (ready ? ' is-ready' : '') +
             '" data-skill="' + esc(id) + '" data-tip="' + esc(tip) + '" role="button" tabindex="0">' +
             '<span class="sk-name">' + esc(skillName(id)) + '</span>' +
             '<span class="sk-info" data-info="1" title="查看说明">ⓘ</span></div>';
@@ -2444,6 +2451,8 @@
           const ready = !!playTmpl.zhangba && c.name === '丈八蛇矛' && me.alive;
           return '<div class="equip-slot is-filled' + (ready ? ' is-ready' : '') + '" data-slot="' + slot + '" data-tip="' + esc(tip) + '">' +
             '<i class="eq-type">' + SLOT_GLYPH[slot] + '</i>' +
+            '<img class="eq-ico" src="' + cardImgOf(c) + '" alt="">' +
+            '<span class="eq-name">' + esc(def.name) + '</span>' +
             '<span class="eq-short">' + esc(def.name.slice(0, 2)) + '</span>' +
             '<b class="eq-sr" style="color:' + suitColor(c) + '">' + (su ? su.cn : '') + rankCn(c.rank) + '</b></div>';
         }
@@ -2461,7 +2470,10 @@
         els.meJudges.innerHTML = me.judges.map(function (c) {
           const def = cardDef(c.name);
           const ch = JUDGE_SHORT[c.name] || def.name.slice(0, 1);
-          return '<div class="judge-chip" data-tip="' + esc(cardTip(c)) + '">' + esc(ch) + '</div>';
+          return '<div class="judge-chip" data-tip="' + esc(cardTip(c)) + '">' +
+            '<img class="jd-ico" src="' + cardImgOf(c) + '" alt="">' +
+            '<span class="jd-ch">' + esc(ch) + '</span>' +
+            '<span class="jd-name">' + esc(def.name) + '</span></div>';
         }).join('');
       }
     }
