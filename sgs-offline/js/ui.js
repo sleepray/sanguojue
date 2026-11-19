@@ -503,8 +503,16 @@
     els.screenResult = q('screen-result');
     els.generalRow = q('general-row');
     els.selectRole = q('select-role');
+    els.selectGoal = q('select-goal');
     els.selectReason = q('select-reason');
     els.selectHint = q('select-hint');
+    els.selectPicked = q('select-picked');
+    els.selectScroll = q('select-scroll');
+    els.selectMore = q('select-more');
+    els.selectMoreN = q('select-more-n');
+    els.selectDetailRoot = q('select-detail-root');
+    els.btnSelectBack = q('btn-select-back');
+    els.btnSwapCandidates = q('btn-swap-candidates');
     els.btnGeneralConfirm = q('btn-general-confirm');
     els.tbDeck = q('tb-deck');
     els.tbDiscard = q('tb-discard');
@@ -688,6 +696,14 @@
     els.meSkills.addEventListener('click', onSkillClick);
     els.meEquips.addEventListener('click', onEquipClick);
     els.generalRow.addEventListener('click', onGeneralClick);
+    els.generalRow.addEventListener('pointerdown', onGeneralPointerDown);
+    els.generalRow.addEventListener('pointermove', onGeneralPointerMove);
+    els.generalRow.addEventListener('pointerup', clearLongPress);
+    els.generalRow.addEventListener('pointercancel', clearLongPress);
+    els.generalRow.addEventListener('pointerleave', clearLongPress);
+    els.generalRow.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    if (els.btnSwapCandidates) els.btnSwapCandidates.addEventListener('click', onSwapCandidates);
+    if (els.selectDetailRoot) els.selectDetailRoot.addEventListener('click', onSelectDetailClick);
     els.btnGeneralConfirm.addEventListener('click', onGeneralConfirm);
     els.modalRoot.addEventListener('click', onModalClick);
     els.chooser.addEventListener('click', onChooserClick);
@@ -753,6 +769,7 @@
     window.addEventListener('resize', function () {
       applyViewportScale();
       placeActionBar();
+      if (screen === 'select') { try { layoutSelectCards(); } catch (e) { /* ignore */ } }
       // 横竖屏切换时座位坐标/尺寸需要重算；重建座位后保持原事件绑定
       seatGame = null;
       if (game && screen === 'game') {
@@ -3387,12 +3404,111 @@
   /* ============================================================
      选将
      ============================================================ */
+  /* ============================================================
+     选将（b8g：横版卡 / 顶部身份 / 底部操作栏 / 长按详情 / 换一批）
+     ============================================================ */
+  // 觉醒/限定技在发动后会获得的新技能（用于详情浮层补充说明）
+  const SEL_GAIN_SKILLS = {
+    zhiji: ['guanxing'],
+    zaoxian: ['jixi'],
+    ruoyu: ['jijiang'],
+    hunzi: ['yingzi', 'yinghun'],
+    j_qinxue: ['gongxin'],
+    qianxin: ['jianyan'],
+  };
+
+  const SEL_GOAL = {
+    lord: '目标：消灭所有反贼与内奸',
+    loyalist: '目标：保护主公，消灭反贼与内奸',
+    rebel: '目标：击杀主公',
+    renegade: '目标：最后只剩自己',
+    team0: '目标：击败红队',
+    team1: '目标：击败蓝队',
+    landlord: '目标：击败两名农民',
+    farmer: '目标：击败地主',
+  };
+
+  let selectLayoutTimer = 0;
+  let detailIdx = -1;
+  let swapLock = false;
+  let lpTimer = 0;
+  let lpPress = null;
+  let lpFired = false;
+
+  function teamModeOf(g) {
+    return !!(g && (g.teamMode || g.mode === '2v2' || g.mode === '3v3'));
+  }
+
+  function selectGoalText(g, me) {
+    if (!g || !me) return '';
+    if (g.mode === '1v1') return '';
+    return SEL_GOAL[me.role] || '';
+  }
+
+  function selectRoleText(g, me) {
+    if (!g || !me) return '身份：—';
+    if (g.mode === '1v1') return '';
+    if (g.mode === 'ddz') return (g.roleName ? g.roleName(me.role) : '—');
+    if (teamModeOf(g)) return (g.teamName ? g.teamName(me.role) : (g.roleName ? g.roleName(me.role) : '—'));
+    return g.roleName ? g.roleName(me.role) : '身份：—';
+  }
+
+  function selectRoleClass(g, me) {
+    if (!g || !me) return '';
+    if (me.role === 'lord' || me.role === 'landlord') return 'lord';
+    if (me.role === 'loyalist') return 'loyalist';
+    if (me.role === 'rebel') return 'rebel';
+    if (me.role === 'renegade') return 'renegade';
+    if (me.role === 'team0') return 'team0';
+    if (me.role === 'team1') return 'team1';
+    if (me.role === 'farmer') return 'farmer';
+    return '';
+  }
+
+  function isLordRole(g, me) {
+    return !!(me && (me.role === 'lord' || (g && g.mode === 'ddz' && me.role === 'landlord')));
+  }
+
+  // 官方文案常以「锁定技，…」开头；详情浮层已有类型标签，卡片里去掉前缀避免重复
+  function stripSkillTypePrefix(desc) {
+    return String(desc || '').replace(/^(锁定技|限定技|觉醒技|主公技|转换技)\s*[，,：:]\s*/, '');
+  }
+
+  function skillTypeTags(id) {
+    const meta = (typeof SKILLS !== 'undefined' && SKILLS[id]) || {};
+    const tags = [];
+    if (meta.lord) tags.push({ cls: 'is-lord', text: '主公技' });
+    if (meta.awaken) tags.push({ cls: 'is-awaken', text: '觉醒技' });
+    if (meta.limited) tags.push({ cls: 'is-limited', text: '限定技' });
+    if (meta.locked) tags.push({ cls: 'is-locked', text: '锁定技' });
+    if (!tags.length) tags.push({ cls: '', text: '一般技' });
+    return tags;
+  }
+
   function renderSelect(g) {
     if (!pending || pending.req.type !== 'chooseGeneral') return;
     const req = pending.req;
     const me = g && g.players ? g.players[humanSeat] : null;
-    if (els.selectRole) els.selectRole.textContent = (g && g.mode === '1v1') ? '单挑 · 1 号位' : ((g && g.mode === 'ddz') ? ('斗地主 · ' + (me && g.roleName ? g.roleName(me.role) : '—')) : ('身份：' + (me && g.roleName ? g.roleName(me.role) : '—')));
-    if (els.selectReason) els.selectReason.textContent = req.reason || '请选择武将';
+    const duel = !!(g && g.mode === '1v1');
+
+    if (els.selectRole) {
+      const roleText = selectRoleText(g, me);
+      els.selectRole.textContent = roleText;
+      els.selectRole.dataset.role = selectRoleClass(g, me);
+      els.selectRole.hidden = duel || !roleText;
+    }
+    if (els.selectGoal) {
+      const goal = selectGoalText(g, me);
+      els.selectGoal.textContent = goal;
+      els.selectGoal.hidden = !goal;
+    }
+    if (els.selectReason) {
+      const reason = req.reason || '';
+      const meaningful = reason && reason !== '请选择武将';
+      els.selectReason.textContent = meaningful ? reason : '';
+      els.selectReason.hidden = !meaningful;
+    }
+
     const sig = (req.candidates || []).map(function (x) { return x.id; }).join(',');
     if (sig !== selectSig) {
       selectSig = sig;
@@ -3400,38 +3516,153 @@
       renderGeneralCards(req, me);
     }
     updateSelectUI();
+    // 首帧时 #screen-select 可能还没 is-active，clientHeight 不稳；
+    // 切屏后下一帧与 80ms 各补算一次，保证 --card-h / --desc-lines 与实际可用高度一致。
+    layoutSelectCards();
+    if (global.requestAnimationFrame) global.requestAnimationFrame(function () { layoutSelectCards(); });
+    if (selectLayoutTimer) clearTimeout(selectLayoutTimer);
+    selectLayoutTimer = setTimeout(function () { selectLayoutTimer = 0; layoutSelectCards(); }, 80);
+  }
+
+  function generalCardHTML(gen, i, g, me) {
+    const lord = isLordRole(g, me);
+    const totalHp = gen.hp + (lord ? 1 : 0);
+    const skills = gen.skills || [];
+    const descHTML = skills.map(function (id) {
+      const desc = stripSkillTypePrefix(skillDesc(id) || '');
+      return '<span class="sk"><b>' + esc(skillName(id)) + '</b>' + (desc ? ' ' + esc(desc) : '') + '</span>';
+    }).join('');
+    const titleParts = [gen.title || '', gen.pack || ''].filter(Boolean);
+    return '<button class="gcard general-card" data-index="' + i + '" style="--k:' + kingdomColor(gen.kingdom) + '" aria-pressed="false">' +
+      '<span class="gc-art">' +
+      '<img src="' + bigImg(gen.id) + '" alt="" onerror="this.onerror=null;this.src=\'' + seatImg(gen.id) + '\'">' +
+      '<span class="gc-k">' + esc(gen.kingdom) + '</span>' +
+      '</span>' +
+      '<span class="gc-main">' +
+      '<span class="gc-head">' +
+      '<b class="gc-name">' + esc(gen.name) + '</b>' +
+      '<em class="gc-gender">' + (gen.gender === 'female' ? '♀' : '♂') + '</em>' +
+      '<span class="gc-hp">♥ <b>' + totalHp + '</b>/' + totalHp + '</span>' +
+      '</span>' +
+      '<span class="gc-title">' + esc(titleParts.join(' · ')) + '</span>' +
+      '<span class="gc-skills">' + descHTML + '</span>' +
+      '</span>' +
+      '<span class="gc-picked-mark">已选择</span>' +
+      '</button>';
   }
 
   function renderGeneralCards(req, me) {
-    const lord = me && (me.role === 'lord' || (game && game.mode === 'ddz' && me.role === 'landlord'));
+    const g = game;
     els.generalRow.innerHTML = (req.candidates || []).map(function (gen, i) {
-      const totalHp = gen.hp + (lord ? 1 : 0);
-      const skills = gen.skills || [];
-      return '<button class="general-card" data-index="' + i + '" style="--k:' + kingdomColor(gen.kingdom) + '">' +
-        '<div class="gc-art"><img src="' + bigImg(gen.id) + '" alt="" onerror="this.onerror=null;this.src=\'' + seatImg(gen.id) + '\'"></div>' +
-        '<div class="gc-kingdom">' + esc(gen.kingdom) + '</div>' +
-        '<div class="gc-hp" data-hp="' + totalHp + '/' + totalHp + '">' + beadsHTML(totalHp, totalHp, '') + '</div>' +
-        '<div class="gc-picked-mark">已选择</div>' +
-        '<div class="gc-body">' +
-        '<div class="gc-name">' + esc(gen.name) + '<small>' + (gen.gender === 'female' ? '♀' : '♂') + '</small></div>' +
-        '<div class="gc-title">' + esc(gen.title || '') + '</div>' +
-        '<div class="gc-skills">' + skills.map(function (id) {
-          const desc = skillDesc(id);
-          const tip = skillName(id) + (desc ? '：' + desc : '');
-          return '<span class="gc-skill" data-tip="' + esc(tip) + '">' + esc(skillName(id)) + '</span>';
-        }).join('') +
-        '<div class="gc-skill-descs">' + skills.map(function (id) {
-          const desc = skillDesc(id) || '暂无描述';
-          return '<p><b>' + esc(skillName(id)) + '</b><span>' + esc(desc) + '</span></p>';
-        }).join('') + '</div></div>' +
-        '</div>' +
-        '<div class="gc-pack">' + esc(gen.pack || '') + ' · 体力 ' + totalHp + '</div>' +
-        '</button>';
+      return generalCardHTML(gen, i, g, me);
     }).join('');
+    layoutSelectCards();
+  }
+
+  /* 卡片高度按可用高度均分（最低 110），并据此推算描述行数 */
+  function layoutSelectCards() {
+    const scroll = els.selectScroll;
+    const grid = els.generalRow;
+    if (!scroll || !grid) return;
+    const n = grid.children.length;
+    if (!n) return;
+    const cs = global.getComputedStyle ? global.getComputedStyle(grid) : null;
+    let cols = 2;
+    if (cs) {
+      const tpl = cs.gridTemplateColumns || '';
+      const parts = tpl.split(' ').filter(function (x) { return x && x !== 'none'; });
+      if (parts.length) cols = parts.length;
+    }
+    const availH = Math.max(120, scroll.clientHeight - 2);
+    const rows = Math.ceil(n / Math.max(1, cols));
+    const gap = 8;
+    let cardH = Math.floor((availH - gap * (rows - 1)) / rows);
+    cardH = Math.max(110, Math.min(cardH, 250));
+    grid.style.setProperty('--card-h', cardH + 'px');
+    // style.css 里仍有 `#screen-select .general-card{height:300px}` 一类遗留规则，
+    // 用内联高度兜底，保证实际渲染高度与 --card-h / 描述行数一致。
+    for (let i = 0; i < grid.children.length; i++) {
+      // style.css 里存在 `#screen-select .general-card{height:120px!important}`（手机横屏遗留），
+      // 只有内联 !important 才能压住，否则卡片高度会被锁死、描述行数算不准。
+      grid.children[i].style.setProperty('height', cardH + 'px', 'important');
+      grid.children[i].style.setProperty('min-height', cardH + 'px', 'important');
+    }
+    // 用首张卡实测「头部 + 称号 + 内边距」占高，再推行数；
+    // 不同视口字体/行高会变，固定常数会算多一行导致末行被横向切断。
+    const first = grid.children[0];
+    let lines = 3;
+    if (first) {
+      const main = first.querySelector('.gc-main');
+      const head = first.querySelector('.gc-head');
+      const title = first.querySelector('.gc-title');
+      const sk = first.querySelector('.gc-skills');
+      const mcs = main ? global.getComputedStyle(main) : null;
+      const padT = mcs ? parseFloat(mcs.paddingTop) || 0 : 6;
+      const padB = mcs ? parseFloat(mcs.paddingBottom) || 0 : 7;
+      const headH = head ? head.offsetHeight : 18;
+      const titleH = title ? title.offsetHeight : 15;
+      const lh = sk ? (parseFloat(global.getComputedStyle(sk).lineHeight) || 16.08) : 16.08;
+      const avail = cardH - padT - padB - headH - titleH - 4;
+      lines = Math.max(1, Math.floor(avail / lh));
+    }
+    grid.style.setProperty('--desc-lines', String(Math.min(lines, 9)));
+    updateSelectMore();
+  }
+
+  function updateSelectMore() {
+    const scroll = els.selectScroll;
+    const grid = els.generalRow;
+    if (!scroll || !grid || !els.selectMore) return;
+    const n = grid.children.length;
+    const cs = global.getComputedStyle ? global.getComputedStyle(grid) : null;
+    let cols = 2;
+    if (cs) {
+      const parts = (cs.gridTemplateColumns || '').split(' ').filter(function (x) { return x && x !== 'none'; });
+      if (parts.length) cols = parts.length;
+    }
+    const cardH = parseFloat(grid.style.getPropertyValue('--card-h')) || 140;
+    const rowsVisible = Math.max(1, Math.floor((scroll.clientHeight + 8) / (cardH + 8)));
+    const hidden = Math.max(0, n - rowsVisible * Math.max(1, cols));
+    els.selectMore.hidden = hidden <= 0;
+    if (els.selectMoreN) els.selectMoreN.textContent = String(hidden);
+  }
+
+  function clearLongPress() {
+    if (lpTimer) { clearTimeout(lpTimer); lpTimer = 0; }
+    lpPress = null;
+    if (els.generalRow) {
+      Array.prototype.forEach.call(els.generalRow.children, function (el) { el.classList.remove('is-pressing'); });
+    }
+  }
+
+  function onGeneralPointerDown(e) {
+    if (!e || e.button > 0) return;
+    const card = e.target.closest ? e.target.closest('.gcard') : null;
+    if (!card || !pending || pending.req.type !== 'chooseGeneral') return;
+    clearLongPress();
+    lpFired = false;
+    lpPress = { x: e.clientX, y: e.clientY, idx: Number(card.dataset.index) };
+    card.classList.add('is-pressing');
+    lpTimer = setTimeout(function () {
+      lpTimer = 0;
+      if (!lpPress) return;
+      lpFired = true;
+      const idx = lpPress.idx;
+      clearLongPress();
+      openSelectDetail(idx);
+    }, 450);
+  }
+
+  function onGeneralPointerMove(e) {
+    if (!lpPress) return;
+    const dx = e.clientX - lpPress.x;
+    const dy = e.clientY - lpPress.y;
+    if (Math.sqrt(dx * dx + dy * dy) > 10) clearLongPress();
   }
 
   function onGeneralClick(e) {
-    const card = e.target.closest ? e.target.closest('.general-card') : null;
+    if (lpFired) { lpFired = false; return; }
+    const card = e.target.closest ? e.target.closest('.gcard') : null;
     if (!card || !pending || pending.req.type !== 'chooseGeneral') return;
     selectIdx = Number(card.dataset.index);
     updateSelectUI();
@@ -3439,21 +3670,164 @@
 
   function updateSelectUI() {
     if (!els.generalRow) return;
+    const req = pending && pending.req;
     Array.prototype.forEach.call(els.generalRow.children, function (el) {
-      el.classList.toggle('is-picked', Number(el.dataset.index) === selectIdx);
+      const on = Number(el.dataset.index) === selectIdx;
+      el.classList.toggle('is-picked', on);
+      el.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
-    if (els.btnGeneralConfirm) els.btnGeneralConfirm.disabled = selectIdx < 0;
-    if (els.selectHint) {
-      const g = pending && pending.req && pending.req.candidates && pending.req.candidates[selectIdx];
-      els.selectHint.innerHTML = g
-        ? '已选择 <b>' + esc(g.name) + '</b> · ' + esc(g.kingdom) + ' · 体力 ' + (g.hp + ((game.players[humanSeat].role === 'lord' || (game.mode === 'ddz' && game.players[humanSeat].role === 'landlord')) ? 1 : 0))
-        : '点击卡片选择武将，悬停技能名可查看描述';
+    if (els.btnGeneralConfirm) els.btnGeneralConfirm.disabled = selectIdx < 0 || swapLock;
+    const g = req && req.candidates && req.candidates[selectIdx];
+    if (els.selectPicked) {
+      els.selectPicked.innerHTML = g ? '已选：<b>' + esc(g.name) + '</b>' : '已选：—';
     }
+    refreshSwapButton();
+  }
+
+  function refreshSwapButton() {
+    const btn = els.btnSwapCandidates;
+    if (!btn) return;
+    const me = game && game.players ? game.players[humanSeat] : null;
+    const hasApi = !!(game && typeof game.canSwapCandidates === 'function' && typeof game.swapCandidates === 'function');
+    let ok = hasApi && !!me && !!pending && pending.req.type === 'chooseGeneral';
+    let reason = '';
+    if (hasApi && me) {
+      try {
+        const info = game.canSwapCandidates(me);
+        if (info && typeof info.ok === 'boolean') { ok = ok && info.ok; reason = info.reason || ''; }
+      } catch (err) { ok = false; }
+    }
+    btn.disabled = !ok || swapLock;
+    btn.title = ok ? '换一批候选武将（不限次数）' : (reason || '没有更多可换的武将');
+    btn.textContent = (!ok && reason === '没有更多可换的武将') ? '无可换武将' : '换一批';
+  }
+
+  function onSwapCandidates() {
+    if (swapLock) return;
+    if (!pending || pending.req.type !== 'chooseGeneral') return;
+    const me = game && game.players ? game.players[humanSeat] : null;
+    if (!me || !game || typeof game.swapCandidates !== 'function') {
+      if (typeof toast === 'function') toast('当前版本不支持换一批');
+      return;
+    }
+    if (typeof game.canSwapCandidates === 'function') {
+      const info = game.canSwapCandidates(me);
+      if (!info || !info.ok) {
+        refreshSwapButton();
+        if (typeof toast === 'function') toast((info && info.reason) || '没有更多可换的武将');
+        return;
+      }
+    }
+    swapLock = true;
+    refreshSwapButton();
+    let res = null;
+    try { res = game.swapCandidates(me); } catch (err) { res = null; }
+    if (!res || !res.ok) {
+      swapLock = false;
+      refreshSwapButton();
+      if (typeof toast === 'function') toast((res && res.reason) || '换一批失败');
+      return;
+    }
+    pending.req.candidates = res.candidates || (me.candidates || []);
+    selectIdx = -1;
+    selectSig = '';           // 强制重渲染
+    renderSelect(game);
+    if (els.generalRow) {
+      els.generalRow.classList.remove('is-swapping');
+      void els.generalRow.offsetWidth;
+      els.generalRow.classList.add('is-swapping');
+    }
+    setTimeout(function () {
+      if (els.generalRow) els.generalRow.classList.remove('is-swapping');
+      swapLock = false;
+      updateSelectUI();
+    }, 480);
+  }
+
+  function closeSelectDetail() {
+    detailIdx = -1;
+    if (els.selectDetailRoot) els.selectDetailRoot.innerHTML = '';
+    return true;
+  }
+
+  function openSelectDetail(idx) {
+    const req = pending && pending.req;
+    if (!req || req.type !== 'chooseGeneral') return;
+    const gen = (req.candidates || [])[idx];
+    if (!gen || !els.selectDetailRoot) return;
+    const g = game;
+    const me = g && g.players ? g.players[humanSeat] : null;
+    const lord = isLordRole(g, me);
+    const totalHp = gen.hp + (lord ? 1 : 0);
+    const skills = (gen.skills || []).map(function (id) {
+      const meta = (typeof SKILLS !== 'undefined' && SKILLS[id]) || {};
+      const disabled = !!meta.lord && !lord;
+      const tags = skillTypeTags(id).map(function (t) {
+        return '<span class="sd-tag ' + t.cls + '">' + t.text + '</span>';
+      }).join('');
+      let extra = '';
+      if (meta.lord) {
+        extra += '<div class="sd-note">仅在你为主公时生效' + (lord ? '' : '（当前身份不是主公，该技能不生效）') + '</div>';
+      }
+      const gainIds = SEL_GAIN_SKILLS[id] || [];
+      if (gainIds.length) {
+        extra += gainIds.map(function (gid) {
+          const gname = skillName(gid);
+          const gdesc = skillDesc(gid) || '暂无描述';
+          return '<div class="sd-gain"><b>发动后获得【' + esc(gname) + '】</b>：' + esc(gdesc) + '</div>';
+        }).join('');
+      }
+      return '<div class="sd-skill' + (disabled ? ' is-disabled' : '') + '">' +
+        '<div class="sd-skill-head"><span class="sd-skill-name">' + esc(skillName(id)) + '</span>' + tags + '</div>' +
+        '<div class="sd-skill-desc">' + esc(stripSkillTypePrefix(skillDesc(id)) || '暂无描述') + '</div>' +
+        extra + '</div>';
+    }).join('');
+    const metaParts = [
+      '势力 <b>' + esc(gen.kingdom || '—') + '</b>',
+      '性别 <b>' + (gen.gender === 'female' ? '女' : '男') + '</b>',
+      '体力 <b>' + totalHp + '</b>',
+      '武将包 <b>' + esc(gen.pack || '—') + '</b>',
+    ];
+    els.selectDetailRoot.innerHTML = '<div class="sel-detail-mask" data-sd-mask>' +
+      '<div class="sel-detail' + (skills.length > 2 ? ' is-tall' : '') + '" role="dialog" aria-modal="true" aria-label="武将详情">' +
+      '<div class="sd-head">' +
+      '<span class="sd-k" style="--k:' + kingdomColor(gen.kingdom) + '">' + esc(gen.kingdom) + '</span>' +
+      '<span class="sd-name">' + esc(gen.name) + '</span>' +
+      '<span class="sd-gender">' + (gen.gender === 'female' ? '♀' : '♂') + '</span>' +
+      '<button class="sd-close" data-sd-close aria-label="关闭">×</button>' +
+      '</div>' +
+      '<div class="sd-body">' +
+      '<div class="sd-meta">' + metaParts.join('<span>·</span>') + '</div>' +
+      (gen.title ? '<div class="sd-meta" style="border:0;padding-top:6px">称号 <b>' + esc(gen.title) + '</b></div>' : '') +
+      (skills || '<div class="sd-skill-desc">暂无技能</div>') +
+      '</div>' +
+      '<div class="sd-foot">' +
+      '<button class="btn btn-outline" data-sd-close>关闭</button>' +
+      '<button class="btn btn-primary sd-pick" data-sd-pick="' + idx + '">选择此武将</button>' +
+      '</div></div></div>';
+    detailIdx = idx;
+  }
+
+  function onSelectDetailClick(e) {
+    const root = els.selectDetailRoot;
+    if (!root || !root.firstChild) return;
+    const t = e.target;
+    if (t.closest && t.closest('[data-sd-close]')) { e.preventDefault(); closeSelectDetail(); return; }
+    const pick = t.closest ? t.closest('[data-sd-pick]') : null;
+    if (pick) {
+      e.preventDefault();
+      selectIdx = Number(pick.dataset.sdPick);
+      closeSelectDetail();
+      updateSelectUI();
+      return;
+    }
+    if (t.hasAttribute && t.hasAttribute('data-sd-mask')) { closeSelectDetail(); }
   }
 
   function onGeneralConfirm() {
     if (!pending || pending.req.type !== 'chooseGeneral' || selectIdx < 0) return;
     const idx = selectIdx;
+    closeSelectDetail();
     resolveAnswer({ index: idx });
   }
 
@@ -4325,6 +4699,9 @@
     pauseCountdown: pauseCountdown,
     resumeCountdown: resumeCountdown,
     _layoutHand: layoutHand,
+    closeSelectDetail: closeSelectDetail,
+    openSelectDetail: openSelectDetail,
+    _layoutSelect: layoutSelectCards,
     _state: function () {
       return { game: game, pending: pending, sel: sel, screen: screen, lastAnswer: lastAnswer };
     },

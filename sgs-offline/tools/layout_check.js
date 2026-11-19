@@ -225,7 +225,7 @@ async function main() {
     const modes = FULL_MODES.concat(MINI_MODES).filter(m => !ONLY_MODE || m === ONLY_MODE);
     for (const mode of modes) {
       const scenes = FULL_MODES.includes(mode)
-        ? (mode === '8p' ? FULL_SCENES.concat(['central4', 'seatmax_top', 'seatmax_side', 'seatmax_human']) : FULL_SCENES)
+        ? (mode === '8p' ? FULL_SCENES.concat(['central4', 'seatmax_top', 'seatmax_side', 'seatmax_human', 'select']) : FULL_SCENES)
         : (mode === '1v1' ? MINI_SCENES.concat(['central4']) : MINI_SCENES);
       for (const scene of scenes) {
         if (onlyScene && !onlyScene.includes(scene)) continue;
@@ -342,6 +342,99 @@ async function main() {
   } else {
     console.log('NO_P0_P1', 'raw=' + report.rawCount);
   }
+}
+
+/* ---------- 选将界面场景（b8g / 1.0.8 收尾2 任务 1.9） ----------
+ * 断言：卡片完整可见或可滚到、描述不硬切、文字 >= 12px、底部三按钮完整可点。
+ * 独立于对局流程，直接以 ?screen=select 进入，不依赖 freeze/play 请求。
+ */
+async function runSelectScene(page, vp, animOff) {
+  const issues = [];
+  const push = (level, type, selector, measure) => issues.push({ level, type, selector, measure: measure || '', rect: null });
+  const url = BASE + '?screen=select&seed=20261119' + (animOff ? '&nofx=1' : '');
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.waitForSelector('#general-row .gcard', { timeout: 15000 });
+  await sleep(400);
+  const idle = await waitForIdle(page, 4000);
+
+  const r = await page.evaluate(() => {
+    const out = { cards: 0, issues: [], more: null, fonts: [], buttons: {} };
+    const scroll = document.getElementById('select-scroll');
+    const grid = document.getElementById('general-row');
+    const cards = [...document.querySelectorAll('#general-row .gcard')];
+    out.cards = cards.length;
+    if (!scroll || !grid) { out.issues.push(['P0', '选将结构缺失', '#select-scroll', '']); return out; }
+    const sr = scroll.getBoundingClientRect();
+    // 1) 卡片必须完整可见，或滚动容器可滚到
+    const canScroll = scroll.scrollHeight > scroll.clientHeight + 1;
+    cards.forEach((c, i) => {
+      const b = c.getBoundingClientRect();
+      if (b.height < 110 - 0.5) out.issues.push(['P1', '卡片高度<110', '.gcard#' + i, Math.round(b.height) + 'px']);
+      if (b.width < 120) out.issues.push(['P1', '卡片宽度过窄', '.gcard#' + i, Math.round(b.width) + 'px']);
+      const fullyIn = b.top >= sr.top - 1 && b.bottom <= sr.bottom + 1;
+      if (!fullyIn && !canScroll) out.issues.push(['P1', '卡片被裁且不可滚', '.gcard#' + i,
+        `card=${Math.round(b.top)}..${Math.round(b.bottom)} box=${Math.round(sr.top)}..${Math.round(sr.bottom)}`]);
+    });
+    // 2) 描述不能被硬切：必须有 line-clamp，或内容本身放得下
+    cards.forEach((c, i) => {
+      const sk = c.querySelector('.gc-skills');
+      if (!sk) return;
+      const cs = getComputedStyle(sk);
+      const clamp = cs.webkitLineClamp;
+      const clipped = sk.scrollHeight > sk.clientHeight + 1;
+      const clamped = clamp && clamp !== 'none' && clamp !== '0';
+      if (clipped && !clamped) out.issues.push(['P0', '技能描述硬切（无省略号）', '.gcard#' + i + ' .gc-skills',
+        `scrollH=${sk.scrollHeight} clientH=${sk.clientHeight} clamp=${clamp}`]);
+      if (cs.maxHeight !== 'none' && parseFloat(cs.maxHeight) > 0 && !clamped) {
+        out.issues.push(['P2', '描述被 max-height 裁剪', '.gcard#' + i + ' .gc-skills', 'maxH=' + cs.maxHeight]);
+      }
+    });
+    // 3) 所有可见文字 >= 12px
+    const textEls = [...document.querySelectorAll('#general-row .gcard *, .sel-head *, .sel-foot *')];
+    const seen = new Set();
+    textEls.forEach(el => {
+      if (!el.childNodes.length) return;
+      const hasText = [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim().length);
+      if (!hasText) return;
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden') return;
+      const fs = parseFloat(cs.fontSize);
+      const key = el.className + '|' + fs;
+      if (seen.has(key)) return;
+      seen.add(key);
+      if (fs < 12 - 0.01) out.issues.push(['P1', '文字<12px', el.className || el.tagName, fs + 'px']);
+    });
+    // 4) 底部三按钮：完整可见、高度 >=44、可点
+    const btnIds = ['btn-select-back', 'btn-swap-candidates', 'btn-general-confirm'];
+    btnIds.forEach(id => {
+      const b = document.getElementById(id);
+      if (!b) { out.issues.push(['P0', '底部按钮缺失', '#' + id, '']); return; }
+      const r2 = b.getBoundingClientRect();
+      out.buttons[id] = { w: Math.round(r2.width), h: Math.round(r2.height), disabled: !!b.disabled };
+      if (r2.height < 44 - 0.5) out.issues.push(['P1', '按钮高度<44', '#' + id, Math.round(r2.height) + 'px']);
+      if (r2.left < -1 || r2.right > innerWidth + 1 || r2.top < -1 || r2.bottom > innerHeight + 1) {
+        out.issues.push(['P1', '按钮越界', '#' + id, `${Math.round(r2.left)},${Math.round(r2.top)} ${Math.round(r2.width)}x${Math.round(r2.height)}`]);
+      }
+      const cx = r2.left + r2.width / 2, cy = r2.top + r2.height / 2;
+      const hit = document.elementFromPoint(cx, cy);
+      if (!hit || !(hit === b || b.contains(hit))) out.issues.push(['P1', '按钮被遮挡/不可点', '#' + id, hit ? hit.className || hit.tagName : 'null']);
+    });
+    if (document.getElementById('btn-select-back')) {
+      const bk = document.getElementById('btn-select-back').getBoundingClientRect();
+      if (bk.width < 88 - 0.5) out.issues.push(['P1', '返回按钮宽度<88', '#btn-select-back', Math.round(bk.width) + 'px']);
+    }
+    // 5) 「还有 N 张」提示与滚动状态一致
+    const more = document.getElementById('select-more');
+    if (more) {
+      out.more = { hidden: more.hidden, text: more.textContent.trim() };
+      if (!more.hidden && !canScroll) out.issues.push(['P2', '提示还有N张但不可滚', '#select-more', more.textContent.trim()]);
+      if (canScroll && more.hidden) out.issues.push(['P2', '可滚动但无「还有N张」提示', '#select-more', '']);
+    }
+    return out;
+  });
+
+  r.issues.forEach(([level, type, sel, measure]) => push(level, type, sel, measure));
+  return { issues, idle };
 }
 
 async function runScene(page, vp, mode, scene, whitelist) {
@@ -828,6 +921,66 @@ function auditPage(opts) {
       Array.from(document.querySelectorAll('#screen-game.mode-1v1 .seat-role')).filter(visible).forEach(n => {
         if (!String(n.textContent || '').trim()) add('P1', '1v1 空白身份框', pathOf(n), 'role 元素可见但无内容');
       });
+    }
+  }
+  // 1b3) B8g：技能完整、红字判定、平板内容、判定浮层边界、头像左边距
+  {
+    const tablet = vw >= 1101 && vh >= 641;
+    const modalOpen = Array.from(document.querySelectorAll('#resume-overlay.is-on,.modal-mask,.settings-panel.is-open,.log-panel.is-open')).some(visible);
+    const humanEl = document.querySelector('.human');
+    const hr = humanEl ? rect(humanEl) : null;
+    if (opts.mobileLandscape && vw <= 1400) {
+      const rows = Array.from(document.querySelectorAll('#me-skills .skill-row')).filter(visible);
+      rows.forEach(n => {
+        const r = rect(n);
+        if (hr && (r.top < hr.top - 1 || r.bottom > hr.bottom + 1 || r.left < hr.left - 1 || r.right > hr.right + 1)) {
+          add('P1', '技能按钮被裁切', pathOf(n), `row=${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.right)},${Math.round(r.bottom)} human=${Math.round(hr.left)},${Math.round(hr.top)},${Math.round(hr.right)},${Math.round(hr.bottom)}`);
+        }
+        if (!modalOpen) {
+          const cx = Math.min(vw - 1, Math.max(0, (r.left + r.right) / 2)), cy = Math.min(vh - 1, Math.max(0, (r.top + r.bottom) / 2));
+          const top = document.elementFromPoint(cx, cy);
+          if (!top || !(top === n || n.contains(top))) add('P1', '技能按钮中心不可点', pathOf(n), `top=${top ? pathOf(top) : 'null'}`);
+        }
+      });
+    }
+    if (opts.mobileLandscape && vw <= 1400) {
+      const chips = Array.from(document.querySelectorAll('#me-portrait #me-judges .judge-chip')).filter(visible);
+      chips.forEach(n => {
+        const ch = n.querySelector('.jd-ch'), ico = n.querySelector('.jd-ico');
+        if (!ch || !visible(ch) || parseFloat(getComputedStyle(ch).fontSize) < 14) add('P1', '手机自己判定非红字/字号<14', pathOf(n), ch ? getComputedStyle(ch).fontSize : 'no jd-ch');
+        if (ico && visible(ico)) add('P1', '手机自己判定仍显示缩略图', pathOf(n), 'jd-ico visible');
+      });
+    }
+    if (tablet && hr) {
+      ['#me-equips', '#me-judges'].forEach(sel => {
+        const e = document.querySelector(sel);
+        if (e && visible(e)) { const r = rect(e); if (r.bottom > hr.bottom + 1) add('P1', '平板右侧面板内容超出玩家区', pathOf(e), `bottom=${Math.round(r.bottom)} human.bottom=${Math.round(hr.bottom)}`); }
+      });
+    }
+    if (opts.highres) {
+      const pf = document.querySelector('#me-portrait');
+      if (pf && visible(pf)) { const r = rect(pf); if (r.left < 6) add('P1', '自己头像贴左边缘', pathOf(pf), `left=${Math.round(r.left)}`); }
+    }
+    if (opts.scene === 'judge') {
+      const ov = document.querySelector('#judge-overlay.is-on');
+      if (ov && visible(ov) && hr) {
+        const o = rect(ov);
+        if (o.bottom > hr.top + 1) add('P1', '判定浮层压玩家区', pathOf(ov), `bottom=${Math.round(o.bottom)} human.top=${Math.round(hr.top)}`);
+        Array.from(document.querySelectorAll('.seat')).filter(visible).forEach(seat => {
+          const sr = rect(seat);
+          if (o.left < sr.right - 1 && o.right > sr.left + 1 && o.top < sr.bottom - 1 && o.bottom > sr.top + 1) add('P1', '判定浮层压座位', pathOf(ov), 'seat=' + pathOf(seat));
+        });
+        const banner = document.querySelector('#skill-banner');
+        if (banner && visible(banner)) {
+          const br = rect(banner);
+          if (o.left < br.right - 1 && o.right > br.left + 1 && o.top < br.bottom - 1 && o.bottom > br.top + 1) add('P1', '判定浮层压中央事件文字', pathOf(ov), 'banner=' + pathOf(banner));
+        }
+        const card = document.querySelector('#judge-card'), meta = document.querySelector('#judge-overlay .judge-meta');
+        if (card && meta && visible(card) && visible(meta)) {
+          const cr = rect(card), mr = rect(meta);
+          if (cr.bottom > mr.top + 1) add('P1', '判定牌压说明框', pathOf(card), `card.bottom=${Math.round(cr.bottom)} meta.top=${Math.round(mr.top)}`);
+        }
+      }
     }
   }
   // 1c) 工具控件：手机横屏 <44x44 或 <12px → P1；桌面不强制 44

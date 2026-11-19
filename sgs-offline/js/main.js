@@ -658,6 +658,9 @@
     const btnSelectBack = q('btn-select-back');
     if (btnSelectBack) {
       btnSelectBack.addEventListener('click', function () {
+        // 选将详情浮层打开时，返回键先关浮层（再按一次才回主菜单）
+        const det = document.getElementById('select-detail-root');
+        if (det && det.firstChild && UI.closeSelectDetail) { UI.closeSelectDetail(); return; }
         session += 1;
         try { UI.answerPending(null); } catch (e) { /* ignore */ }
         try { if (global.SGS_AUDIO) global.SGS_AUDIO.playBgm('menu'); } catch (e) { /* ignore */ }

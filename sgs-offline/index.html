@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="css/save-107.css">
 <link rel="stylesheet" href="css/b4-hud.css">
 <link rel="stylesheet" href="css/b5-menu.css">
+<link rel="stylesheet" href="css/b8g-select.css">
 </head>
 <body>
 <div id="app">
@@ -122,20 +123,30 @@
 
   <!-- ================= 选将 ================= -->
   <section id="screen-select" class="screen">
-    <div class="select-head">
-      <button id="btn-select-back" class="btn btn-ghost select-back" aria-label="返回主菜单">← 返回</button>
-      <div class="select-kicker">CHOOSE YOUR GENERAL</div>
-      <h2 class="select-title">选择武将</h2>
-      <div class="select-meta">
-        <span class="select-role" id="select-role">身份：—</span>
-        <span class="select-reason" id="select-reason">请选择武将</span>
+    <header class="sel-head">
+      <h2 class="sel-title">选择武将</h2>
+      <div class="sel-ident">
+        <span class="sel-role" id="select-role" data-role="">身份：—</span>
+        <span class="sel-goal" id="select-goal"></span>
       </div>
+      <div class="sel-hint" id="select-hint">点击卡片选择 · 长按查看完整描述</div>
+      <div class="sel-reason" id="select-reason" hidden></div>
+    </header>
+    <div class="sel-cards">
+      <div class="sel-scroll" id="select-scroll">
+        <div class="sel-grid" id="general-row"></div>
+      </div>
+      <div class="sel-more" id="select-more" hidden>↓ 还有 <b id="select-more-n">0</b> 张</div>
     </div>
-    <div class="general-row" id="general-row"></div>
-    <div class="select-foot">
-      <div class="select-hint" id="select-hint">点击卡片选择武将</div>
-      <button id="btn-general-confirm" class="btn btn-primary" disabled>确定出战</button>
-    </div>
+    <footer class="sel-foot">
+      <button id="btn-select-back" class="btn sel-btn-back" aria-label="返回主菜单">← 返回</button>
+      <div class="sel-picked" id="select-picked">已选：—</div>
+      <div class="sel-actions">
+        <button id="btn-swap-candidates" class="btn sel-btn-swap" disabled>换一批</button>
+        <button id="btn-general-confirm" class="btn btn-primary sel-btn-confirm" disabled>确定出战</button>
+      </div>
+    </footer>
+    <div id="select-detail-root"></div>
   </section>
 
   <!-- ================= 对局 ================= -->
