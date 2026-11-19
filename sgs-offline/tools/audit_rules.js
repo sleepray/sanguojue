@@ -4336,6 +4336,108 @@ const names = (p) => p.hand.map((c) => c.name + '/' + c.suit + c.rank).join(',')
       '关系=' + rel + '；对疑似忠臣杀价值=' + v);
   }
 
+  // 建一个只有候选、未 draft 的 Game（humanSeat=0），用于换批测试
+  function draftGame(opts) {
+    const g = new SGS.Game({
+      mode: (opts && opts.mode) || '8p',
+      seed: (opts && opts.seed) || 20261119,
+      humanSeat: 0,
+      agents: [],
+      packs: opts && opts.packs,
+      duelPool: opts && opts.duelPool,
+      onUpdate() {},
+    });
+    g.pause = async () => {};
+    g.setup();
+    return g;
+  }
+  const idsOf = (arr) => (arr || []).map((g) => g.id);
+
+  // T273 换一批：数量不变、与其他候选/上一批无交集、20 连换、旧批回池、同 seed 可复现
+  {
+    const g = draftGame({ mode: '8p', seed: 20261119 });
+    const p = g.players[0];
+    const oldIds = idsOf(p.candidates);
+    const otherIds = new Set();
+    for (const q of g.players.slice(1)) for (const x of (q.candidates || [])) otherIds.add(x.id);
+    const can1 = g.canSwapCandidates(p);
+    const r1 = g.swapCandidates(p);
+    const newIds = idsOf(r1.candidates);
+    const noOther = newIds.every((id) => !otherIds.has(id));
+    const noOld = newIds.every((id) => oldIds.indexOf(id) < 0);
+    const unique = new Set(newIds).size === newIds.length;
+    const poolHasOld = oldIds.some((id) => g.candidatePool().some((x) => x.id === id));
+    // pending chooseGeneral 同步
+    const fakeReq = { type: 'chooseGeneral', player: p, candidates: p.candidates.slice() };
+    g.pendingRequest = fakeReq;
+    const rSync = g.swapCandidates(p);
+    const reqSync = fakeReq.candidates && idsOf(fakeReq.candidates).join(',') === idsOf(rSync.candidates).join(',');
+    g.pendingRequest = null;
+    // 连续 20 次：每次都成功，且与上一批/其他候选无交集
+    let prev = idsOf(p.candidates);
+    let swaps = 0, bad = null;
+    for (let i = 0; i < 20; i++) {
+      const r = g.swapCandidates(p);
+      if (!r.ok) { bad = '第' + (i + 1) + '次失败:' + r.reason; break; }
+      const cur = idsOf(r.candidates);
+      if (cur.length !== prev.length) { bad = '数量变化'; break; }
+      if (cur.some((id) => prev.indexOf(id) >= 0)) { bad = '与上一批重叠'; break; }
+      if (cur.some((id) => otherIds.has(id))) { bad = '与其他候选重叠'; break; }
+      swaps++;
+      prev = cur;
+    }
+    // 同 seed 两个新局、各 5 次换批，逐次一致
+    const ga = draftGame({ mode: '8p', seed: 778899 });
+    const gb = draftGame({ mode: '8p', seed: 778899 });
+    const seq = (gg) => {
+      const out = [];
+      for (let i = 0; i < 5; i++) out.push(idsOf(gg.swapCandidates(gg.players[0]).candidates).join(','));
+      return out;
+    };
+    const sa = seq(ga), sb = seq(gb);
+    t('T273', '换一批/20连换/旧批回池/同seed可复现',
+      can1.ok && r1.ok && newIds.length === oldIds.length && noOther && noOld && unique && poolHasOld && reqSync && swaps === 20 && !bad && sa.join('|') === sb.join('|'),
+      'canSwap=' + can1.ok + '；新批=' + newIds.length + '；与其他候选无交集=' + noOther + '；与上一批无交集=' + noOld + '；旧批仍在池=' + poolHasOld +
+      '；pending同步=' + reqSync + '；20连换=' + swaps + (bad ? ('（' + bad + '）') : '') + '；同seed序列一致=' + (sa.join('|') === sb.join('|')));
+  }
+
+  // T274 不足一批/非人类：标准包 8p 失败且不改状态；AI 不得换
+  {
+    const g = draftGame({ mode: '8p', seed: 20261119, packs: ['标准'] });
+    const p = g.players[0], before = idsOf(p.candidates);
+    const can = g.canSwapCandidates(p);
+    const r = g.swapCandidates(p);
+    const unchanged = before.join(',') === idsOf(p.candidates).join(',');
+    const ai = g.players[1];
+    const aiBefore = idsOf(ai.candidates);
+    const ra = g.swapCandidates(ai);
+    const aiUnchanged = aiBefore.join(',') === idsOf(ai.candidates).join(',');
+    t('T274', '候选不足失败/仅人类可换',
+      !can.ok && can.reason.indexOf('没有更多') >= 0 && !r.ok && r.reason.indexOf('没有更多') >= 0 && unchanged && !ra.ok && aiUnchanged,
+      '标准包8p：can=' + can.ok + '/' + can.reason + ' available=' + can.available + '；swap ok=' + r.ok + ' reason=' + r.reason + ' 状态不变=' + unchanged +
+      '；AI：ok=' + ra.ok + ' reason=' + ra.reason + ' 状态不变=' + aiUnchanged);
+  }
+
+  // T275 主公 / 1v1 将池
+  {
+    const g = draftGame({ mode: '8p', seed: 20261119 });
+    const lord = g.players[0];
+    lord.role = 'lord';
+    const old = idsOf(lord.candidates);
+    const other = new Set();
+    for (const q of g.players.slice(1)) for (const x of (q.candidates || [])) other.add(x.id);
+    const r = g.swapCandidates(lord);
+    const okLord = r.ok && r.candidates.length === old.length && r.candidates.every((x) => old.indexOf(x.id) < 0 && !other.has(x.id));
+    const g1 = draftGame({ mode: '1v1', seed: 20261119, duelPool: 'classic' });
+    const p1 = g1.players[0];
+    const old1 = idsOf(p1.candidates);
+    const r1 = g1.swapCandidates(p1);
+    const poolNames = new Set((D.DUEL_POOL || []));
+    const ok1v1 = r1.ok && r1.candidates.length === old1.length && r1.candidates.every((x) => poolNames.has(x.name) && old1.indexOf(x.id) < 0);
+    t('T275', '主公/1v1 换批', okLord && ok1v1,
+      '主公：ok=' + r.ok + ' 数量=' + r.candidates.length + '；1v1：ok=' + r1.ok + ' 数量=' + r1.candidates.length + ' 均为经典池=' + r1.candidates.every((x) => poolNames.has(x.name)));
+  }
+
   // 汇总（SKIP 不计入失败，单独统计）
   const pass = results.filter((r) => r.pass).length;
   const fails = results.filter((r) => !r.pass);

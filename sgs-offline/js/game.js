@@ -207,6 +207,77 @@
       this.currentSeat = this.lordSeat;
     }
 
+    // 选将池：与 setup() 的分配口径保持一致；swapCandidates 只读它，不改变 setup。
+    candidatePool() {
+      const enabled = new Set(this.packs);
+      let pool = this.availableGenerals().filter((g) => enabled.has(g.pack));
+      if (this.mode === '1v1') {
+        if (this.duelPool === 'new1v1') {
+          const base = (GENERALS || []).filter((g) => (NEW_DUEL_BASE_NAMES || []).includes(g.name));
+          pool = (NEW_DUEL_GENERALS || []).concat(base);
+        } else {
+          pool = this.availableGenerals();
+          if (this.duelPool === 'classic') {
+            const classic = pool.filter((g) => DUEL_POOL.indexOf(g.name) >= 0);
+            if (classic.length >= 8) pool = classic;
+          }
+        }
+      } else if (this.mode === '3v3') {
+        pool = this.availableGenerals();
+      }
+      return pool;
+    }
+
+    // 换一批的只读校验：返回 { ok, reason, per, pool }；pool 是本次可抽取的池。
+    candidateSwapState(player) {
+      const fail = (reason, per) => ({ ok: false, reason: reason, per: per || 0, pool: null });
+      if (!player || !this.players || this.players.indexOf(player) < 0) return fail('玩家不存在');
+      if (!player.isHuman) return fail('只有人类玩家可以换一批');
+      if (player.general || player.secondGeneral) return fail('已选定武将，无法更换');
+      const current = Array.isArray(player.candidates) ? player.candidates : [];
+      if (!current.length) return fail('当前没有候选武将');
+      const per = current.length;
+      const used = new Set();
+      for (const p of this.players) {
+        if (p === player) continue;
+        for (const g of (p.candidates || [])) used.add(g.id);
+        if (p.general) used.add(p.general.id);
+        if (p.secondGeneral) used.add(p.secondGeneral.id);
+      }
+      // 当前这一批也排除；旧批仍留在总池里，下一轮可重新抽到
+      for (const g of current) used.add(g.id);
+      const pool = this.candidatePool().filter((g) => !used.has(g.id));
+      if (pool.length < per) return fail('没有更多可换的武将', per);
+      return { ok: true, reason: '', per: per, pool: pool };
+    }
+
+    // 给选将 UI 预判按钮是否置灰（不改状态）
+    canSwapCandidates(player) {
+      const st = this.candidateSwapState(player);
+      return { ok: st.ok, reason: st.reason, per: st.per, available: st.pool ? st.pool.length : 0 };
+    }
+
+    // 换一批：只允许人类；旧批回池（下一轮可再抽到），但新批不与当前批/其他玩家候选或已选重复。
+    // 返回 { ok, candidates, reason }；失败时不修改任何状态。使用 game.rand，同 seed 可复现。
+    swapCandidates(player) {
+      const st = this.candidateSwapState(player);
+      if (!st.ok) {
+        return { ok: false, candidates: player && Array.isArray(player.candidates) ? player.candidates.slice() : [], reason: st.reason };
+      }
+      const pool = st.pool.slice();
+      const picked = [];
+      while (picked.length < st.per) {
+        const idx = this.rand(pool.length);
+        picked.push(pool.splice(idx, 1)[0]);
+      }
+      player.candidates = picked;
+      if (this.pendingRequest && this.pendingRequest.type === 'chooseGeneral' && this.pendingRequest.player === player) {
+        this.pendingRequest.candidates = picked;
+      }
+      this.emit();
+      return { ok: true, candidates: picked.slice(), reason: '' };
+    }
+
     async draft() {
       for (const p of this.players) {
         const agent = this.agentOf(p);
